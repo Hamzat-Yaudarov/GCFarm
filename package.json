@@ -1,0 +1,16 @@
+{
+  "name": "gc-farm-telegram-miniapp",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "telegraf": "^4.16.3",
+    "pg": "^8.13.0"
+  }
+}

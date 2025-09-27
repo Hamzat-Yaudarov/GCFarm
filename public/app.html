@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GC Farm</title>
+    <link rel="stylesheet" href="/public/styles/app.css" />
+  </head>
+  <body>
+    <div class="app-root">
+      <header class="topbar">
+        <div class="player-info">
+          <img id="player-avatar" class="player-avatar" alt="avatar" />
+          <div class="balances">
+            <div class="balance scube"><span class="label">SCube</span> <span id="scube-balance">0</span></div>
+            <div class="balance gcube"><span class="label">GCube</span> <span id="gcube-balance">0</span></div>
+          </div>
+        </div>
+        <div id="ad-banner" class="ad-banner"></div>
+      </header>
+
+      <main class="content">
+        <section id="tab-home" class="tab tab-active">
+          <div class="energy-wrap">
+            <div class="energy-bottle">
+              <div id="energy-fill" class="energy-fill"></div>
+            </div>
+            <div class="energy-stats">
+              <span id="energy-text">0 / 0</span>
+              <span id="regen-hint">+1 энергия каждые 4 сек</span>
+            </div>
+          </div>
+
+          <button id="golden-cube" class="golden-cube" aria-label="Tap for SCube"></button>
+          <div id="home-notice" class="notice"></div>
+        </section>
+
+        <section id="tab-shop" class="tab">
+          <div class="shop-card">
+            <h3>Обмен валюты</h3>
+            <div class="row">
+              <input id="exchange-amount" type="number" min="1" step="1" placeholder="Сколько SCube обменять" />
+              <button id="btn-exchange" class="primary-btn">Обменять</button>
+            </div>
+            <div class="note">Курс задаётся админом. По умолчанию 1:1.</div>
+          </div>
+
+          <div class="shop-card">
+            <h3>Улучшения</h3>
+            <div class="upgrade-line">
+              <div>
+                <div class="u-title">Вместимость энергии +50</div>
+                <div class="u-cost">Цена: 100 SCube</div>
+              </div>
+              <button id="btn-upg-energy" class="secondary-btn">Купить</button>
+            </div>
+            <div class="upgrade-line">
+              <div>
+                <div class="u-title">Дневной лимит +50</div>
+                <div class="u-cost">Цена: 90 + (уровень × 10) SCube</div>
+              </div>
+              <button id="btn-upg-limit" class="secondary-btn">Купить</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="tabbar">
+        <button id="nav-home" class="tab-btn tab-btn-active">Главная</button>
+        <button id="nav-shop" class="tab-btn">Магазин</button>
+      </nav>
+    </div>
+
+    <script src="/public/scripts/app.js"></script>
+  </body>
+</html>
