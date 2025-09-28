@@ -41,6 +41,8 @@ async function initSchema() {
       updated_at timestamptz not null default now()
     );
 
+    alter table users add column if not exists last_reward_at timestamptz;
+
     create or replace function set_updated_at()
     returns trigger as $$
     begin

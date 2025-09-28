@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
 const { initSchema, query } = require('./db');
-const { verifyAndParseUser, ensureUser, getState, tap } = require('./game');
+const { verifyAndParseUser, ensureUser, getState, tap, exchange, upgradeCapacity, upgradeDaily, rewardScube } = require('./game');
 const { initTelegram } = require('./telegram');
 
 const app = express();
@@ -69,6 +69,28 @@ app.get('/api/state', authMiddleware, async (req, res) => {
 app.post('/api/tap', authMiddleware, async (req, res) => {
   const result = await tap(req.userBasic.id);
   res.json(result);
+});
+
+app.post('/api/exchange', authMiddleware, async (req, res) => {
+  const { direction, count } = req.body || {};
+  const state = await exchange(req.userBasic.id, direction, count);
+  if (!state) return res.status(400).json({ error: 'exchange_failed' });
+  res.json({ state });
+});
+
+app.post('/api/upgrade', authMiddleware, async (req, res) => {
+  const { type } = req.body || {};
+  let state = null;
+  if (type === 'capacity') state = await upgradeCapacity(req.userBasic.id);
+  else if (type === 'daily') state = await upgradeDaily(req.userBasic.id);
+  if (!state) return res.status(400).json({ error: 'upgrade_failed' });
+  res.json({ state });
+});
+
+app.post('/api/reward', authMiddleware, async (req, res) => {
+  const state = await rewardScube(req.userBasic.id);
+  if (!state) return res.status(400).json({ error: 'reward_failed' });
+  res.json({ state });
 });
 
 (async () => {

@@ -16,6 +16,13 @@
     dailyUsed: document.getElementById('dailyUsed'),
     dailyLimit: document.getElementById('dailyLimit'),
     silverCube: document.getElementById('silverCube'),
+    tabButtons: Array.from(document.querySelectorAll('.tab-btn')),
+    tabs: Array.from(document.querySelectorAll('.tab-view')),
+    toG: document.getElementById('toG'),
+    toS: document.getElementById('toS'),
+    upgradeCapacity: document.getElementById('upgradeCapacity'),
+    upgradeDaily: document.getElementById('upgradeDaily'),
+    rewardedBtn: document.getElementById('rewarded-btn'),
   };
 
   const initUser = tg?.initDataUnsafe?.user || null;
@@ -42,9 +49,19 @@
     els.dailyLimit.textContent = state.daily.limit;
     const pct = state.energy.capacity > 0 ? (state.energy.current / state.energy.capacity) * 100 : 0;
     els.energyFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+
+    // Update dynamic price text for daily upgrade
+    const level = Math.max(0, Math.floor((state.daily.limit - 250) / 50));
+    const price = 90 + level * 10;
+    const btn = els.upgradeDaily;
+    if (btn) btn.textContent = `Лимит +50 (${price} SCube)`;
   }
 
   async function tap(){
+    els.silverCube.classList.remove('cube-anim');
+    // reflow to restart animation
+    void els.silverCube.offsetWidth;
+    els.silverCube.classList.add('cube-anim');
     const res = await fetch('/api/tap', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -55,6 +72,71 @@
   }
 
   els.silverCube.addEventListener('click', tap);
+
+  // Tabs
+  els.tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      els.tabButtons.forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      const tab = btn.getAttribute('data-tab');
+      els.tabs.forEach(view => view.classList.toggle('is-active', view.id === `tab-${tab}`));
+    });
+  });
+
+  // Exchange
+  if (els.toG) els.toG.addEventListener('click', async () => {
+    const res = await fetch('/api/exchange', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ initData: tg?.initData || '', direction: 'scube_to_gcube', count: 1 })
+    });
+    const data = await res.json();
+    if (data.state) applyState(data.state);
+  });
+  if (els.toS) els.toS.addEventListener('click', async () => {
+    const res = await fetch('/api/exchange', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ initData: tg?.initData || '', direction: 'gcube_to_scube', count: 1 })
+    });
+    const data = await res.json();
+    if (data.state) applyState(data.state);
+  });
+
+  // Upgrades
+  if (els.upgradeCapacity) els.upgradeCapacity.addEventListener('click', async () => {
+    const res = await fetch('/api/upgrade', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '', type: 'capacity' }) });
+    const data = await res.json();
+    if (data.state) applyState(data.state);
+  });
+  if (els.upgradeDaily) els.upgradeDaily.addEventListener('click', async () => {
+    const res = await fetch('/api/upgrade', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '', type: 'daily' }) });
+    const data = await res.json();
+    if (data.state) applyState(data.state);
+  });
+
+  // Rewarded ad: overlay is configured in OnClickA cabinet with selector #rewarded-btn
+  let awaitingAd = false;
+  let hiddenAt = 0;
+  if (els.rewardedBtn) {
+    els.rewardedBtn.addEventListener('click', () => {
+      awaitingAd = true;
+      hiddenAt = 0;
+    });
+
+    document.addEventListener('visibilitychange', async () => {
+      if (!awaitingAd) return;
+      if (document.hidden) {
+        hiddenAt = Date.now();
+      } else {
+        const hiddenTime = Date.now() - hiddenAt;
+        if (hiddenAt && hiddenTime > 2000) { // user likely viewed overlay
+          awaitingAd = false;
+          const res = await fetch('/api/reward', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '' }) });
+          const data = await res.json();
+          if (data.state) applyState(data.state);
+        }
+      }
+    });
+  }
 
   fetchState().catch(() => {
     alert('Ошибка авторизации в MiniApp. Откройте игру через сообщение бота.');

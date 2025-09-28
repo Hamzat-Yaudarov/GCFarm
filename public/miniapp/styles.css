@@ -9,6 +9,8 @@ body{background:#0b0c10;color:#edf2f4;font-family:Inter,system-ui,-apple-system,
 .balance-label{font-size:12px;color:#a1a6b3}
 .balance-value{font-weight:700;color:#66fcf1}
 .content{flex:1;display:flex;flex-direction:column;padding:16px}
+.tab-view{display:none}
+.tab-view.is-active{display:block}
 .energy-panel{background:#161925;border:1px solid #2b2d42;border-radius:12px;padding:14px}
 .energy-header{font-size:12px;color:#a1a6b3;margin-bottom:8px}
 .energy-bar{height:12px;background:#0e1018;border-radius:999px;overflow:hidden;border:1px solid #2b2d42}
@@ -17,13 +19,24 @@ body{background:#0b0c10;color:#edf2f4;font-family:Inter,system-ui,-apple-system,
 .energy-value,.energy-capacity{font-weight:600}
 .divider{color:#a1a6b3}
 .daily-panel{margin-top:10px;display:flex;justify-content:center;gap:6px;color:#a1a6b3}
-.silver-cube-btn{margin:22px auto 10px;width:160px;height:160px;border:none;border-radius:24px;background:radial-gradient(circle at 30% 30%,#e6e8ef,#c5c9d6 60%,#9aa6b2);box-shadow:0 10px 20px rgba(0,0,0,.35), inset 0 4px 10px rgba(255,255,255,.6), inset 0 -6px 12px rgba(0,0,0,.2);cursor:pointer;transition:transform .06s ease, box-shadow .1s ease}
+.home-actions{display:flex;justify-content:center;align-items:center}
+.silver-cube-btn{margin:22px auto 10px;width:160px;height:160px;border:none;border-radius:24px;background:radial-gradient(circle at 30% 30%,#e6e8ef,#c5c9d6 60%,#9aa6b2);box-shadow:0 10px 20px rgba(0,0,0,.35), inset 0 4px 10px rgba(255,255,255,.6), inset 0 -6px 12px rgba(0,0,0,.2);cursor:pointer;transition:transform .12s ease, box-shadow .12s ease}
 .silver-cube-btn:active{transform:scale(.98);box-shadow:0 8px 16px rgba(0,0,0,.35), inset 0 3px 8px rgba(255,255,255,.6), inset 0 -5px 10px rgba(0,0,0,.25)}
+@keyframes cubePulse{0%{transform:scale(1) rotate(0)}40%{transform:scale(0.96) rotate(-1deg)}100%{transform:scale(1.02) rotate(1deg)}}
+.cube-anim{animation:cubePulse .18s ease}
 .ad-area{margin-top:16px;display:flex;justify-content:center}
 .ad-slot{width:100%;min-height:60px}
 .tabbar{position:sticky;bottom:0;background:#1f2230;border-top:1px solid #2b2d42;display:flex;gap:8px;padding:8px}
 .tab-btn{flex:1;padding:10px 12px;border-radius:10px;border:1px solid #2b2d42;background:#0e1018;color:#edf2f4}
 .tab-btn.is-active{border-color:#66fcf1}
+
+/* Shop */
+.shop-section{margin:14px 0;padding:12px;border:1px solid #2b2d42;border-radius:12px;background:#161925}
+.shop-title{margin:0 0 8px 0;font-size:14px;color:#a1a6b3}
+.exchange-row,.upgrade-row{display:flex;gap:10px;flex-wrap:wrap}
+.exchange-btn,.upgrade-btn,.reward-btn{padding:10px 12px;border-radius:10px;border:1px solid #2b2d42;background:#0e1018;color:#edf2f4}
+.reward-btn{width:100%;text-align:center}
+.hint{margin-top:6px;font-size:12px;color:#a1a6b3}
 
 @media (min-width: 480px){
   .silver-cube-btn{width:200px;height:200px}

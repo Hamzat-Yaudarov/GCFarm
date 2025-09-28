@@ -124,4 +124,71 @@ async function tap(userId) {
   return { ok: true, state: serializeState(after.rows[0]) };
 }
 
-module.exports = { verifyAndParseUser, ensureUser, getState, tap };
+async function exchange(userId, direction, count = 1) {
+  const c = Math.max(1, Number(count) || 1);
+  if (direction === 'scube_to_gcube') {
+    const cost = 50 * c;
+    const res = await query(
+      `update users set scube = scube - $2, gcube = gcube + $3 where id=$1 and scube >= $2 returning *`,
+      [userId, cost, c]
+    );
+    if (res.rowCount === 0) return null;
+    return serializeState(res.rows[0]);
+  }
+  if (direction === 'gcube_to_scube') {
+    const gain = 50 * c;
+    const res = await query(
+      `update users set gcube = gcube - $2, scube = scube + $3 where id=$1 and gcube >= $2 returning *`,
+      [userId, c, gain]
+    );
+    if (res.rowCount === 0) return null;
+    return serializeState(res.rows[0]);
+  }
+  return null;
+}
+
+async function upgradeCapacity(userId) {
+  const cost = 100;
+  const res = await query(
+    `update users set scube = scube - $2, energy_capacity = energy_capacity + 50 where id=$1 and scube >= $2 returning *`,
+    [userId, cost]
+  );
+  if (res.rowCount === 0) return null;
+  return serializeState(res.rows[0]);
+}
+
+async function upgradeDaily(userId) {
+  // cost = 90 + level*10, level derived from (daily_limit - 250)/50
+  const cur = await query('select daily_limit, scube from users where id=$1', [userId]);
+  if (cur.rowCount === 0) return null;
+  const row = cur.rows[0];
+  const level = Math.max(0, Math.floor((Number(row.daily_limit) - 250) / 50));
+  const cost = 90 + level * 10;
+  if (Number(row.scube) < cost) return null;
+  const res = await query(
+    `update users set scube = scube - $2, daily_limit = daily_limit + 50 where id=$1 returning *`,
+    [userId, cost]
+  );
+  if (res.rowCount === 0) return null;
+  return serializeState(res.rows[0]);
+}
+
+async function rewardScube(userId) {
+  const now = new Date();
+  // minimal cooldown 10s to prevent accidental double credit
+  const cur = await query('select last_reward_at from users where id=$1', [userId]);
+  if (cur.rowCount === 0) return null;
+  const last = cur.rows[0].last_reward_at ? new Date(cur.rows[0].last_reward_at) : null;
+  if (last && now.getTime() - last.getTime() < 5000) {
+    const st = await getState(userId);
+    return st;
+  }
+  const res = await query(
+    `update users set scube = scube + 20, last_reward_at = $2 where id=$1 returning *`,
+    [userId, now]
+  );
+  if (res.rowCount === 0) return null;
+  return serializeState(res.rows[0]);
+}
+
+module.exports = { verifyAndParseUser, ensureUser, getState, tap, exchange, upgradeCapacity, upgradeDaily, rewardScube };

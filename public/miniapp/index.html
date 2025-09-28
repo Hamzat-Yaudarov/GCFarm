@@ -38,16 +38,43 @@
           </div>
         </div>
 
-        <button id="silverCube" class="silver-cube-btn" aria-label="Нажми на куб"></button>
+        <div class="home-actions">
+          <button id="silverCube" class="silver-cube-btn" aria-label="Нажми на куб"></button>
+        </div>
 
         <div class="ad-area">
           <div class="ad-slot" data-banner-id="6092367"></div>
+        </div>
+      </section>
+
+      <section id="tab-shop" class="tab-view">
+        <div class="shop-section">
+          <h3 class="shop-title">Обмен валюты</h3>
+          <div class="exchange-row">
+            <button id="toG" class="exchange-btn">50 SCube → 1 GCube</button>
+            <button id="toS" class="exchange-btn">1 GCube → 50 SCube</button>
+          </div>
+        </div>
+        <div class="shop-section">
+          <h3 class="shop-title">Улучшения</h3>
+          <div class="upgrade-row">
+            <button id="upgradeCapacity" class="upgrade-btn">Вместимость +50 (100 SCube)</button>
+          </div>
+          <div class="upgrade-row">
+            <button id="upgradeDaily" class="upgrade-btn">Лимит +50 (динамическая цена)</button>
+          </div>
+        </div>
+        <div class="shop-section">
+          <h3 class="shop-title">Реклама за награду</h3>
+          <button id="rewarded-btn" class="reward-btn">Получить 20 SCube</button>
+          <div class="hint">В кабинете OnClickA установите Selector = #rewarded-btn (тип Overlay)</div>
         </div>
       </section>
     </main>
 
     <nav class="tabbar">
       <button class="tab-btn is-active" data-tab="home">Главная</button>
+      <button class="tab-btn" data-tab="shop">Магазин</button>
     </nav>
   </div>
 
