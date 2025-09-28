@@ -24,11 +24,11 @@ body{background:#0b0c10;color:#edf2f4;font-family:Inter,system-ui,-apple-system,
 .silver-cube-btn:active{transform:scale(.98);box-shadow:0 8px 16px rgba(0,0,0,.35), inset 0 3px 8px rgba(255,255,255,.6), inset 0 -5px 10px rgba(0,0,0,.25)}
 @keyframes cubePulse{0%{transform:scale(1) rotate(0)}40%{transform:scale(0.96) rotate(-1deg)}100%{transform:scale(1.02) rotate(1deg)}}
 .cube-anim{animation:cubePulse .18s ease}
-.ad-area{margin-top:16px;display:flex;justify-content:center;position:relative;z-index:2}
+.ad-area{margin-top:16px;display:flex;justify-content:center}
 .inpage-slot{width:100%;min-height:60px}
 .banner-slot{width:100%;min-height:50px}
 .video-slot{width:100%;min-height:180px}
-.ad-area.is-hidden{display:none}
+
 .tabbar{position:sticky;bottom:0;background:#1f2230;border-top:1px solid #2b2d42;display:flex;gap:8px;padding:8px}
 .tab-btn{flex:1;padding:10px 12px;border-radius:10px;border:1px solid #2b2d42;background:#0e1018;color:#edf2f4}
 .tab-btn.is-active{border-color:#66fcf1}

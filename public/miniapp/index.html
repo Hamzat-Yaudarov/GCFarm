@@ -11,79 +11,19 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div id="app-root" class="app-root">
-    <header class="topbar">
-      <img id="avatar" class="player-avatar" alt="avatar" />
-      <div class="balances">
-        <div class="balance-item"><span class="balance-label">SCube</span><span id="scube" class="balance-value">0</span></div>
-        <div class="balance-item"><span class="balance-label">GCube</span><span id="gcube" class="balance-value">0</span></div>
-      </div>
-    </header>
-
-    <main class="content">
-      <section id="tab-home" class="tab-view is-active">
-        <div class="ad-area">
-          <div data-banner-id="6092367"></div>
-        </div>
-        <div class="energy-panel">
-          <div class="energy-header">Энергия</div>
-          <div class="energy-bar">
-            <div id="energyFill" class="energy-fill" style="width:0%"></div>
-          </div>
-          <div class="energy-stats">
-            <span id="energy" class="energy-value">0</span>
-            <span class="divider">/</span>
-            <span id="capacity" class="energy-capacity">0</span>
-          </div>
-          <div class="daily-panel">
-            <span>Дневной лимит:</span>
-            <span id="dailyUsed">0</span>
-            <span>/</span>
-            <span id="dailyLimit">250</span>
-          </div>
-        </div>
-
-        <div class="home-actions">
-          <button id="silverCube" class="silver-cube-btn" aria-label="Нажми на куб"></button>
-        </div>
-
-        <div class="ad-area">
-          <div id="tma-inpage" class="inpage-slot"></div>
-        </div>
-      </section>
-
-      <section id="tab-shop" class="tab-view">
-        <div class="shop-section">
-          <h3 class="shop-title">Обмен валюты</h3>
-          <div class="exchange-row">
-            <button id="toG" class="exchange-btn">50 SCube → 1 GCube</button>
-            <button id="toS" class="exchange-btn">1 GCube → 50 SCube</button>
-          </div>
-        </div>
-        <div class="ad-area">
-          <div data-banner-id="6092384"></div>
-        </div>
-        <div class="shop-section">
-          <h3 class="shop-title">Улучшения</h3>
-          <div class="upgrade-row">
-            <button id="upgradeCapacity" class="upgrade-btn">Вместимость +50 (100 SCube)</button>
-          </div>
-          <div class="upgrade-row">
-            <button id="upgradeDaily" class="upgrade-btn">Лимит +50 (динамическая цена)</button>
-          </div>
-        </div>
-        <div class="shop-section">
-          <h3 class="shop-title">Реклама за награду</h3>
-          <button id="rewarded-btn" class="reward-btn">Получить 20 SCube</button>
-          <div class="hint">В OnClickA укажите селектор #rewarded-btn-open для показа в окне</div>
-        </div>
-      </section>
-    </main>
-
-    <nav class="tabbar">
-      <button class="tab-btn is-active" data-tab="home">Главная</button>
-      <button class="tab-btn" data-tab="shop">Магазин</button>
-    </nav>
+  <div class="content">
+    <div class="ad-area">
+      <div data-banner-id="6092367"></div>
+    </div>
+    <div class="ad-area">
+      <div id="tma-inpage" class="inpage-slot"></div>
+    </div>
+    <div class="ad-area">
+      <div data-banner-id="6092384"></div>
+    </div>
+    <div class="ad-area">
+      <button id="rewarded-btn" class="reward-btn">Показать рекламу за награду</button>
+    </div>
   </div>
 
   <script src="./app.js"></script>
