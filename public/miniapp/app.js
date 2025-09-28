@@ -23,6 +23,7 @@
     upgradeCapacity: document.getElementById('upgradeCapacity'),
     upgradeDaily: document.getElementById('upgradeDaily'),
     rewardedBtn: document.getElementById('rewarded-btn'),
+    popunderTrigger: document.getElementById('popunder-trigger'),
   };
 
   const initUser = tg?.initDataUnsafe?.user || null;
@@ -57,9 +58,32 @@
     if (btn) btn.textContent = `Лимит +50 (${price} SCube)`;
   }
 
+  function getLastPop(){
+    const t = Number(localStorage.getItem('last_popunder_at')||'0');
+    return isNaN(t) ? 0 : t;
+  }
+  function setLastPop(ts){
+    localStorage.setItem('last_popunder_at', String(ts));
+  }
+  const POP_MS = 180000; // 3 minutes
+  let popDue = false;
+  setInterval(()=>{ popDue = true; }, POP_MS);
+
+  function maybeTriggerPopunder(){
+    const now = Date.now();
+    const last = getLastPop();
+    if (!els.popunderTrigger) return;
+    if (now - last >= POP_MS || popDue) {
+      popDue = false;
+      try {
+        els.popunderTrigger.click();
+        setLastPop(now);
+      } catch(e) {}
+    }
+  }
+
   async function tap(){
     els.silverCube.classList.remove('cube-anim');
-    // reflow to restart animation
     void els.silverCube.offsetWidth;
     els.silverCube.classList.add('cube-anim');
     const res = await fetch('/api/tap', {
@@ -69,6 +93,7 @@
     });
     const data = await res.json();
     applyState(data.state);
+    maybeTriggerPopunder();
   }
 
   els.silverCube.addEventListener('click', tap);
@@ -80,6 +105,7 @@
       btn.classList.add('is-active');
       const tab = btn.getAttribute('data-tab');
       els.tabs.forEach(view => view.classList.toggle('is-active', view.id === `tab-${tab}`));
+      maybeTriggerPopunder();
     });
   });
 
@@ -91,6 +117,7 @@
     });
     const data = await res.json();
     if (data.state) applyState(data.state);
+    maybeTriggerPopunder();
   });
   if (els.toS) els.toS.addEventListener('click', async () => {
     const res = await fetch('/api/exchange', {
@@ -99,6 +126,7 @@
     });
     const data = await res.json();
     if (data.state) applyState(data.state);
+    maybeTriggerPopunder();
   });
 
   // Upgrades
@@ -106,11 +134,13 @@
     const res = await fetch('/api/upgrade', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '', type: 'capacity' }) });
     const data = await res.json();
     if (data.state) applyState(data.state);
+    maybeTriggerPopunder();
   });
   if (els.upgradeDaily) els.upgradeDaily.addEventListener('click', async () => {
     const res = await fetch('/api/upgrade', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '', type: 'daily' }) });
     const data = await res.json();
     if (data.state) applyState(data.state);
+    maybeTriggerPopunder();
   });
 
   // Rewarded ad: overlay is configured in OnClickA cabinet with selector #rewarded-btn
@@ -118,27 +148,10 @@
   let hiddenAt = 0;
   if (els.rewardedBtn) {
     els.rewardedBtn.addEventListener('click', () => {
-      // Temporarily move selector to a fullscreen proxy so Overlay opens full screen
-      const originalId = 'rewarded-btn';
-      if (els.rewardedBtn.id === originalId) {
-        els.rewardedBtn.id = '';
-        const proxy = document.createElement('div');
-        proxy.id = originalId;
-        proxy.style.position = 'fixed';
-        proxy.style.inset = '0';
-        proxy.style.width = '100vw';
-        proxy.style.height = '100vh';
-        proxy.style.background = 'transparent';
-        proxy.style.zIndex = '2147483647';
-        proxy.style.pointerEvents = 'none';
-        document.body.appendChild(proxy);
-        setTimeout(() => {
-          proxy.remove();
-          els.rewardedBtn.id = originalId;
-        }, 1200);
-      }
+      // Keep stable selector for OnClickA Overlay (#rewarded-btn)
       awaitingAd = true;
       hiddenAt = 0;
+      maybeTriggerPopunder();
     });
 
     document.addEventListener('visibilitychange', async () => {
