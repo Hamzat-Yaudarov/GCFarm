@@ -23,8 +23,7 @@ async function initTelegram(app) {
     if (process.env.BASE_URL) {
       const path = '/tg/webhook';
       await bot.telegram.setWebhook(`${process.env.BASE_URL}${path}`);
-      // Mount Telegraf webhook at exact path; do not prefix again, otherwise req.url mismatch leads to 404
-      app.use(bot.webhookCallback(path));
+      app.post(path, bot.webhookCallback(path));
       console.log('Telegram webhook set');
     } else {
       await bot.launch();
