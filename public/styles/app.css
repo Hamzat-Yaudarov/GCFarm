@@ -7,7 +7,7 @@
 .balance .label{opacity:.7;font-weight:500}
 .balance.scube .label{color:#ffd76a}
 .balance.gcube .label{color:#6ac8ff}
-.ad-banner{min-height:40px;min-width:120px;margin-left:auto}
+.ad-banner{min-height:90px;min-width:120px;margin-left:auto;width:100%}
 .content{flex:1;display:flex;padding:16px}
 .tab{display:none;flex:1}
 .tab-active{display:block}
