@@ -118,6 +118,25 @@
   let hiddenAt = 0;
   if (els.rewardedBtn) {
     els.rewardedBtn.addEventListener('click', () => {
+      // Temporarily move selector to a fullscreen proxy so Overlay opens full screen
+      const originalId = 'rewarded-btn';
+      if (els.rewardedBtn.id === originalId) {
+        els.rewardedBtn.id = '';
+        const proxy = document.createElement('div');
+        proxy.id = originalId;
+        proxy.style.position = 'fixed';
+        proxy.style.inset = '0';
+        proxy.style.width = '100vw';
+        proxy.style.height = '100vh';
+        proxy.style.background = 'transparent';
+        proxy.style.zIndex = '2147483647';
+        proxy.style.pointerEvents = 'none';
+        document.body.appendChild(proxy);
+        setTimeout(() => {
+          proxy.remove();
+          els.rewardedBtn.id = originalId;
+        }, 1200);
+      }
       awaitingAd = true;
       hiddenAt = 0;
     });
@@ -128,7 +147,7 @@
         hiddenAt = Date.now();
       } else {
         const hiddenTime = Date.now() - hiddenAt;
-        if (hiddenAt && hiddenTime > 2000) { // user likely viewed overlay
+        if (hiddenAt && hiddenTime > 2000) {
           awaitingAd = false;
           const res = await fetch('/api/reward', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '' }) });
           const data = await res.json();

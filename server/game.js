@@ -116,9 +116,10 @@ async function tap(userId) {
     const after = await query('select * from users where id=$1', [userId]);
     return { ok: false, state: serializeState(after.rows[0]) };
   }
+  const now = new Date();
   await query(
     `update users set scube = scube + 1, energy = $2, last_energy_at=$3, daily_used=$4, last_daily_reset=$5 where id=$1`,
-    [userId, row.energy - 1, row.last_energy_at, row.daily_used + 1, row.last_daily_reset]
+    [userId, row.energy - 1, now, row.daily_used + 1, row.last_daily_reset]
   );
   const after = await query('select * from users where id=$1', [userId]);
   return { ok: true, state: serializeState(after.rows[0]) };
