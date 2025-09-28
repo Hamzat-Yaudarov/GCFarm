@@ -145,26 +145,4 @@
 
   setInterval(() => fetchState().catch(()=>{}), 4000);
 
-  // Popunder every 3 minutes
-  const adEls = {
-    root: document.getElementById('ad-popunder'),
-    close: document.getElementById('ad-close')
-  };
-  function showAd(){ if (!adEls.root) return; adEls.root.classList.add('is-visible'); adEls.root.setAttribute('aria-hidden','false'); }
-  function hideAd(){ if (!adEls.root) return; adEls.root.classList.remove('is-visible'); adEls.root.setAttribute('aria-hidden','true'); }
-  if (adEls.close) adEls.close.addEventListener('click', hideAd);
-  if (adEls.root) adEls.root.addEventListener('click', (e)=>{ if (e.target.classList.contains('ad-popunder-backdrop')) hideAd(); });
-  let lastAdAt = Date.now();
-  function schedulePop(){
-    const elapsed = Date.now() - lastAdAt;
-    const wait = Math.max(0, 180000 - elapsed);
-    setTimeout(()=>{
-      if (!document.hidden) { lastAdAt = Date.now(); showAd(); }
-      schedulePop();
-    }, wait || 180000);
-  }
-  document.addEventListener('visibilitychange', ()=>{
-    if (!document.hidden && Date.now() - lastAdAt >= 180000) { lastAdAt = Date.now(); showAd(); }
-  });
-  schedulePop();
 })();
