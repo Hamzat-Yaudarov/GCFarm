@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GC Farm - MiniApp</title>
   <link rel="stylesheet" href="/miniapp/static/styles.css" />
-  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15441', rewardBlockId: 'int-15441' };</script>
+  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15441', rewardBlockId: 'reward-15442', taskBlockId: 'task-15446' };</script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 </head>
 <body>
@@ -57,11 +57,22 @@
           <div class="store-feedback" id="store-feedback"></div>
         </div>
       </section>
+
+      <section class="tab-content hidden" id="tasks">
+        <div class="tasks-container">
+          <h3>Задания</h3>
+          <!-- adsgram-task web component will be inserted here -->
+          <div id="ads-task-wrap"></div>
+          <div class="task-feedback" id="task-feedback"></div>
+        </div>
+      </section>
+
     </main>
 
     <nav class="tabs-bottom">
       <button class="tab-button active" data-tab="home">Главная</button>
       <button class="tab-button" data-tab="store">Магазин</button>
+      <button class="tab-button" data-tab="tasks">Задания</button>
     </nav>
 
     <div id="confirm-modal" class="confirm-modal hidden">

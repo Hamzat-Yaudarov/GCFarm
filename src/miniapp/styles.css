@@ -32,6 +32,10 @@ body{margin:0;background:#0b1221;color:#fff}
 .ad-block{margin-top:8px}
 .watch-ad{padding:10px;border-radius:8px;border:none;background:#3a8f5a;color:#fff;cursor:pointer}
 
+.task-feedback{color:#ffd7a6;margin-top:8px}
+.tasks-container{display:flex;flex-direction:column;gap:12px}
+.task__button{padding:10px;border-radius:8px;background:#1a4b6a;color:#fff;cursor:pointer}
+
 @media (max-width:480px){
   .game-root{margin:0;border-radius:0}
   .golden-cube{width:90px;height:90px;font-size:36px}

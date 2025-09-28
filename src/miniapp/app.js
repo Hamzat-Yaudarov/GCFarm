@@ -26,15 +26,28 @@
   const tabs = document.querySelectorAll('.tab-button');
   const contents = document.querySelectorAll('.tab-content');
 
-  // Initialize AdsGram controller if available
+  // Initialize AdsGram controllers if available
   let AdController = null;
+  let RewardController = null;
+  let TaskBlockId = null;
   try {
     const cfg = window.ADSGRAM_CONFIG || {};
+    TaskBlockId = cfg.taskBlockId;
     if (window.Adsgram && cfg && cfg.interstitialBlockId) {
       AdController = window.Adsgram.init({ blockId: cfg.interstitialBlockId });
-      console.log('AdsGram initialized with', cfg.interstitialBlockId);
+      console.log('AdsGram interstitial initialized with', cfg.interstitialBlockId);
+    }
+    if (window.Adsgram && cfg && cfg.rewardBlockId) {
+      RewardController = window.Adsgram.init({ blockId: cfg.rewardBlockId });
+      console.log('AdsGram reward initialized with', cfg.rewardBlockId);
     }
   } catch (e) { console.warn('AdsGram init failed', e); }
+
+  // throttle interstitials to avoid repeated errors/messages
+  let lastInterstitialAt = 0;
+  let interstitialShownCount = 0;
+  const INTERSTITIAL_MIN_INTERVAL = 60 * 1000; // 60s
+  const INTERSTITIAL_MAX_PER_SESSION = 3;
 
   tabs.forEach(btn=>{
     btn.addEventListener('click', async ()=>{
@@ -44,18 +57,66 @@
       contents.forEach(c=>{
         if (c.id===tab) c.classList.remove('hidden'); else c.classList.add('hidden');
       });
-      // show interstitial on tab switch if available
+
+      // show interstitial on tab switch if available and throttled
       try {
-        if (AdController && typeof AdController.show === 'function') {
-          const result = await AdController.show();
-          console.log('AdController.show result', result);
-          // For interstitial, result.done may be true even if closed
+        const now = Date.now();
+        if (AdController && typeof AdController.show === 'function' && now - lastInterstitialAt > INTERSTITIAL_MIN_INTERVAL && interstitialShownCount < INTERSTITIAL_MAX_PER_SESSION) {
+          lastInterstitialAt = now;
+          try {
+            const result = await AdController.show();
+            interstitialShownCount++;
+            console.log('AdController.show result', result);
+          } catch (err) {
+            // AdsGram may return descriptive errors; suppress repetitive 'block not active' messages
+            const msg = (err && (err.description || err.message || '')) + '';
+            if (msg.toLowerCase().includes('not active') || msg.toLowerCase().includes('inactive') || msg.toLowerCase().includes('moderation')) {
+              console.warn('AdController show suppressed non-active/moderation message');
+            } else {
+              console.warn('Ad show error', err);
+            }
+          }
         }
       } catch (err) {
-        console.warn('Ad show error', err);
+        console.warn('Ad show error outer', err);
       }
     });
   });
+
+  // Insert task block if available
+  try {
+    const cfg = window.ADSGRAM_CONFIG || {};
+    const taskId = cfg.taskBlockId;
+    if (taskId && typeof customElements !== 'undefined' && customElements.get && window.Adsgram) {
+      // create adsgram-task element
+      const wrapper = document.getElementById('ads-task-wrap');
+      if (wrapper) {
+        const taskEl = document.createElement('adsgram-task');
+        taskEl.setAttribute('data-block-id', taskId);
+        taskEl.setAttribute('data-debug', 'true');
+        taskEl.className = 'task';
+        wrapper.appendChild(taskEl);
+
+        const taskFeedback = document.getElementById('task-feedback');
+        const handler = (event) => {
+          // event.detail may contain reward amount
+          const detail = event && event.detail;
+          console.log('adsgram task event', event.type, detail);
+          if (event.type === 'reward') {
+            const amount = (detail && detail.reward) || (detail && detail.amount) || 5;
+            // call server to credit reward
+            fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) })
+              .then(()=> loadUser())
+              .then(()=> { if (taskFeedback) taskFeedback.textContent = 'Награда за задание получена'; setTimeout(()=> taskFeedback.textContent = '', 3000); })
+              .catch((e)=>{ console.warn('Failed to claim task reward', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при получении награды'; });
+          }
+        };
+        taskEl.addEventListener('reward', handler);
+        taskEl.addEventListener('onError', (e) => { console.warn('task onError', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка загрузки задания'; setTimeout(()=> taskFeedback.textContent = '',3000); });
+        taskEl.addEventListener('onBannerNotFound', (e) => { console.log('task not found', e); if (taskFeedback) taskFeedback.textContent = 'Задания пока недоступны'; setTimeout(()=> taskFeedback.textContent = '',3000); });
+      }
+    }
+  } catch (e) { console.warn('Failed to setup task block', e); }
 
   async function loadUser(){
     if (!tgid) return alert('tgid is required');
