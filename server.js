@@ -295,6 +295,19 @@ app.post('/api/exchange', withUser, async (req, res) => {
   } finally { client.release(); }
 });
 
+// Debug webhook info (admin-only via query)
+app.get('/debug/webhook', async (req, res) => {
+  try {
+    if (!ADMIN_ID || String(req.query.admin) !== String(ADMIN_ID)) return res.status(403).json({ ok: false });
+    if (!bot) return res.json({ ok: false, error: 'bot_not_initialized' });
+    const info = await bot.telegram.getWebhookInfo();
+    const me = await bot.telegram.getMe();
+    res.json({ ok: true, info, me, expected: `${BASE_URL || ''}/bot/webhook` });
+  } catch (e) {
+    res.status(500).json({ ok: false });
+  }
+});
+
 // Telegram bot
 let bot = null;
 if (TG_BOT_TOKEN) {
