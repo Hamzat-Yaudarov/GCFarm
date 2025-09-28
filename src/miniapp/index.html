@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>GC Farm - MiniApp</title>
+  <link rel="stylesheet" href="/miniapp/static/styles.css" />
+</head>
+<body>
+  <div class="game-root">
+    <header class="game-header">
+      <div class="player-avatar" id="avatar">A</div>
+      <div class="balances">
+        <div class="balance-s">SCube: <span id="scube">0</span></div>
+        <div class="balance-g">GCube: <span id="gcube">0</span></div>
+      </div>
+    </header>
+
+    <main class="game-main">
+      <nav class="tabs">
+        <button class="tab-button active" data-tab="home">Главная</button>
+        <button class="tab-button" data-tab="store">Магазин</button>
+      </nav>
+
+      <section class="tab-content" id="home">
+        <div class="cube-area">
+          <button id="golden-cube" class="golden-cube" title="Нажми чтобы получить 1 SCube">🔶</button>
+          <div class="energy">Энергия: <span id="energy">0</span></div>
+          <div class="daily">Сегодня: <span id="daily">0</span></div>
+        </div>
+      </section>
+
+      <section class="tab-content hidden" id="store">
+        <div class="store-empty">Магазин пуст</div>
+      </section>
+    </main>
+
+    <script src="/miniapp/static/app.js"></script>
+  </div>
+</body>
+</html>
