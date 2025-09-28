@@ -23,7 +23,6 @@
     upgradeCapacity: document.getElementById('upgradeCapacity'),
     upgradeDaily: document.getElementById('upgradeDaily'),
     rewardedBtn: document.getElementById('rewarded-btn'),
-    popunderTrigger: document.getElementById('popunder-trigger'),
   };
 
   const initUser = tg?.initDataUnsafe?.user || null;
@@ -58,32 +57,9 @@
     if (btn) btn.textContent = `Лимит +50 (${price} SCube)`;
   }
 
-  function getLastPop(){
-    const t = Number(localStorage.getItem('last_popunder_at')||'0');
-    return isNaN(t) ? 0 : t;
-  }
-  function setLastPop(ts){
-    localStorage.setItem('last_popunder_at', String(ts));
-  }
-  const POP_MS = 180000; // 3 minutes
-  let popDue = false;
-  setInterval(()=>{ popDue = true; }, POP_MS);
-
-  function maybeTriggerPopunder(){
-    const now = Date.now();
-    const last = getLastPop();
-    if (!els.popunderTrigger) return;
-    if (now - last >= POP_MS || popDue) {
-      popDue = false;
-      try {
-        els.popunderTrigger.click();
-        setLastPop(now);
-      } catch(e) {}
-    }
-  }
-
   async function tap(){
     els.silverCube.classList.remove('cube-anim');
+    // reflow to restart animation
     void els.silverCube.offsetWidth;
     els.silverCube.classList.add('cube-anim');
     const res = await fetch('/api/tap', {
@@ -93,7 +69,6 @@
     });
     const data = await res.json();
     applyState(data.state);
-    maybeTriggerPopunder();
   }
 
   els.silverCube.addEventListener('click', tap);
@@ -105,7 +80,6 @@
       btn.classList.add('is-active');
       const tab = btn.getAttribute('data-tab');
       els.tabs.forEach(view => view.classList.toggle('is-active', view.id === `tab-${tab}`));
-      maybeTriggerPopunder();
     });
   });
 
@@ -117,7 +91,6 @@
     });
     const data = await res.json();
     if (data.state) applyState(data.state);
-    maybeTriggerPopunder();
   });
   if (els.toS) els.toS.addEventListener('click', async () => {
     const res = await fetch('/api/exchange', {
@@ -126,7 +99,6 @@
     });
     const data = await res.json();
     if (data.state) applyState(data.state);
-    maybeTriggerPopunder();
   });
 
   // Upgrades
@@ -134,13 +106,11 @@
     const res = await fetch('/api/upgrade', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '', type: 'capacity' }) });
     const data = await res.json();
     if (data.state) applyState(data.state);
-    maybeTriggerPopunder();
   });
   if (els.upgradeDaily) els.upgradeDaily.addEventListener('click', async () => {
     const res = await fetch('/api/upgrade', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '', type: 'daily' }) });
     const data = await res.json();
     if (data.state) applyState(data.state);
-    maybeTriggerPopunder();
   });
 
   // Rewarded ad: overlay is configured in OnClickA cabinet with selector #rewarded-btn
@@ -151,7 +121,6 @@
       // Keep stable selector for OnClickA Overlay (#rewarded-btn)
       awaitingAd = true;
       hiddenAt = 0;
-      maybeTriggerPopunder();
     });
 
     document.addEventListener('visibilitychange', async () => {
@@ -175,4 +144,27 @@
   });
 
   setInterval(() => fetchState().catch(()=>{}), 4000);
+
+  // Popunder every 3 minutes
+  const adEls = {
+    root: document.getElementById('ad-popunder'),
+    close: document.getElementById('ad-close')
+  };
+  function showAd(){ if (!adEls.root) return; adEls.root.classList.add('is-visible'); adEls.root.setAttribute('aria-hidden','false'); }
+  function hideAd(){ if (!adEls.root) return; adEls.root.classList.remove('is-visible'); adEls.root.setAttribute('aria-hidden','true'); }
+  if (adEls.close) adEls.close.addEventListener('click', hideAd);
+  if (adEls.root) adEls.root.addEventListener('click', (e)=>{ if (e.target.classList.contains('ad-popunder-backdrop')) hideAd(); });
+  let lastAdAt = Date.now();
+  function schedulePop(){
+    const elapsed = Date.now() - lastAdAt;
+    const wait = Math.max(0, 180000 - elapsed);
+    setTimeout(()=>{
+      if (!document.hidden) { lastAdAt = Date.now(); showAd(); }
+      schedulePop();
+    }, wait || 180000);
+  }
+  document.addEventListener('visibilitychange', ()=>{
+    if (!document.hidden && Date.now() - lastAdAt >= 180000) { lastAdAt = Date.now(); showAd(); }
+  });
+  schedulePop();
 })();
