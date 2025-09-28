@@ -18,20 +18,38 @@ if (!TG_BOT_TOKEN) {
 const bot = new Telegraf(TG_BOT_TOKEN);
 
 bot.start(async (ctx) => {
+  const user = ctx.from || {};
+  const firstName = user.first_name || 'игрок';
+  const tgid = user.id;
+
+  // Try to ensure user in DB, but do not block reply on DB errors
   try {
-    const user = ctx.from;
-    await db.ensureUser(user.id, user.first_name || 'Player');
+    if (tgid) await db.ensureUser(tgid, firstName || 'Player');
+  } catch (dbErr) {
+    console.error('DB ensureUser failed on /start', dbErr);
+    // notify admin about DB issue (best effort)
+    const adminId = process.env.ADMIN_ID;
+    if (adminId) {
+      try {
+        await bot.telegram.sendMessage(adminId, `DB error on /start for ${tgid}: ${dbErr.message}`);
+      } catch (notifyErr) {
+        console.warn('Failed to notify admin about DB error', notifyErr);
+      }
+    }
+  }
 
-    const webAppUrl = `${BASE_URL}/miniapp?tgid=${user.id}`;
+  const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}`;
 
-    await ctx.reply(`Привет, ${user.first_name || 'игрок'}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
+  try {
+    await ctx.reply(`Привет, ${firstName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
       reply_markup: {
         inline_keyboard: [[{ text: 'Открыть игру', web_app: { url: webAppUrl } }]]
       }
     });
   } catch (err) {
-    console.error('Error in /start handler', err);
-    ctx.reply('Произошла ошибка, попробуйте позже.');
+    console.error('Failed to send welcome message in /start', err);
+    // fallback: try a simpler reply
+    try { await ctx.reply('Добро пожаловать!'); } catch (e) { console.error('Fallback reply failed', e); }
   }
 });
 
