@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GC Farm</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script async src="https://js.onclckmn.com/static/onclicka.js" data-admpid="376653"></script>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app-root" class="app-root">
+    <header class="topbar">
+      <img id="avatar" class="player-avatar" alt="avatar" />
+      <div class="balances">
+        <div class="balance-item"><span class="balance-label">SCube</span><span id="scube" class="balance-value">0</span></div>
+        <div class="balance-item"><span class="balance-label">GCube</span><span id="gcube" class="balance-value">0</span></div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section id="tab-home" class="tab-view is-active">
+        <div class="energy-panel">
+          <div class="energy-header">Энергия</div>
+          <div class="energy-bar">
+            <div id="energyFill" class="energy-fill" style="width:0%"></div>
+          </div>
+          <div class="energy-stats">
+            <span id="energy" class="energy-value">0</span>
+            <span class="divider">/</span>
+            <span id="capacity" class="energy-capacity">0</span>
+          </div>
+          <div class="daily-panel">
+            <span>Дневной лимит:</span>
+            <span id="dailyUsed">0</span>
+            <span>/</span>
+            <span id="dailyLimit">250</span>
+          </div>
+        </div>
+
+        <button id="silverCube" class="silver-cube-btn" aria-label="Нажми на куб"></button>
+
+        <div class="ad-area">
+          <div class="ad-slot" data-banner-id="6092367"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button class="tab-btn is-active" data-tab="home">Главная</button>
+    </nav>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
