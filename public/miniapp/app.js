@@ -113,31 +113,36 @@
     if (data.state) applyState(data.state);
   });
 
-  // Rewarded ad: overlay is configured in OnClickA cabinet with selector #rewarded-btn
-  let awaitingAd = false;
-  let hiddenAt = 0;
-  if (els.rewardedBtn) {
-    els.rewardedBtn.addEventListener('click', () => {
-      // Keep stable selector for OnClickA Overlay (#rewarded-btn)
-      awaitingAd = true;
-      hiddenAt = 0;
-    });
-
-    document.addEventListener('visibilitychange', async () => {
-      if (!awaitingAd) return;
-      if (document.hidden) {
-        hiddenAt = Date.now();
-      } else {
-        const hiddenTime = Date.now() - hiddenAt;
-        if (hiddenAt && hiddenTime > 2000) {
-          awaitingAd = false;
-          const res = await fetch('/api/reward', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '' }) });
-          const data = await res.json();
-          if (data.state) applyState(data.state);
-        }
-      }
-    });
+  // Rewarded overlay window (#rewarded-btn-open)
+  const rewardedUI = {
+    overlay: document.querySelector('.rewarded-overlay'),
+    backdrop: document.querySelector('.rewarded-backdrop'),
+    card: document.querySelector('.rewarded-card'),
+    close: document.querySelector('.rewarded-close'),
+    slot: document.getElementById('rewarded-btn-open')
+  };
+  let adOpenAt = 0;
+  function openRewarded(){
+    if (!rewardedUI.overlay) return;
+    adOpenAt = Date.now();
+    rewardedUI.overlay.classList.add('is-visible');
+    rewardedUI.overlay.setAttribute('aria-hidden','false');
   }
+  async function closeRewarded(){
+    if (!rewardedUI.overlay) return;
+    rewardedUI.overlay.classList.remove('is-visible');
+    rewardedUI.overlay.setAttribute('aria-hidden','true');
+    const watchedMs = Date.now() - adOpenAt;
+    if (adOpenAt && watchedMs >= 10000) {
+      const res = await fetch('/api/reward', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '' }) });
+      const data = await res.json();
+      if (data.state) applyState(data.state);
+    }
+    adOpenAt = 0;
+  }
+  if (rewardedUI.close) rewardedUI.close.addEventListener('click', closeRewarded);
+  if (rewardedUI.overlay) rewardedUI.overlay.addEventListener('click', (e)=>{ if (e.target.classList.contains('rewarded-backdrop')) closeRewarded(); });
+  if (els.rewardedBtn) els.rewardedBtn.addEventListener('click', openRewarded);
 
   fetchState().catch(() => {
     alert('Ошибка авторизации в MiniApp. Откройте игру через сообщение бота.');

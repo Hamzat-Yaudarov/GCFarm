@@ -43,3 +43,11 @@ body{background:#0b0c10;color:#edf2f4;font-family:Inter,system-ui,-apple-system,
 @media (min-width: 480px){
   .silver-cube-btn{width:200px;height:200px}
 }
+
+/* Rewarded overlay */
+.rewarded-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:1000}
+.rewarded-overlay.is-visible{display:flex}
+.rewarded-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+.rewarded-card{position:relative;z-index:1;width:92%;max-width:420px;background:#161925;border:1px solid #2b2d42;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.5);padding:12px}
+.rewarded-close{position:absolute;top:8px;right:8px;width:28px;height:28px;border:none;border-radius:8px;background:#0e1018;color:#edf2f4;cursor:pointer}
+.rewarded-body{margin-top:16px;min-height:180px}
