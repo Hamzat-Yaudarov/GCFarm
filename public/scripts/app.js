@@ -112,4 +112,35 @@
 
   setInterval(refresh, 5000);
   refresh();
+
+  // Ensure Onclicka loader present and trigger re-scan while the page is alive
+  async function loadOnclicka() {
+    if (document.querySelector('script[src*="onclckmn.com/static/onclicka.js"]')) return true;
+    return await new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.async = true;
+      s.src = 'https://js.onclckmn.com/static/onclicka.js';
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+  }
+
+  (async function initBanner() {
+    await loadOnclicka();
+    const host = document.getElementById('ad-banner') || document.body;
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries++;
+      const slot = host.querySelector('[data-banner-id]');
+      if (!slot) return;
+      // Nudge layout and retrigger observers used by some ad SDKs
+      slot.style.minHeight = '90px';
+      const clone = slot.cloneNode(false);
+      slot.parentElement && slot.parentElement.replaceChild(clone, slot);
+      // Stop when an iframe gets injected or after several attempts
+      if (host.querySelector('iframe')) { clearInterval(timer); }
+      if (tries >= 10) { clearInterval(timer); }
+    }, 1500);
+  })();
 })();
