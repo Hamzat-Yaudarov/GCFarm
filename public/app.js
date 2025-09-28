@@ -40,12 +40,18 @@ async function api(path, body) {
 
 async function fetchState() {
   const initData = getInitData();
-  const res = await fetch(`/api/state?initData=${encodeURIComponent(initData)}`);
+  const res = await fetch(`/api/state`, { headers: { 'x-init-data': initData } });
   if (!res.ok) throw new Error('state failed');
   const data = await res.json();
   state.user = data.user;
   render();
 }
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') fetchState().catch(() => {});
+});
+
+setInterval(() => { fetchState().catch(() => {}); }, 10000);
 
 function render() {
   if (!state.user) return;
