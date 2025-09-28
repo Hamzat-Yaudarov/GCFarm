@@ -91,16 +91,65 @@
     showStoreFeedback('Обмен выполнен');
   });
 
+  // Confirm modal helpers
+  const confirmModal = document.getElementById('confirm-modal');
+  const confirmMessage = document.getElementById('confirm-message');
+  const confirmOk = document.getElementById('confirm-ok');
+  const confirmCancel = document.getElementById('confirm-cancel');
+
+  function showConfirm(message){
+    return new Promise((resolve) => {
+      confirmMessage.textContent = message;
+      confirmModal.classList.remove('hidden');
+      function cleanup() {
+        confirmModal.classList.add('hidden');
+        confirmOk.removeEventListener('click', onOk);
+        confirmCancel.removeEventListener('click', onCancel);
+      }
+      function onOk(){ cleanup(); resolve(true); }
+      function onCancel(){ cleanup(); resolve(false); }
+      confirmOk.addEventListener('click', onOk);
+      confirmCancel.addEventListener('click', onCancel);
+    });
+  }
+
   upgradeBtns.forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
       if (!json.ok) return showStoreFeedback(json.message || 'Ошибка покупки');
       await loadUser();
       showStoreFeedback('Покупка успешна');
     });
+  });
+
+  // Confirm on exchange
+  scubeToGBtn.addEventListener('click', async ()=>{
+    if (!tgid) return alert('tgid is required');
+    const confirmed = await showConfirm('Поменять 50 SCube на 1 GCube?');
+    if (!confirmed) return showStoreFeedback('Обмен отменён');
+    const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'scube_to_gcube', units: 1 }) });
+    const json = await res.json();
+    if (!json.ok) return showStoreFeedback(json.message || 'Ошибка');
+    scubeEl.textContent = json.scube;
+    gcubeEl.textContent = json.gcube;
+    showStoreFeedback('Обмен выполнен');
+  });
+
+  gcubeToSBtn.addEventListener('click', async ()=>{
+    if (!tgid) return alert('tgid is required');
+    const confirmed = await showConfirm('Поменять 1 GCube на 50 SCube?');
+    if (!confirmed) return showStoreFeedback('Обмен отменён');
+    const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'gcube_to_scube', units: 1 }) });
+    const json = await res.json();
+    if (!json.ok) return showStoreFeedback(json.message || 'Ошибка');
+    scubeEl.textContent = json.scube;
+    gcubeEl.textContent = json.gcube;
+    showStoreFeedback('Обмен выполнен');
   });
 
   function showStoreFeedback(msg){

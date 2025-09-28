@@ -36,3 +36,11 @@ body{margin:0;background:#0b1221;color:#fff}
   .game-root{margin:0;border-radius:0}
   .golden-cube{width:90px;height:90px;font-size:36px}
 }
+
+/* Confirm modal */
+.confirm-modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000}
+.confirm-modal.hidden{display:none}
+.confirm-box{background:#071429;padding:16px;border-radius:10px;width:90%;max-width:360px;border:1px solid rgba(255,255,255,0.03)}
+.confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.confirm-btn{padding:8px 12px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
+.confirm-btn.primary{background:#3a8f5a}
