@@ -65,7 +65,7 @@ adsGramRouter.post('/reward', express.urlencoded({ extended: false }), async (re
     const signature = req.headers['x-signature'] || req.body.signature || '';
     if (!verifySignature(raw, signature, secret)) return res.status(401).send('invalid signature');
 
-    let userId = req.body.user_id;
+    let userId = req.body.user_id || req.body.userId;
     if (!userId) userId = parseInitData(req.headers['x-init-data']);
     if (!userId) return res.status(400).send('missing user_id');
 
@@ -85,7 +85,7 @@ adsGramRouter.get('/reward', async (req, res) => {
     const signature = req.headers['x-signature'] || req.query.signature || '';
     if (!verifySignature(raw, signature, secret)) return res.status(401).send('invalid signature');
 
-    let userId = req.query.user_id;
+    let userId = req.query.user_id || req.query.userId;
     if (!userId) userId = parseInitData(req.headers['x-init-data']);
     if (!userId) return res.status(400).send('missing user_id');
 
@@ -106,7 +106,7 @@ adsGramRouter.all('/reward/:slug', express.urlencoded({ extended: false }), asyn
     const signature = req.headers['x-signature'] || (req.method === 'GET' ? req.query.signature : req.body.signature) || '';
     if (!verifySignature(raw, signature, secret)) return res.status(401).send('invalid signature');
 
-    let userId = req.method === 'GET' ? (req.query.user_id || null) : (req.body.user_id || null);
+    let userId = req.method === 'GET' ? (req.query.user_id || req.query.userId || null) : (req.body.user_id || req.body.userId || null);
     if (!userId) userId = parseInitData(req.headers['x-init-data']);
     if (!userId) return res.status(400).send('missing user_id');
 
