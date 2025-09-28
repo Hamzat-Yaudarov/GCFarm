@@ -26,6 +26,8 @@ body{background:#0b0c10;color:#edf2f4;font-family:Inter,system-ui,-apple-system,
 .cube-anim{animation:cubePulse .18s ease}
 .ad-area{margin-top:16px;display:flex;justify-content:center}
 .inpage-slot{width:100%;min-height:60px}
+.banner-slot{width:100%;min-height:50px}
+.video-slot{width:100%;min-height:180px}
 .tabbar{position:sticky;bottom:0;background:#1f2230;border-top:1px solid #2b2d42;display:flex;gap:8px;padding:8px}
 .tab-btn{flex:1;padding:10px 12px;border-radius:10px;border:1px solid #2b2d42;background:#0e1018;color:#edf2f4}
 .tab-btn.is-active{border-color:#66fcf1}
