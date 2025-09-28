@@ -17,7 +17,6 @@ const bot = new Telegraf(TG_BOT_TOKEN);
 bot.start(async (ctx) => {
   try {
     const user = ctx.from;
-    // Create or ensure user exists in DB
     await db.ensureUser(user.id, user.first_name || 'Player');
 
     const webAppUrl = `${BASE_URL}/miniapp?tgid=${user.id}`;
@@ -69,8 +68,51 @@ app.post('/api/user/:tgid/click', async (req, res) => {
   }
 });
 
+// Exchange endpoint
+app.post('/api/user/:tgid/exchange', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  const { direction, units } = req.body || {};
+  if (!tgid || !direction) return res.status(400).json({ error: 'Invalid params' });
+  try {
+    const result = await db.exchange(tgid, direction, Math.max(1, parseInt(units || 1, 10)));
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Buy upgrade
+app.post('/api/user/:tgid/buy-upgrade', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  const { type } = req.body || {};
+  if (!tgid || !type) return res.status(400).json({ error: 'Invalid params' });
+  try {
+    const result = await db.buyUpgrade(tgid, type);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Reward claim (AdsGram callback or user claim)
+app.post('/api/user/:tgid/claim-reward', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  const amount = parseInt(req.body.amount || 5, 10); // default 5 SCube
+  if (!tgid) return res.status(400).json({ error: 'Invalid params' });
+  try {
+    const result = await db.claimReward(tgid, amount);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 app.get('/reward', (req, res) => {
-  res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Reward</title></head><body><h2>Reward landing (placeholder)</h2><p>Этот URL используется для интеграции с AdsGram и возврата наград.</p></body></html>`);
+  const tgid = req.query.tgid || '';
+  res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Reward</title></head><body><h2>Reward landing (placeholder)</h2><p>После просмотра рекламы нажмите кнопку, чтобы получить награду.</p><form method="post" action="/api/user/${tgid}/claim-reward"><input type="hidden" name="amount" value="5"><button type="submit">Забрать 5 SCube</button></form></body></html>`);
 });
 
 // Start express and set webhook for Telegraf if running in production environment with BASE_URL

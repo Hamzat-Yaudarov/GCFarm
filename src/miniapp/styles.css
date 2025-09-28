@@ -1,20 +1,36 @@
 *{box-sizing:border-box;font-family:Inter, Roboto, Arial, sans-serif}
 body{margin:0;background:#0b1221;color:#fff}
-.game-root{max-width:480px;margin:20px auto;border-radius:8px;overflow:hidden;background:linear-gradient(180deg,#071029 0%,#0b1221 100%);}
+.game-root{max-width:480px;margin:20px auto;border-radius:8px;overflow:hidden;background:linear-gradient(180deg,#071029 0%,#0b1221 100%);position:relative}
 .game-header{display:flex;align-items:center;padding:12px}
 .player-avatar{width:48px;height:48px;border-radius:50%;background:#23354b;display:flex;align-items:center;justify-content:center;font-weight:700}
 .balances{margin-left:12px;display:flex;flex-direction:column}
 .balance-s,.balance-g{font-size:14px}
-.game-main{padding:16px}
-.tabs{display:flex;gap:8px;margin-bottom:12px}
-.tab-button{flex:1;padding:10px;border-radius:8px;background:#0f2536;color:#bcd3e6;border:1px solid rgba(255,255,255,0.04)}
-.tab-button.active{background:#153547;color:#fff}
+.game-main{padding:16px;padding-bottom:80px}
 .tab-content{min-height:220px}
 .hidden{display:none}
 .cube-area{display:flex;flex-direction:column;align-items:center;gap:12px}
 .golden-cube{font-size:48px;width:120px;height:120px;border-radius:16px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .energy,.daily{font-size:14px;color:#e6f0f8}
 .store-empty{padding:20px;text-align:center;color:#9fb6c9}
+
+/* Bottom tabs */
+.tabs-bottom{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;display:flex;gap:8px;padding:10px;background:linear-gradient(180deg,rgba(7,17,29,0.9),rgba(7,17,29,1));border-top:1px solid rgba(255,255,255,0.03);}
+.tab-button{flex:1;padding:10px;border-radius:8px;background:#0f2536;color:#bcd3e6;border:1px solid rgba(255,255,255,0.04)}
+.tab-button.active{background:#153547;color:#fff}
+
+/* Store */
+.store-container{display:flex;flex-direction:column;gap:12px}
+.exchange{display:flex;flex-direction:column;gap:8px}
+.exchange-btn{padding:10px;border-radius:8px;border:none;background:#1a4b6a;color:#fff;cursor:pointer}
+.upgrades{display:flex;flex-direction:column;gap:12px}
+.upgrade-card{padding:12px;border-radius:8px;background:#0f2a3b;border:1px solid rgba(255,255,255,0.03)}
+.upgrade-title{font-weight:700}
+.upgrade-cost{color:#cfeaf9}
+.upgrade-btn{margin-top:8px;padding:8px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
+.store-feedback{color:#9fe3a7;margin-top:8px}
+
+.ad-block{margin-top:8px}
+.watch-ad{padding:10px;border-radius:8px;border:none;background:#3a8f5a;color:#fff;cursor:pointer}
 
 @media (max-width:480px){
   .game-root{margin:0;border-radius:0}

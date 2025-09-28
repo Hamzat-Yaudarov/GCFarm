@@ -17,23 +17,50 @@
     </header>
 
     <main class="game-main">
-      <nav class="tabs">
-        <button class="tab-button active" data-tab="home">Главная</button>
-        <button class="tab-button" data-tab="store">Магазин</button>
-      </nav>
-
       <section class="tab-content" id="home">
         <div class="cube-area">
           <button id="golden-cube" class="golden-cube" title="Нажми чтобы получить 1 SCube">🔶</button>
-          <div class="energy">Энергия: <span id="energy">0</span></div>
-          <div class="daily">Сегодня: <span id="daily">0</span></div>
+          <div class="energy">Энергия: <span id="energy">0</span> / <span id="energy-capacity">50</span></div>
+          <div class="daily">Сегодня: <span id="daily">0</span> / <span id="daily-limit">250</span></div>
+          <div class="ad-block">
+            <button id="watch-ad" class="watch-ad">Смотреть рекламу (получить 5 SCube)</button>
+          </div>
         </div>
       </section>
 
       <section class="tab-content hidden" id="store">
-        <div class="store-empty">Магазин пуст</div>
+        <div class="store-container">
+          <h3>Обмен валют</h3>
+          <div class="exchange">
+            <button id="scube-to-gcube" class="exchange-btn">Поменять 50 SCube → 1 GCube</button>
+            <button id="gcube-to-scube" class="exchange-btn">Поменять 1 GCube → 50 SCube</button>
+          </div>
+
+          <h3>Улучшения</h3>
+          <div class="upgrades">
+            <div class="upgrade-card">
+              <div class="upgrade-title">Увеличение вместимости энергии +50</div>
+              <div class="upgrade-cost">Стоимость: 100 SCube</div>
+              <button class="upgrade-btn" data-type="energy_capacity">Купить</button>
+            </div>
+
+            <div class="upgrade-card">
+              <div class="upgrade-title">Увеличение дневного лимита +50</div>
+              <div class="upgrade-cost">Стоимость: <span id="daily-cost">90</span> SCube (зависит от уровня)</div>
+              <div class="upgrade-level">Текущий уровень: <span id="daily-level">0</span></div>
+              <button class="upgrade-btn" data-type="daily_limit">Купить</button>
+            </div>
+          </div>
+
+          <div class="store-feedback" id="store-feedback"></div>
+        </div>
       </section>
     </main>
+
+    <nav class="tabs-bottom">
+      <button class="tab-button active" data-tab="home">Главная</button>
+      <button class="tab-button" data-tab="store">Магазин</button>
+    </nav>
 
     <script src="/miniapp/static/app.js"></script>
   </div>
