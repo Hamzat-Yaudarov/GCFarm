@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>GC Farm</title>
     <link rel="stylesheet" href="/public/styles/app.css" />
-    <script async src="https://js.onclckmn.com/static/onclicka.js"></script>
   </head>
   <body>
     <div class="app-root">
@@ -13,11 +12,21 @@
         <div class="player-info">
           <img id="player-avatar" class="player-avatar" alt="avatar" />
           <div class="balances">
-            <div class="balance scube"><span class="label">SCube</span> <span id="scube-balance">0</span></div>
-            <div class="balance gcube"><span class="label">GCube</span> <span id="gcube-balance">0</span></div>
+            <div class="balance scube">
+              <span class="label">SCube</span>
+              <span id="scube-balance">0</span>
+            </div>
+            <div class="balance gcube">
+              <span class="label">GCube</span>
+              <span id="gcube-balance">0</span>
+            </div>
           </div>
         </div>
-        <div id="ad-banner" class="ad-banner"><div data-banner-id="6092330"></div></div>
+
+        <!-- Баннер -->
+        <div id="ad-banner" class="ad-banner">
+          <div data-banner-id="6092330"></div>
+        </div>
       </header>
 
       <main class="content">
@@ -40,7 +49,13 @@
           <div class="shop-card">
             <h3>Обмен валюты</h3>
             <div class="row">
-              <input id="exchange-amount" type="number" min="1" step="1" placeholder="Сколько SCube обменять" />
+              <input
+                id="exchange-amount"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Сколько SCube обменять"
+              />
               <button id="btn-exchange" class="primary-btn">Обменять</button>
             </div>
             <div class="note">Курс задаётся админом. По умолчанию: 50 SCube = 1 GCube.</div>
@@ -72,6 +87,17 @@
       </nav>
     </div>
 
+    <!-- Подключение скриптов -->
     <script src="/public/scripts/app.js"></script>
+
+    <!-- OnClickA баннер -->
+    <script async src="https://js.onclckmn.com/static/onclicka.js"></script>
+    <script>
+      window.onload = function () {
+        if (window.onclkads && typeof window.onclkads.init === "function") {
+          window.onclkads.init();
+        }
+      };
+    </script>
   </body>
 </html>
