@@ -83,6 +83,28 @@
     });
   });
 
+  // Reveal ad areas only when filled
+  function setupAdAutoReveal(selector){
+    const el = document.querySelector(selector);
+    if (!el) return;
+    const area = el.closest('.ad-area') || el;
+    area.classList.add('is-hidden');
+    const revealIfFilled = () => {
+      const hasContent = el.children.length > 0 || el.querySelector('iframe, img, div');
+      if (hasContent) {
+        area.classList.remove('is-hidden');
+        return true;
+      }
+      return false;
+    };
+    const obs = new MutationObserver(() => { if (revealIfFilled()) obs.disconnect(); });
+    obs.observe(el, { childList: true, subtree: true });
+    setTimeout(() => { revealIfFilled(); }, 12000);
+  }
+  setupAdAutoReveal('div[data-banner-id="6092367"]');
+  setupAdAutoReveal('#tma-inpage');
+  setupAdAutoReveal('div[data-banner-id="6092384"]');
+
   // Exchange
   if (els.toG) els.toG.addEventListener('click', async () => {
     const res = await fetch('/api/exchange', {
@@ -113,35 +135,60 @@
     if (data.state) applyState(data.state);
   });
 
-  // Rewarded overlay window (#rewarded-btn-open)
-  const rewardedUI = {
-    overlay: document.querySelector('.rewarded-overlay'),
-    backdrop: document.querySelector('.rewarded-backdrop'),
-    card: document.querySelector('.rewarded-card'),
-    close: document.querySelector('.rewarded-close'),
-    slot: document.getElementById('rewarded-btn-open')
-  };
+  // Rewarded overlay: create only if ad fills
+  function buildRewardedOverlay(){
+    const overlay = document.createElement('div');
+    overlay.className = 'rewarded-overlay';
+    overlay.setAttribute('aria-hidden','true');
+    overlay.innerHTML = `
+      <div class="rewarded-backdrop"></div>
+      <div class="rewarded-card" role="dialog" aria-modal="true" aria-label="Реклама за награду">
+        <button class="rewarded-close" aria-label="Закрыть">×</button>
+        <div id="rewarded-btn-open" class="rewarded-body"></div>
+      </div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
   let adOpenAt = 0;
   function openRewarded(){
-    if (!rewardedUI.overlay) return;
-    adOpenAt = Date.now();
-    rewardedUI.overlay.classList.add('is-visible');
-    rewardedUI.overlay.setAttribute('aria-hidden','false');
-  }
-  async function closeRewarded(){
-    if (!rewardedUI.overlay) return;
-    rewardedUI.overlay.classList.remove('is-visible');
-    rewardedUI.overlay.setAttribute('aria-hidden','true');
-    const watchedMs = Date.now() - adOpenAt;
-    if (adOpenAt && watchedMs >= 10000) {
-      const res = await fetch('/api/reward', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '' }) });
-      const data = await res.json();
-      if (data.state) applyState(data.state);
+    const overlay = buildRewardedOverlay();
+    const closeBtn = overlay.querySelector('.rewarded-close');
+    const backdrop = overlay.querySelector('.rewarded-backdrop');
+    const slot = overlay.querySelector('#rewarded-btn-open');
+
+    // Hide until ad content appears
+    const reveal = () => {
+      overlay.classList.add('is-visible');
+      overlay.setAttribute('aria-hidden','false');
+      adOpenAt = Date.now();
+    };
+    const cleanUp = () => { document.body.removeChild(overlay); };
+
+    const watcher = new MutationObserver(() => {
+      if (slot && (slot.children.length > 0 || slot.querySelector('iframe, img, div'))){
+        reveal();
+        watcher.disconnect();
+      }
+    });
+    if (slot) watcher.observe(slot, { childList: true, subtree: true });
+
+    // Timeout: no ad filled
+    setTimeout(() => { if (!overlay.classList.contains('is-visible')) cleanUp(); }, 8000);
+
+    async function closeRewarded(){
+      const watchedMs = Date.now() - adOpenAt;
+      cleanUp();
+      if (adOpenAt && watchedMs >= 10000) {
+        const res = await fetch('/api/reward', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData: tg?.initData || '' }) });
+        const data = await res.json();
+        if (data.state) applyState(data.state);
+      }
+      adOpenAt = 0;
     }
-    adOpenAt = 0;
+    if (closeBtn) closeBtn.addEventListener('click', closeRewarded);
+    if (backdrop) overlay.addEventListener('click', (e)=>{ if (e.target === backdrop) closeRewarded(); });
   }
-  if (rewardedUI.close) rewardedUI.close.addEventListener('click', closeRewarded);
-  if (rewardedUI.overlay) rewardedUI.overlay.addEventListener('click', (e)=>{ if (e.target.classList.contains('rewarded-backdrop')) closeRewarded(); });
   if (els.rewardedBtn) els.rewardedBtn.addEventListener('click', openRewarded);
 
   fetchState().catch(() => {
