@@ -18,6 +18,7 @@ if (!TG_BOT_TOKEN) {
 }
 
 const app = express();
+app.enable('trust proxy');
 app.use(express.json());
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
@@ -327,7 +328,8 @@ if (TG_BOT_TOKEN) {
   });
 
   const webhookPath = '/bot/webhook';
-  app.use(webhookPath, bot.webhookCallback(webhookPath));
+  app.post(webhookPath, (req, res) => bot.webhookCallback(webhookPath)(req, res));
+  app.get(webhookPath, (req, res) => res.status(200).send('ok'));
 
   (async () => {
     await ensureTables();
@@ -335,7 +337,7 @@ if (TG_BOT_TOKEN) {
       console.log(`Server listening on ${PORT}`);
       if (NODE_ENV === 'production' && BASE_URL) {
         try {
-          const set = await bot.telegram.setWebhook(`${BASE_URL}${webhookPath}`);
+          const set = await bot.telegram.setWebhook(`${BASE_URL}${webhookPath}`, { drop_pending_updates: true });
           console.log('Webhook set:', set);
         } catch (e) {
           console.error('Failed to set webhook', e);
