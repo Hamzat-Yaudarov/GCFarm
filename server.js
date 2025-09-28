@@ -11,7 +11,7 @@ const BOT_USERNAME = process.env.BOT_USERNAME || '';
 const ADMIN_ID = process.env.ADMIN_ID || '';
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const NEON_DATABASE_URL = process.env.NEON_DATABASE_URL;
-const EXCHANGE_RATE = Number(process.env.EXCHANGE_RATE || '1');
+const EXCHANGE_RATE = Number(process.env.EXCHANGE_RATE || '0.02');
 
 if (!TG_BOT_TOKEN) {
   console.warn('TG_BOT_TOKEN is not set. Bot will not start.');
