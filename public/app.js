@@ -40,18 +40,12 @@ async function api(path, body) {
 
 async function fetchState() {
   const initData = getInitData();
-  const res = await fetch(`/api/state`, { headers: { 'x-init-data': initData } });
+  const res = await fetch(`/api/state?initData=${encodeURIComponent(initData)}`);
   if (!res.ok) throw new Error('state failed');
   const data = await res.json();
   state.user = data.user;
   render();
 }
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') fetchState().catch(() => {});
-});
-
-let syncTimer = setInterval(() => { fetchState().catch(() => {}); }, 10000);
 
 function render() {
   if (!state.user) return;
@@ -148,7 +142,4 @@ if (interBtn) {
   });
 }
 
-fetchState().catch((e) => {
-  toast('Откройте игру через Telegram');
-  if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
-});
+fetchState().catch(() => toast('Ошибка авторизации'));
