@@ -13,7 +13,7 @@ export async function initBot(app) {
   bot.start(async (ctx) => {
     const base = process.env.BASE_URL || 'https://example.com';
     const webAppUrl = `${base}/app`;
-    const text = 'Добро пожаловать! Нажмите кнопку, чтобы открыть игру.';
+    const text = 'Доб��о пожаловать! Нажмите кнопку, чтобы открыть игру.';
     await ctx.reply(text, Markup.inlineKeyboard([
       [Markup.button.webApp('Открыть игру', webAppUrl)]
     ]));
@@ -24,16 +24,14 @@ export async function initBot(app) {
   });
 
   const path = '/bot';
-  app.use(path, (req, res, next) => {
-    if (!bot) return res.status(503).send('Bot disabled');
-    return Telegraf.webhookCallback(path)(req, res, next);
-  });
+  app.use(bot.webhookCallback(path));
+  app.get(path, (_req, res) => res.status(200).send('OK'));
 
   const base = process.env.BASE_URL;
   if (base) {
     const url = `${base}${path}`;
     try {
-      await bot.telegram.setWebhook(url);
+      await bot.telegram.setWebhook(url, { drop_pending_updates: true });
       console.log('Webhook set to', url);
     } catch (e) {
       console.error('Failed to set webhook', e);

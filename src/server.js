@@ -20,6 +20,9 @@ const __dirname = path.dirname(__filename);
 app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/app.html'));
 });
+app.get('/', (_req, res) => res.redirect('/app'));
+app.get('/miniapp', (_req, res) => res.redirect('/app'));
+app.get('/miniapp/', (_req, res) => res.redirect('/app'));
 app.use('/', express.static(path.join(__dirname, '../public')));
 
 const port = process.env.PORT || 3000;
