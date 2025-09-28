@@ -26,14 +26,34 @@
   const tabs = document.querySelectorAll('.tab-button');
   const contents = document.querySelectorAll('.tab-content');
 
+  // Initialize AdsGram controller if available
+  let AdController = null;
+  try {
+    const cfg = window.ADSGRAM_CONFIG || {};
+    if (window.Adsgram && cfg && cfg.interstitialBlockId) {
+      AdController = window.Adsgram.init({ blockId: cfg.interstitialBlockId });
+      console.log('AdsGram initialized with', cfg.interstitialBlockId);
+    }
+  } catch (e) { console.warn('AdsGram init failed', e); }
+
   tabs.forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', async ()=>{
       tabs.forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       const tab = btn.dataset.tab;
       contents.forEach(c=>{
         if (c.id===tab) c.classList.remove('hidden'); else c.classList.add('hidden');
       });
+      // show interstitial on tab switch if available
+      try {
+        if (AdController && typeof AdController.show === 'function') {
+          const result = await AdController.show();
+          console.log('AdController.show result', result);
+          // For interstitial, result.done may be true even if closed
+        }
+      } catch (err) {
+        console.warn('Ad show error', err);
+      }
     });
   });
 
@@ -64,11 +84,35 @@
     dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
   });
 
-  watchAdBtn.addEventListener('click', ()=>{
+  watchAdBtn.addEventListener('click', async ()=>{
     if (!tgid) return alert('tgid is required');
-    // Open reward landing (integrate AdsGram here)
-    const url = `/reward?tgid=${tgid}`;
-    window.open(url, '_blank');
+    const cfg = window.ADSGRAM_CONFIG || {};
+    const rewardBlock = cfg.rewardBlockId || cfg.interstitialBlockId;
+    if (window.Adsgram && rewardBlock) {
+      try {
+        const controller = window.Adsgram.init({ blockId: rewardBlock });
+        const result = await controller.show();
+        console.log('reward show', result);
+        // if watched till end or closed (per AdsGram), reward
+        if (result && (result.done || result.state === 'destroy' || result.state === 'playing')) {
+          // call server to credit reward
+          await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: 5 }) });
+          await loadUser();
+          showStoreFeedback('Награда начислена');
+        } else {
+          showStoreFeedback('Реклама не была просмотрена полностью');
+        }
+      } catch (err) {
+        console.warn('Ads show error', err);
+        // fallback to opening reward landing
+        const url = `/reward?userId=${tgid}`;
+        window.open(url, '_blank');
+      }
+    } else {
+      // fallback: open /reward landing (AdsGram will redirect with userId)
+      const url = `/reward?userId=${tgid}`;
+      window.open(url, '_blank');
+    }
   });
 
   scubeToGBtn.addEventListener('click', async ()=>{
