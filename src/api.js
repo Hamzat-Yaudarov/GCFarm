@@ -25,8 +25,11 @@ function verifyTelegramInitData(initData) {
     check.sort();
     const dataCheckString = check.join('\n');
     const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
-    return hmac === hash;
-  } catch {
+    const ok = hmac === hash;
+    try { console.log('[initData] hash=', String(hash).slice(0,8), 'user=', params.get('user') ? params.get('user').slice(0,40) : null, 'verify=', ok); } catch (e) {}
+    return ok;
+  } catch (err) {
+    console.log('[initData] verification error', err && err.message);
     return false;
   }
 }
