@@ -111,19 +111,6 @@ function toast(text) {
 }
 
 // energy regen ticker (client-side visual aid; server is the source of truth)
-setInterval(() => {
-  if (!state.user) return;
-  if (state.user.energy_current < state.user.energy_capacity) {
-    state.user.energy_last_ts = state.user.energy_last_ts || Date.now();
-    const elapsed = Date.now() - state.user.energy_last_ts;
-    if (elapsed >= 4000) {
-      const gain = Math.floor(elapsed / 4000);
-      state.user.energy_current = Math.min(state.user.energy_capacity, state.user.energy_current + gain);
-      state.user.energy_last_ts = Date.now() - (elapsed % 4000);
-      render();
-    }
-  }
-}, 1000);
 
 // AdsGram rewarded ad (optional)
 $('#watch-ad').addEventListener('click', async () => {
@@ -131,8 +118,8 @@ $('#watch-ad').addEventListener('click', async () => {
     if (window.Adsgram) {
       window.Adsgram.show({ type: 'rewarded' }, async (result) => {
         if (result === 'reward') {
-          toast('Награда за рекламу');
-          await fetch('/reward', { method: 'POST', headers: { 'x-init-data': getInitData() } });
+          toast('Энергия восстановлена');
+          await fetch('/reward/energy', { method: 'POST', headers: { 'x-init-data': getInitData() } });
           await fetchState();
         }
       });
@@ -143,5 +130,16 @@ $('#watch-ad').addEventListener('click', async () => {
     toast('Ошибка показа рекламы');
   }
 });
+
+const interBtn = document.querySelector('#show-interstitial');
+if (interBtn) {
+  interBtn.addEventListener('click', () => {
+    if (window.Adsgram) {
+      window.Adsgram.show({ type: 'interstitial', id: 'int-15441' }, () => {});
+    } else {
+      toast('Interstitial недоступен');
+    }
+  });
+}
 
 fetchState().catch(() => toast('Ошибка авторизации'));

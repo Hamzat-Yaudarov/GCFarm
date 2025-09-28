@@ -5,7 +5,7 @@ import { pool } from './db.js';
 export const adsGramRouter = express.Router();
 
 function verifySignature(payload, signature, secret) {
-  if (!secret) return true; // allow if no secret set (dev)
+  if (!secret) return true;
   const hmac = crypto.createHmac('sha256', secret);
   hmac.update(payload);
   const expected = hmac.digest('hex');
@@ -36,14 +36,25 @@ function parseInitData(initData) {
   }
 }
 
-async function applyReward(userId) {
+async function applyReward(userId, slug) {
   if (!userId) return false;
   const { rows } = await pool.query('select * from users where tg_id=$1', [userId]);
   if (!rows.length) return false;
   const u = rows[0];
-  const capacity = Number(u.energy_capacity);
-  const current = Math.min(capacity, Number(u.energy_current) + 10);
-  await pool.query('update users set energy_current=$2 where tg_id=$1', [userId, current]);
+  let type = 'energy';
+  let amount = 0;
+  if (slug) {
+    const r = await pool.query('select reward_type, reward_amount from ad_rewards where slug=$1', [slug]);
+    if (r.rows.length) { type = r.rows[0].reward_type; amount = Number(r.rows[0].reward_amount) || 0; }
+  }
+  if (type === 'energy') {
+    const capacity = Number(u.energy_capacity);
+    await pool.query('update users set energy_current=$2 where tg_id=$1', [userId, capacity]);
+  } else if (type === 'scube') {
+    await pool.query('update users set scube=scube+$2 where tg_id=$1', [userId, Math.max(0, amount)]);
+  } else if (type === 'gcube') {
+    await pool.query('update users set gcube=gcube+$2 where tg_id=$1', [userId, Math.max(0, amount)]);
+  }
   return true;
 }
 
@@ -58,7 +69,8 @@ adsGramRouter.post('/reward', express.urlencoded({ extended: false }), async (re
     if (!userId) userId = parseInitData(req.headers['x-init-data']);
     if (!userId) return res.status(400).send('missing user_id');
 
-    await applyReward(userId);
+    const slug = req.body.slug || null;
+    await applyReward(userId, slug);
     return res.json({ ok: true });
   } catch (e) {
     console.error('AdsGram reward error', e);
@@ -77,10 +89,31 @@ adsGramRouter.get('/reward', async (req, res) => {
     if (!userId) userId = parseInitData(req.headers['x-init-data']);
     if (!userId) return res.status(400).send('missing user_id');
 
-    await applyReward(userId);
+    const slug = req.query.slug || null;
+    await applyReward(userId, slug);
     return res.json({ ok: true });
   } catch (e) {
     console.error('AdsGram reward error', e);
+    return res.status(500).send('server error');
+  }
+});
+
+adsGramRouter.all('/reward/:slug', express.urlencoded({ extended: false }), async (req, res) => {
+  try {
+    const slug = req.params.slug;
+    const secret = process.env.ADSGRAM_SECRET;
+    const raw = req.method === 'GET' ? new URLSearchParams(req.query).toString() : new URLSearchParams(req.body).toString();
+    const signature = req.headers['x-signature'] || (req.method === 'GET' ? req.query.signature : req.body.signature) || '';
+    if (!verifySignature(raw, signature, secret)) return res.status(401).send('invalid signature');
+
+    let userId = req.method === 'GET' ? (req.query.user_id || null) : (req.body.user_id || null);
+    if (!userId) userId = parseInitData(req.headers['x-init-data']);
+    if (!userId) return res.status(400).send('missing user_id');
+
+    await applyReward(String(userId), slug);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error('AdsGram slug reward error', e);
     return res.status(500).send('server error');
   }
 });

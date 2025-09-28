@@ -1,4 +1,5 @@
 import { Telegraf, Markup } from 'telegraf';
+import { ensureUser } from './db.js';
 
 const token = process.env.TG_BOT_TOKEN;
 export let bot = null;
@@ -11,9 +12,10 @@ export async function initBot(app) {
   bot = new Telegraf(token);
 
   bot.start(async (ctx) => {
+    try { await ensureUser(ctx.from); } catch {}
     const base = process.env.BASE_URL || 'https://example.com';
     const webAppUrl = `${base}/app`;
-    const text = 'Доб��о пожаловать! Нажмите кнопку, чтобы открыть игру.';
+    const text = 'Добро пожаловать! Нажмите кнопку, чтобы открыть игру.';
     await ctx.reply(text, Markup.inlineKeyboard([
       [Markup.button.webApp('Открыть игру', webAppUrl)]
     ]));

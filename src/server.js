@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { initDb } from './db.js';
+import { initDb, initAdsSchema } from './db.js';
 import { initBot } from './bot.js';
 import { api } from './api.js';
 import { adsGramRouter } from './adsgram.js';
@@ -28,6 +28,7 @@ app.use('/', express.static(path.join(__dirname, '../public')));
 const port = process.env.PORT || 3000;
 
 initDb()
+  .then(initAdsSchema)
   .then(async () => {
     await initBot(app);
     app.listen(port, () => console.log(`Server listening on :${port}`));

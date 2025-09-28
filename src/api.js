@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import { ensureUser, pool, regenEnergy, resetDailyIfNeeded, saveEnergyState, toClient } from './db.js';
+import { ensureUser, pool, resetDailyIfNeeded, saveEnergyState, toClient } from './db.js';
 
 export const api = express.Router();
 
@@ -52,7 +52,6 @@ api.post('/tap', express.json(), authMiddleware, async (req, res) => {
   const { rows } = await pool.query('select * from users where tg_id=$1', [id]);
   let user = rows[0];
   user = await resetDailyIfNeeded(user);
-  user = regenEnergy(user);
   if (Number(user.energy_current) <= 0) {
     await saveEnergyState(user);
     return res.json({ ok: false, reason: 'no_energy', user: toClient(user) });
@@ -63,11 +62,11 @@ api.post('/tap', express.json(), authMiddleware, async (req, res) => {
   }
   const newEnergy = Number(user.energy_current) - 1;
   await pool.query(
-    `update users set scube=scube+1, energy_current=$2, energy_last_ts=$3, daily_collected=daily_collected+1 where tg_id=$1`,
-    [id, newEnergy, Date.now()]
+    `update users set scube=scube+1, energy_current=$2, daily_collected=daily_collected+1 where tg_id=$1`,
+    [id, newEnergy]
   );
   const after = await pool.query('select * from users where tg_id=$1', [id]);
-  return res.json({ ok: true, user: toClient(regenEnergy(after.rows[0])) });
+  return res.json({ ok: true, user: toClient(after.rows[0]) });
 });
 
 api.post('/exchange', express.json(), authMiddleware, async (req, res) => {
@@ -102,4 +101,35 @@ api.post('/upgrade/daily_limit', express.json(), authMiddleware, async (req, res
   await pool.query('update users set scube=scube-$2, daily_limit=daily_limit+50, limit_level=limit_level+1 where tg_id=$1', [id, cost]);
   const after = await pool.query('select * from users where tg_id=$1', [id]);
   return res.json({ ok: true, cost, user: toClient(after.rows[0]) });
+});
+
+function adminAuth(req, res, next) {
+  const admin = process.env.ADMIN_ID;
+  const provided = req.headers['x-admin-id'];
+  if (!admin || provided !== admin) return res.status(401).json({ ok: false, error: 'admin_only' });
+  next();
+}
+
+api.post('/admin/rewards', express.json(), adminAuth, async (req, res) => {
+  const { slug, reward_type = 'energy', reward_amount = 0 } = req.body || {};
+  if (!slug) return res.status(400).json({ ok: false, error: 'missing_slug' });
+  await pool.query(
+    `insert into ad_rewards(slug, reward_type, reward_amount)
+     values ($1,$2,$3)
+     on conflict (slug) do update set reward_type=excluded.reward_type, reward_amount=excluded.reward_amount`,
+    [slug, reward_type, Math.max(0, Number(reward_amount))]
+  );
+  res.json({ ok: true });
+});
+
+api.post('/admin/tasks', express.json(), adminAuth, async (req, res) => {
+  const { slug, url = null, reward_type = 'energy', reward_amount = 0, active = true } = req.body || {};
+  if (!slug) return res.status(400).json({ ok: false, error: 'missing_slug' });
+  await pool.query(
+    `insert into tasks(slug, url, reward_type, reward_amount, active)
+     values ($1,$2,$3,$4,$5)
+     on conflict (slug) do update set url=excluded.url, reward_type=excluded.reward_type, reward_amount=excluded.reward_amount, active=excluded.active`,
+    [slug, url, reward_type, Math.max(0, Number(reward_amount)), !!active]
+  );
+  res.json({ ok: true });
 });

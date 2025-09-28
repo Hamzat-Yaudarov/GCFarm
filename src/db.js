@@ -72,7 +72,6 @@ export async function ensureUser(tgUser) {
     const res = await pool.query('select * from users where tg_id=$1', [id]);
     user = res.rows[0];
   } else {
-    // update profile fields opportunistically
     await pool.query(
       `update users set username=$2, first_name=$3, last_name=$4, photo_url=$5 where tg_id=$1`,
       [id, tgUser.username || null, tgUser.first_name || null, tgUser.last_name || null, tgUser.photo_url || null]
@@ -81,7 +80,6 @@ export async function ensureUser(tgUser) {
     user = res.rows[0];
   }
   user = await resetDailyIfNeeded(user);
-  user = regenEnergy(user);
   if (!user.photo_url) { maybeUpdatePhoto(id).catch(() => {}); }
   return user;
 }
@@ -124,4 +122,23 @@ export function toClient(user) {
     daily_collected: Number(user.daily_collected),
     limit_level: Number(user.limit_level)
   };
+}
+
+export async function initAdsSchema() {
+  await pool.query(`
+    create table if not exists ad_rewards (
+      slug text primary key,
+      reward_type text not null default 'energy',
+      reward_amount integer not null default 0,
+      created_at timestamptz not null default now()
+    );
+    create table if not exists tasks (
+      slug text primary key,
+      url text,
+      reward_type text not null default 'energy',
+      reward_amount integer not null default 0,
+      active boolean not null default true,
+      created_at timestamptz not null default now()
+    );
+  `);
 }
