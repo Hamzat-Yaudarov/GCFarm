@@ -77,7 +77,15 @@
     if (!data.ok) throw new Error(data.error || 'init_failed');
     const user = data.user;
     const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
-    setAvatar(unsafe?.user?.photo_url || null, name);
+    let avatarUrl = unsafe?.user?.photo_url || null;
+    if (!avatarUrl && unsafe?.user?.id) {
+      try {
+        const r = await fetch('/api/avatar?user_id=' + encodeURIComponent(unsafe.user.id));
+        const j = await r.json();
+        if (j && j.ok && j.url) avatarUrl = j.url;
+      } catch (_) {}
+    }
+    setAvatar(avatarUrl, name);
     updateUI(user);
   }
 
@@ -93,7 +101,7 @@
     const data = await res.json();
     if (!res.ok) {
       if (data.error === 'not_enough_energy') return showToast('Недостаточно энергии');
-      if (data.error === 'daily_limit_reached') return showToast('Дневной лимит достигн��т');
+      if (data.error === 'daily_limit_reached') return showToast('Дневной лимит достигнут');
       return showToast('Ошибка');
     }
     updateUI(data.user);

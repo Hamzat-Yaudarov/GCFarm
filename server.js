@@ -7,7 +7,8 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 3000;
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN || '';
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
-const NEON_DATABASE_URL = process.env.NEON_DATABASE_URL || '';
+const RAW_NEON_URL = process.env.NEON_DATABASE_URL || '';
+const NEON_DATABASE_URL = RAW_NEON_URL.replace(/&amp;/g, '&');
 
 const app = express();
 app.use(express.json());
@@ -16,31 +17,36 @@ app.use(express.urlencoded({ extended: true }));
 // --- Database ---
 let pool = null;
 if (NEON_DATABASE_URL) {
-  pool = new Pool({ connectionString: NEON_DATABASE_URL });
+  pool = new Pool({ connectionString: NEON_DATABASE_URL, ssl: { rejectUnauthorized: false } });
 }
 
 async function ensureSchema() {
   if (!pool) return;
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      telegram_id BIGINT PRIMARY KEY,
-      username TEXT,
-      first_name TEXT,
-      last_name TEXT,
-      avatar_url TEXT,
-      scube INTEGER NOT NULL DEFAULT 0,
-      gcube INTEGER NOT NULL DEFAULT 0,
-      energy INTEGER NOT NULL DEFAULT 50,
-      energy_capacity INTEGER NOT NULL DEFAULT 50,
-      energy_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      daily_limit INTEGER NOT NULL DEFAULT 250,
-      daily_used_today INTEGER NOT NULL DEFAULT 0,
-      daily_updated_at DATE NOT NULL DEFAULT CURRENT_DATE,
-      limit_level INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  try {
+    await pool.query('SELECT 1');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        telegram_id BIGINT PRIMARY KEY,
+        username TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        avatar_url TEXT,
+        scube INTEGER NOT NULL DEFAULT 0,
+        gcube INTEGER NOT NULL DEFAULT 0,
+        energy INTEGER NOT NULL DEFAULT 50,
+        energy_capacity INTEGER NOT NULL DEFAULT 50,
+        energy_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        daily_limit INTEGER NOT NULL DEFAULT 250,
+        daily_used_today INTEGER NOT NULL DEFAULT 0,
+        daily_updated_at DATE NOT NULL DEFAULT CURRENT_DATE,
+        limit_level INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  } catch (_e) {
+    pool = null; // mark DB as unavailable so APIs return 503 instead of 500
+  }
 }
 
 // --- Telegram WebApp initData validation ---
