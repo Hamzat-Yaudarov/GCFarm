@@ -51,7 +51,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') fetchState().catch(() => {});
 });
 
-setInterval(() => { fetchState().catch(() => {}); }, 10000);
+let syncTimer = setInterval(() => { fetchState().catch(() => {}); }, 10000);
 
 function render() {
   if (!state.user) return;
@@ -148,4 +148,7 @@ if (interBtn) {
   });
 }
 
-fetchState().catch(() => toast('Ошибка авторизации'));
+fetchState().catch((e) => {
+  toast('Откройте игру через Telegram');
+  if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+});

@@ -20,6 +20,7 @@ const __dirname = path.dirname(__filename);
 app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/app.html'));
 });
+app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 app.get('/', (_req, res) => res.redirect('/app'));
 app.get('/miniapp', (_req, res) => res.redirect('/app'));
 app.get('/miniapp/', (_req, res) => res.redirect('/app'));
