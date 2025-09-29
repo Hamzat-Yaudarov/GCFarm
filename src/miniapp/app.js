@@ -7,6 +7,7 @@
   const apiBase = '/api';
   const APP_CONFIG = window.APP_CONFIG || {};
   const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
+  const BOT_WEBAPP_PATH = APP_CONFIG.BOT_WEBAPP_PATH || '';
   const BASE_URL = APP_CONFIG.BASE_URL || window.location.origin;
 
   // If tgid not provided via query, try to get from Telegram WebApp init data
@@ -229,7 +230,7 @@
     try {
       if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
-        const deepLink = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}` : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
+        const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
         referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
         const copyBtn = document.getElementById('copy-referral');
         if (copyBtn) copyBtn.addEventListener('click', ()=>{

@@ -8,6 +8,7 @@ const db = require('./db');
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 const BOT_USERNAME = process.env.BOT_USERNAME || '';
+const BOT_WEBAPP_PATH = process.env.BOT_WEBAPP_PATH || '';
 const PORT = process.env.PORT || 3000;
 const ADSGRAM_SECRET = process.env.ADSGRAM_SECRET || 'c6a7a8b7cd30418d9844aebc37b6aaf2';
 const ADSGRAM_INTERSTITIAL_ID = process.env.ADSGRAM_INTERSTITIAL_ID || 'int-15441';
@@ -76,7 +77,8 @@ app.get('/miniapp/config.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   const safe = {
     BASE_URL,
-    BOT_USERNAME
+    BOT_USERNAME,
+    BOT_WEBAPP_PATH
   };
   res.send(`window.APP_CONFIG = ${JSON.stringify(safe)};`);
 });
