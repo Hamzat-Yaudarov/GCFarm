@@ -9,7 +9,11 @@ body{margin:0;background:#0b1221;color:#fff}
 .tab-content{min-height:320px;display:flex;align-items:center;justify-content:center}
 .hidden{display:none}
 .cube-area{display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:8px}
-.golden-cube{font-size:96px;width:220px;height:220px;border-radius:24px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 12px 30px rgba(0,0,0,0.45);transform:translateY(8px)}
+.golden-cube{font-size:240px;width:550px;height:550px;border-radius:36px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 18px 40px rgba(0,0,0,0.55);transform:translateY(18px)}
+
+@media (max-width:480px){
+  .golden-cube{width:220px;height:220px;font-size:96px;transform:translateY(8px)}
+}
 .energy,.daily{font-size:16px;color:#e6f0f8}
 .store-empty{padding:20px;text-align:center;color:#9fb6c9}
 

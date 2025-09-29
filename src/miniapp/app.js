@@ -177,6 +177,23 @@
     dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
   });
 
+  // helper to poll server for changes
+  async function pollForChange(getter, initialValue, timeout = 30000, interval = 2000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      try {
+        const res = await fetch(`${apiBase}/user/${tgid}`);
+        if (res.ok) {
+          const user = await res.json();
+          const value = getter(user);
+          if (value !== initialValue) return user;
+        }
+      } catch (e) { console.warn('poll error', e); }
+      await new Promise(r => setTimeout(r, interval));
+    }
+    return null;
+  }
+
   watchAdBtn.addEventListener('click', async ()=>{
     if (!tgid) return alert('tgid is required');
     const cfg = window.ADSGRAM_CONFIG || {};
@@ -184,29 +201,65 @@
     if (window.Adsgram && rewardBlock) {
       try {
         const controller = window.Adsgram.init({ blockId: rewardBlock });
+        const beforeRes = await fetch(`${apiBase}/user/${tgid}`);
+        const before = beforeRes.ok ? await beforeRes.json() : null;
+        const beforeScube = before ? Number(before.scube) : null;
+
         const result = await controller.show();
         console.log('reward show', result);
-        // if watched till end or closed (per AdsGram), reward
-        if (result && (result.done || result.state === 'destroy' || result.state === 'playing')) {
-          // call server to credit reward
-          await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: 5 }) });
-          await loadUser();
-          showStoreFeedback('Награда начислена');
+        if (result && result.done && !result.error) {
+          showStoreFeedback('Реклама просмотрена. Ожидается подтверждение и зачисление...');
+          const updated = await pollForChange(u => u.scube, beforeScube, 30000, 2000);
+          if (updated) { scubeEl.textContent = updated.scube; showStoreFeedback('Награда зачислена'); }
+          else showStoreFeedback('Награда не подтверждена сервером (подождите или свяжитесь с поддержкой)');
         } else {
           showStoreFeedback('Реклама не была просмотрена полностью');
         }
       } catch (err) {
         console.warn('Ads show error', err);
-        // fallback to opening reward landing
         const url = `/reward?userId=${tgid}`;
         window.open(url, '_blank');
       }
     } else {
-      // fallback: open /reward landing (AdsGram will redirect with userId)
       const url = `/reward?userId=${tgid}`;
       window.open(url, '_blank');
     }
   });
+
+  // energy ad button: uses energyAdBlockId if provided, else rewardBlock
+  const watchEnergyAdBtn = document.getElementById('watch-energy-ad');
+  if (watchEnergyAdBtn) {
+    watchEnergyAdBtn.addEventListener('click', async ()=>{
+      if (!tgid) return alert('tgid is required');
+      const cfg = window.ADSGRAM_CONFIG || {};
+      const block = cfg.energyAdBlockId || cfg.rewardBlockId || cfg.interstitialBlockId;
+      if (window.Adsgram && block) {
+        try {
+          const controller = window.Adsgram.init({ blockId: block });
+          const beforeRes = await fetch(`${apiBase}/user/${tgid}`);
+          const before = beforeRes.ok ? await beforeRes.json() : null;
+          const beforeEnergy = before ? Number(before.energy) : null;
+
+          const result = await controller.show();
+          if (result && result.done && !result.error) {
+            showStoreFeedback('Реклама просмотрена. Ожидается подтверждение и восполнение энергии...');
+            const updated = await pollForChange(u => u.energy, beforeEnergy, 30000, 2000);
+            if (updated) { energyEl.textContent = updated.energy; showStoreFeedback('Энергия восполнена'); }
+            else showStoreFeedback('Восполнение не подтверждено сервером');
+          } else {
+            showStoreFeedback('Реклама не была просмотрена полностью');
+          }
+        } catch (e) {
+          console.warn('Energy ad show error', e);
+          const url = `/reward?userId=${tgid}`;
+          window.open(url, '_blank');
+        }
+      } else {
+        const url = `/reward?userId=${tgid}`;
+        window.open(url, '_blank');
+      }
+    });
+  }
 
   // refill button handler
   const refillBtn = document.getElementById('refill-btn');
