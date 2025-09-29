@@ -3,8 +3,15 @@
     const url = new URL(window.location.href);
     return url.searchParams.get(name);
   }
-  const tgid = qs('tgid');
+  let tgid = qs('tgid');
   const apiBase = '/api';
+
+  // If tgid not provided via query, try to get from Telegram WebApp init data
+  if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+    tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
+  }
+
+  const appMessage = document.getElementById('app-message');
 
   const scubeEl = document.getElementById('scube');
   const gcubeEl = document.getElementById('gcube');
@@ -108,7 +115,7 @@
             fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) })
               .then(()=> loadUser())
               .then(()=> { if (taskFeedback) taskFeedback.textContent = 'Награда за задание получена'; setTimeout(()=> taskFeedback.textContent = '', 3000); })
-              .catch((e)=>{ console.warn('Failed to claim task reward', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при получении н��грады'; });
+              .catch((e)=>{ console.warn('Failed to claim task reward', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при получении награды'; });
           }
         };
         taskEl.addEventListener('reward', handler);
@@ -119,31 +126,46 @@
   } catch (e) { console.warn('Failed to setup task block', e); }
 
   async function loadUser(){
-    if (!tgid) return alert('tgid is required');
-    const res = await fetch(`${apiBase}/user/${tgid}`);
-    if (!res.ok) return alert('Failed to load user');
-    const user = await res.json();
-    scubeEl.textContent = user.scube;
-    gcubeEl.textContent = user.gcube;
-    energyEl.textContent = user.energy;
-    energyCapEl.textContent = user.energy_capacity;
-    dailyEl.textContent = user.daily_count;
-    dailyLevelEl.textContent = user.daily_limit_level;
-    dailyLimitEl.textContent = (250 + user.daily_limit_level * 50);
-    dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
-    avatarEl.textContent = (user.name && user.name[0]) || 'A';
-
-    // if server just did a daily refill, inform player
-    if (user.last_refill) {
-      const last = new Date(user.last_refill).toISOString().slice(0,10);
-      const today = new Date().toISOString().slice(0,10);
-      if (last === today) {
-        showStoreFeedback('Энергия автоматически восстановлена сегодня (1 раз в день)');
-      }
+    if (!tgid) {
+      if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
+      return;
     }
+    try {
+      const res = await fetch(`${apiBase}/user/${tgid}`);
+      if (!res.ok) {
+        let body = null;
+        try { body = await res.json(); } catch(e){}
+        const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
+        if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
+        return;
+      }
+      const user = await res.json();
+      if (appMessage) appMessage.textContent = '';
+      scubeEl.textContent = user.scube;
+      gcubeEl.textContent = user.gcube;
+      energyEl.textContent = user.energy;
+      energyCapEl.textContent = user.energy_capacity;
+      dailyEl.textContent = user.daily_count;
+      dailyLevelEl.textContent = user.daily_limit_level;
+      dailyLimitEl.textContent = (250 + user.daily_limit_level * 50);
+      dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
+      avatarEl.textContent = (user.name && user.name[0]) || 'A';
 
-    // start auto-tick if enabled
-    if (user.auto_energy) startAutoTick(); else stopAutoTick();
+      // if server just did a daily refill, inform player
+      if (user.last_refill) {
+        const last = new Date(user.last_refill).toISOString().slice(0,10);
+        const today = new Date().toISOString().slice(0,10);
+        if (last === today) {
+          showStoreFeedback('Энергия автоматически восстановлена сегодня (1 раз в день)');
+        }
+      }
+
+      // start auto-tick if enabled
+      if (user.auto_energy) startAutoTick(); else stopAutoTick();
+    } catch (err) {
+      console.error('loadUser error', err);
+      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
+    }
   }
 
   golden.addEventListener('click', async ()=>{
@@ -264,7 +286,7 @@
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увелич��ние вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
@@ -278,7 +300,7 @@
   // Confirm on exchange
   scubeToGBtn.addEventListener('click', async ()=>{
     if (!tgid) return alert('tgid is required');
-    const confirmed = await showConfirm('Поме��ять 50 SCube на 1 GCube?');
+    const confirmed = await showConfirm('Поменять 50 SCube на 1 GCube?');
     if (!confirmed) return showStoreFeedback('Обмен отменён');
     const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'scube_to_gcube', units: 1 }) });
     const json = await res.json();
