@@ -31,6 +31,8 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auto_energy BOOLEAN DEFAULT false`);
     // ensure energy_capacity column exists with default if missing
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS energy_capacity INTEGER DEFAULT 50`);
+    // tracking last reward timestamp to prevent abuse
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reward_at TIMESTAMPTZ`);
   } finally {
     client.release();
   }
@@ -227,11 +229,21 @@ async function claimReward(tgid, amount) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT scube FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, last_reward_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
+    const last = res.rows[0].last_reward_at;
+    const now = new Date();
+    if (last) {
+      const diff = now - new Date(last);
+      // prevent abuse: require at least 10 seconds between reward claims
+      if (diff < 10000) {
+        await client.query('ROLLBACK');
+        return { ok:false, message: 'Слишком частые запросы награды' };
+      }
+    }
     let scube = Number(res.rows[0].scube);
     scube += amount;
-    await client.query('UPDATE users SET scube=$1 WHERE tgid=$2', [scube, tgid]);
+    await client.query('UPDATE users SET scube=$1, last_reward_at = $2 WHERE tgid=$3', [scube, now, tgid]);
     await client.query('COMMIT');
     return { ok:true, scube };
   } catch (err) {

@@ -105,19 +105,31 @@
         wrapper.appendChild(taskEl);
 
         const taskFeedback = document.getElementById('task-feedback');
-        const handler = (event) => {
+        const handler = async (event) => {
           // event.detail may contain reward amount and debug info
           const detail = event && event.detail;
           console.log('adsgram task event', event.type, detail);
           if (event.type === 'reward') {
-            // Do NOT auto-credit based solely on client event. AdsGram should send a server callback (/adsgram/callback) which we verify and use to credit.
-            // In debug or test mode the component may emit reward immediately; inform the user that server confirmation is required.
-            if (taskFeedback) taskFeedback.textContent = 'Награда получена в клиенте. Ожидается подтверждение и зачисление (через AdsGram callback).';
+            const amount = (detail && (detail.reward || detail.amount)) || 5;
+            if (taskFeedback) taskFeedback.textContent = 'Задание выполнено. На��исление...';
+            try {
+              const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) });
+              const claimJson = await claimRes.json();
+              if (claimJson.ok) {
+                await loadUser();
+                if (taskFeedback) taskFeedback.textContent = 'Награда за задание зачислена';
+              } else {
+                if (taskFeedback) taskFeedback.textContent = claimJson.message || 'Невозможно зачислить награду';
+              }
+            } catch (e) {
+              console.warn('Failed to claim task reward', e);
+              if (taskFeedback) taskFeedback.textContent = 'Ошибка при зачислении награды';
+            }
             setTimeout(()=>{ if (taskFeedback) taskFeedback.textContent = ''; }, 5000);
           }
         };
         taskEl.addEventListener('reward', handler);
-        taskEl.addEventListener('onError', (e) => { console.warn('task onError', e); if (taskFeedback) taskFeedback.textContent = '��шибка загрузки задания'; setTimeout(()=> taskFeedback.textContent = '',3000); });
+        taskEl.addEventListener('onError', (e) => { console.warn('task onError', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка загрузки задания'; setTimeout(()=> taskFeedback.textContent = '',3000); });
         taskEl.addEventListener('onBannerNotFound', (e) => { console.log('task not found', e); if (taskFeedback) taskFeedback.textContent = 'Задания пока недоступны'; setTimeout(()=> taskFeedback.textContent = '',3000); });
       }
     }
@@ -208,10 +220,15 @@
         const result = await controller.show();
         console.log('reward show', result);
         if (result && result.done && !result.error) {
-          showStoreFeedback('Реклама просмотрена. Ожидается подтверждение и зачисление...');
-          const updated = await pollForChange(u => u.scube, beforeScube, 30000, 2000);
-          if (updated) { scubeEl.textContent = updated.scube; showStoreFeedback('Награда зачислена'); }
-          else showStoreFeedback('Награда не подтверждена сервером (подождите или свяжитесь с поддержкой)');
+          // Directly claim reward because AdsGram does not provide server postbacks in your panel
+          const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: 5 }) });
+          const claimJson = await claimRes.json();
+          if (claimJson.ok) {
+            scubeEl.textContent = claimJson.scube;
+            showStoreFeedback('Награда зачислена');
+          } else {
+            showStoreFeedback(claimJson.message || 'Невозможно зачислить награду');
+          }
         } else {
           showStoreFeedback('Реклама не была просмотрена полностью');
         }
