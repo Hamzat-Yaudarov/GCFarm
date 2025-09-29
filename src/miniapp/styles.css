@@ -5,13 +5,17 @@ body{margin:0;background:#0b1221;color:#fff}
 .player-avatar{width:48px;height:48px;border-radius:50%;background:#23354b;display:flex;align-items:center;justify-content:center;font-weight:700}
 .balances{margin-left:12px;display:flex;flex-direction:column}
 .balance-s,.balance-g{font-size:14px}
-.game-main{padding:16px;padding-bottom:80px}
-.tab-content{min-height:220px}
+.game-main{padding:16px;padding-bottom:120px;display:flex;flex-direction:column;align-items:center}
+.tab-content{min-height:320px;display:flex;align-items:center;justify-content:center}
 .hidden{display:none}
-.cube-area{display:flex;flex-direction:column;align-items:center;gap:12px}
-.golden-cube{font-size:72px;width:180px;height:180px;border-radius:20px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 25px rgba(0,0,0,0.4)}
-.energy,.daily{font-size:14px;color:#e6f0f8}
+.cube-area{display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:8px}
+.golden-cube{font-size:96px;width:220px;height:220px;border-radius:24px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 12px 30px rgba(0,0,0,0.45);transform:translateY(8px)}
+.energy,.daily{font-size:16px;color:#e6f0f8}
 .store-empty{padding:20px;text-align:center;color:#9fb6c9}
+
+.ad-block{margin-top:8px;display:flex;gap:10px}
+.watch-ad{padding:10px;border-radius:8px;border:none;background:#3a8f5a;color:#fff;cursor:pointer}
+.watch-ad.secondary{background:#2266ff}
 
 /* Bottom tabs */
 .tabs-bottom{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;display:flex;gap:8px;padding:10px;background:linear-gradient(180deg,rgba(7,17,29,0.9),rgba(7,17,29,1));border-top:1px solid rgba(255,255,255,0.03);}

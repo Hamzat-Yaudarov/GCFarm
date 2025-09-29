@@ -106,16 +106,14 @@
 
         const taskFeedback = document.getElementById('task-feedback');
         const handler = (event) => {
-          // event.detail may contain reward amount
+          // event.detail may contain reward amount and debug info
           const detail = event && event.detail;
           console.log('adsgram task event', event.type, detail);
           if (event.type === 'reward') {
-            const amount = (detail && detail.reward) || (detail && detail.amount) || 5;
-            // call server to credit reward
-            fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) })
-              .then(()=> loadUser())
-              .then(()=> { if (taskFeedback) taskFeedback.textContent = 'Награда за задание получена'; setTimeout(()=> taskFeedback.textContent = '', 3000); })
-              .catch((e)=>{ console.warn('Failed to claim task reward', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при получении награды'; });
+            // Do NOT auto-credit based solely on client event. AdsGram should send a server callback (/adsgram/callback) which we verify and use to credit.
+            // In debug or test mode the component may emit reward immediately; inform the user that server confirmation is required.
+            if (taskFeedback) taskFeedback.textContent = 'Награда получена в клиенте. Ожидается подтверждение и зачисление (через AdsGram callback).';
+            setTimeout(()=>{ if (taskFeedback) taskFeedback.textContent = ''; }, 5000);
           }
         };
         taskEl.addEventListener('reward', handler);
@@ -286,7 +284,7 @@
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увелич��ние вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
