@@ -33,6 +33,39 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS energy_capacity INTEGER DEFAULT 50`);
     // tracking last reward timestamp to prevent abuse
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reward_at TIMESTAMPTZ`);
+    // referral support: who referred this user
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
+    // referral stats per pair (referrer, referred)
+    await client.query(`CREATE TABLE IF NOT EXISTS referral_stats (
+      referrer BIGINT,
+      referred BIGINT,
+      click_count INTEGER DEFAULT 0,
+      PRIMARY KEY (referrer, referred)
+    );`);
+  } finally {
+    client.release();
+  }
+}
+
+async function setReferrer(tgid, referrer) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (Number(tgid) === Number(referrer)) { await client.query('ROLLBACK'); return { ok:false, message: 'Нельзя быть своим рефералом' }; }
+    // ensure users exist
+    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [tgid, `Player ${tgid}`]);
+    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
+
+    // set only if not set
+    const res = await client.query('SELECT referrer_tgid FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (!res.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
+    if (res.rows[0].referrer_tgid) { await client.query('ROLLBACK'); return { ok:false, message:'Реферал уже установлен' }; }
+    await client.query('UPDATE users SET referrer_tgid = $1 WHERE tgid = $2', [referrer, tgid]);
+    await client.query('COMMIT');
+    return { ok:true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
   } finally {
     client.release();
   }
@@ -129,6 +162,23 @@ async function handleClick(tgid) {
     const newDaily = daily_count + 1;
 
     await client.query('UPDATE users SET scube = $1, energy = $2, daily_count = $3 WHERE tgid = $4', [newScube, newEnergy, newDaily, tgid]);
+
+    // handle referral click counting and reward: if this user was referred, increment counter for referrer
+    const refRes = await client.query('SELECT referrer_tgid FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (refRes.rows.length && refRes.rows[0].referrer_tgid) {
+      const referrer = refRes.rows[0].referrer_tgid;
+      // upsert referral_stats
+      const upsert = await client.query(`INSERT INTO referral_stats (referrer, referred, click_count) VALUES ($1, $2, 1)
+        ON CONFLICT (referrer, referred) DO UPDATE SET click_count = referral_stats.click_count + 1
+        RETURNING click_count`, [referrer, tgid]);
+      const clickCount = upsert.rows[0].click_count;
+      if (clickCount >= 10) {
+        // reset by subtracting 10 and give referrer +1 SCube
+        await client.query('UPDATE referral_stats SET click_count = click_count - 10 WHERE referrer = $1 AND referred = $2', [referrer, tgid]);
+        await client.query('UPDATE users SET scube = scube + 1 WHERE tgid = $1', [referrer]);
+      }
+    }
+
     await client.query('COMMIT');
     return { ok: true, scube: newScube, energy: newEnergy, daily_count: newDaily, daily_limit };
   } catch (err) {
@@ -229,7 +279,7 @@ async function claimReward(tgid, amount) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT scube, last_reward_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, last_reward_at, referrer_tgid FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const last = res.rows[0].last_reward_at;
     const now = new Date();
@@ -244,6 +294,16 @@ async function claimReward(tgid, amount) {
     let scube = Number(res.rows[0].scube);
     scube += amount;
     await client.query('UPDATE users SET scube=$1, last_reward_at = $2 WHERE tgid=$3', [scube, now, tgid]);
+
+    // if user has referrer, credit 10% of amount (rounded down)
+    const referrer = res.rows[0].referrer_tgid;
+    if (referrer) {
+      const bonus = Math.floor(amount * 0.1);
+      if (bonus > 0) {
+        await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2', [bonus, referrer]);
+      }
+    }
+
     await client.query('COMMIT');
     return { ok:true, scube };
   } catch (err) {
@@ -253,6 +313,8 @@ async function claimReward(tgid, amount) {
     client.release();
   }
 }
+
+module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer };
 
 // Manual refill to full capacity
 async function refillToFull(tgid) {

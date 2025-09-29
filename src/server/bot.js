@@ -131,6 +131,20 @@ app.post('/api/user/:tgid/refill', async (req, res) => {
   }
 });
 
+// Set referrer for a user (only if not set and not self-referral)
+app.post('/api/user/:tgid/set-referrer', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  const { referrer } = req.body || {};
+  if (!tgid || !referrer) return res.status(400).json({ error: 'Invalid params' });
+  try {
+    const result = await db.setReferrer(tgid, Number(referrer));
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 // Auto-tick endpoint
 app.post('/api/user/:tgid/auto-tick', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
@@ -161,7 +175,7 @@ app.post('/api/user/:tgid/claim-reward', async (req, res) => {
 // Generic reward landing - accepts either tgid or userId as query
 app.get('/reward', (req, res) => {
   const tgid = req.query.tgid || req.query.userId || '';
-  res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Reward</title></head><body><h2>Reward landing (placeholder)</h2><p>После просмотра рекламы нажмите кнопку, чтобы получить награду.</p><form method="post" action="/api/user/${tgid}/claim-reward"><input type="hidden" name="amount" value="5"><button type="submit">Забрать 5 SCube</button></form></body></html>`);
+  res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Reward</title></head><body><h2>Reward landing (placeholder)</h2><p>После просмотра рекламы нажмите кнопку, ч��обы получить награду.</p><form method="post" action="/api/user/${tgid}/claim-reward"><input type="hidden" name="amount" value="5"><button type="submit">Забрать 5 SCube</button></form></body></html>`);
 });
 
 // AdsGram callback endpoint - verify signature and credit reward automatically

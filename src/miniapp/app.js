@@ -64,31 +64,43 @@
       contents.forEach(c=>{
         if (c.id===tab) c.classList.remove('hidden'); else c.classList.add('hidden');
       });
-
-      // show interstitial on tab switch if available and throttled
-      try {
-        const now = Date.now();
-        if (AdController && typeof AdController.show === 'function' && now - lastInterstitialAt > INTERSTITIAL_MIN_INTERVAL && interstitialShownCount < INTERSTITIAL_MAX_PER_SESSION) {
-          lastInterstitialAt = now;
-          try {
-            const result = await AdController.show();
-            interstitialShownCount++;
-            console.log('AdController.show result', result);
-          } catch (err) {
-            // AdsGram may return descriptive errors; suppress repetitive 'block not active' messages
-            const msg = (err && (err.description || err.message || '')) + '';
-            if (msg.toLowerCase().includes('not active') || msg.toLowerCase().includes('inactive') || msg.toLowerCase().includes('moderation')) {
-              console.warn('AdController show suppressed non-active/moderation message');
-            } else {
-              console.warn('Ad show error', err);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Ad show error outer', err);
-      }
     });
   });
+
+  // Interstitial scheduler: will run independently every 10 minutes and show countdown
+  let interstitialScheduler = null;
+  function startInterstitialScheduler() {
+    if (interstitialScheduler) return;
+    async function showInterstitialWithCountdown() {
+      try {
+        if (!AdController || typeof AdController.show !== 'function') return;
+        // show 3-second countdown overlay
+        const overlay = document.getElementById('ad-countdown-overlay');
+        if (overlay) {
+          overlay.classList.remove('hidden');
+          let count = 3;
+          const badge = document.getElementById('ad-countdown-badge');
+          if (badge) badge.textContent = `Реклама через ${count}`;
+          while (count > 0) {
+            if (badge) badge.textContent = `Реклама через ${count}`;
+            await new Promise(r=>setTimeout(r,1000));
+            count -= 1;
+          }
+          overlay.classList.add('hidden');
+        }
+        const result = await AdController.show();
+        console.log('Scheduled interstitial shown', result);
+      } catch (e) { console.warn('Scheduled interstitial failed', e); }
+    }
+    // initial delay: 10 minutes from start
+    interstitialScheduler = setInterval(showInterstitialWithCountdown, 10 * 60 * 1000);
+    // also schedule first showing in 10 minutes
+    setTimeout(()=>{ showInterstitialWithCountdown(); }, 10 * 60 * 1000);
+  }
+  function stopInterstitialScheduler(){ if (interstitialScheduler) { clearInterval(interstitialScheduler); interstitialScheduler = null; } }
+
+  // start scheduler if AdsGram initialized
+  if (AdController) startInterstitialScheduler();
 
   // Insert task block if available
   try {
@@ -161,17 +173,18 @@
       dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
       avatarEl.textContent = (user.name && user.name[0]) || 'A';
 
-      // if server just did a daily refill, inform player
-      if (user.last_refill) {
-        const last = new Date(user.last_refill).toISOString().slice(0,10);
-        const today = new Date().toISOString().slice(0,10);
-        if (last === today) {
-          showStoreFeedback('Энергия автоматически восстановлена сегодня (1 раз в день)');
-        }
-      }
-
       // start auto-tick if enabled
-      if (user.auto_energy) startAutoTick(); else stopAutoTick();
+    if (user.auto_energy) startAutoTick(); else stopAutoTick();
+
+    // set referrer if present in URL param (only once)
+    try {
+      const ref = qs('ref');
+      const refSetKey = `ref_set_${tgid}`;
+      if (ref && Number(ref) && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
+        await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
+        localStorage.setItem(refSetKey, '1');
+      }
+    } catch (e) { console.warn('set-referrer failed', e); }
     } catch (err) {
       console.error('loadUser error', err);
       if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
@@ -354,7 +367,7 @@
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      const confirmed = await showConfirm('Подт��ердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();

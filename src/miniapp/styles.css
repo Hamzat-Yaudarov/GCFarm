@@ -1,52 +1,47 @@
 *{box-sizing:border-box;font-family:Inter, Roboto, Arial, sans-serif}
-body{margin:0;background:#0b1221;color:#fff}
-.game-root{max-width:480px;margin:20px auto;border-radius:8px;overflow:hidden;background:linear-gradient(180deg,#071029 0%,#0b1221 100%);position:relative}
-.game-header{display:flex;align-items:center;padding:12px}
-.player-avatar{width:48px;height:48px;border-radius:50%;background:#23354b;display:flex;align-items:center;justify-content:center;font-weight:700}
+body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
+.game-root{max-width:520px;margin:18px auto;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#071029 0%,#081426 100%);position:relative;border:1px solid rgba(255,255,255,0.04)}
+.game-header{display:flex;align-items:center;padding:14px;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent)}
+.player-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,#2b475b,#23354b);display:flex;align-items:center;justify-content:center;font-weight:700}
 .balances{margin-left:12px;display:flex;flex-direction:column}
 .balance-s,.balance-g{font-size:14px}
-.game-main{padding:16px;padding-bottom:120px;display:flex;flex-direction:column;align-items:center}
-.tab-content{min-height:320px;display:flex;align-items:center;justify-content:center}
+.game-main{padding:18px;padding-bottom:140px;display:flex;flex-direction:column;align-items:center}
+.tab-content{min-height:360px;display:flex;align-items:center;justify-content:center}
 .hidden{display:none}
-.cube-area{display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:8px}
-.golden-cube{font-size:240px;width:550px;height:550px;border-radius:36px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 18px 40px rgba(0,0,0,0.55);transform:translateY(18px)}
-
-@media (max-width:480px){
-  .golden-cube{width:220px;height:220px;font-size:96px;transform:translateY(8px)}
-}
+.cube-area{display:flex;flex-direction:column;align-items:center;gap:22px;margin-top:8px}
+.golden-cube{font-size:240px;width:550px;height:550px;border-radius:36px;background:radial-gradient(circle at 30% 30%,#fff1b8,#ffd54b 30%,#ffb300 65%);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 18px 60px rgba(0,0,0,0.6);transform:translateY(18px);transition:transform .12s ease, box-shadow .12s ease}
+.golden-cube:active{transform:translateY(22px);box-shadow:0 10px 30px rgba(0,0,0,0.6)}
 .energy,.daily{font-size:16px;color:#e6f0f8}
 .store-empty{padding:20px;text-align:center;color:#9fb6c9}
 
 .ad-block{margin-top:8px;display:flex;gap:10px}
-.watch-ad{padding:10px;border-radius:8px;border:none;background:#3a8f5a;color:#fff;cursor:pointer}
-.watch-ad.secondary{background:#2266ff}
+.watch-ad{padding:12px;border-radius:10px;border:none;background:linear-gradient(180deg,#2b8a5f,#2b6d91);color:#fff;cursor:pointer;font-weight:700}
+.watch-ad.secondary{background:linear-gradient(180deg,#2b66ff,#1a4b6a)}
+.watch-ad:hover{opacity:0.95}
 
 /* Bottom tabs */
-.tabs-bottom{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;display:flex;gap:8px;padding:10px;background:linear-gradient(180deg,rgba(7,17,29,0.9),rgba(7,17,29,1));border-top:1px solid rgba(255,255,255,0.03);}
-.tab-button{flex:1;padding:10px;border-radius:8px;background:#0f2536;color:#bcd3e6;border:1px solid rgba(255,255,255,0.04)}
-.tab-button.active{background:#153547;color:#fff}
+.tabs-bottom{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;display:flex;gap:10px;padding:12px;background:linear-gradient(180deg,rgba(7,17,29,0.95),rgba(7,17,29,1));border-top:1px solid rgba(255,255,255,0.03);}
+.tab-button{flex:1;padding:12px;border-radius:12px;background:#0f2536;color:#bcd3e6;border:1px solid rgba(255,255,255,0.04);font-weight:700}
+.tab-button.active{background:linear-gradient(90deg,#1a6b89,#13445a);color:#fff}
 
 /* Store */
-.store-container{display:flex;flex-direction:column;gap:12px}
-.exchange{display:flex;flex-direction:column;gap:8px}
-.exchange-btn{padding:10px;border-radius:8px;border:none;background:#1a4b6a;color:#fff;cursor:pointer}
+.store-container{display:flex;flex-direction:column;gap:14px;width:100%}
+.exchange{display:flex;flex-direction:column;gap:10px}
+.exchange-btn{padding:12px;border-radius:10px;border:none;background:#1a4b6a;color:#fff;cursor:pointer}
 .upgrades{display:flex;flex-direction:column;gap:12px}
-.upgrade-card{padding:12px;border-radius:8px;background:#0f2a3b;border:1px solid rgba(255,255,255,0.03)}
-.upgrade-title{font-weight:700}
+.upgrade-card{padding:14px;border-radius:12px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.03)}
+.upgrade-title{font-weight:800;font-size:15px}
 .upgrade-cost{color:#cfeaf9}
-.upgrade-btn{margin-top:8px;padding:8px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
+.upgrade-btn{margin-top:8px;padding:10px;border-radius:10px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
 .store-feedback{color:#9fe3a7;margin-top:8px}
-
-.ad-block{margin-top:8px}
-.watch-ad{padding:10px;border-radius:8px;border:none;background:#3a8f5a;color:#fff;cursor:pointer}
 
 .task-feedback{color:#ffd7a6;margin-top:8px}
 .tasks-container{display:flex;flex-direction:column;gap:12px}
-.task__button{padding:10px;border-radius:8px;background:#1a4b6a;color:#fff;cursor:pointer}
+.task__button{padding:12px;border-radius:10px;background:#1a4b6a;color:#fff;cursor:pointer}
 
 @media (max-width:480px){
   .game-root{margin:0;border-radius:0}
-  .golden-cube{width:90px;height:90px;font-size:36px}
+  .golden-cube{width:220px;height:220px;font-size:96px;transform:translateY(8px)}
 }
 
 /* Confirm modal */
@@ -56,3 +51,7 @@ body{margin:0;background:#0b1221;color:#fff}
 .confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 .confirm-btn{padding:8px 12px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
 .confirm-btn.primary{background:#3a8f5a}
+
+/* Ad countdown overlay */
+.ad-countdown-overlay{position:fixed;top:14px;right:14px;z-index:1200}
+.ad-countdown-badge{background:rgba(0,0,0,0.6);padding:10px 14px;border-radius:12px;color:#fff;font-weight:800;border:1px solid rgba(255,255,255,0.06)}
