@@ -11,6 +11,7 @@ const pool = new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorize
 async function init() {
   const client = await pool.connect();
   try {
+    // Ensure base table exists
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         tgid BIGINT PRIMARY KEY,
@@ -21,11 +22,15 @@ async function init() {
         energy_capacity INTEGER DEFAULT 50,
         daily_count INTEGER DEFAULT 0,
         daily_limit_level INTEGER DEFAULT 0,
-        last_reset DATE,
-        last_refill DATE,
-        auto_energy BOOLEAN DEFAULT false
+        last_reset DATE
       );
     `);
+
+    // Add new columns if they don't exist (for migrations)
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_refill DATE`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auto_energy BOOLEAN DEFAULT false`);
+    // ensure energy_capacity column exists with default if missing
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS energy_capacity INTEGER DEFAULT 50`);
   } finally {
     client.release();
   }
