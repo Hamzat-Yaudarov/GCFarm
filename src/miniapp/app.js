@@ -184,7 +184,7 @@
 
   async function loadUser(){
     if (!tgid) {
-      if (appMessage) appMessage.textContent = 'Откройте и��ру через кнопку в боте (нажмите /start и затем "Открыть игру").';
+      if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
       return;
     }
     try {
@@ -230,7 +230,7 @@
       if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
         const deepLink = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}` : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
-        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш ��од: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
+        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
         const copyBtn = document.getElementById('copy-referral');
         if (copyBtn) copyBtn.addEventListener('click', ()=>{
           const input = document.getElementById('referral-link-input');
@@ -455,7 +455,7 @@
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подт��ердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
