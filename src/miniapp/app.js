@@ -67,6 +67,19 @@
   const INTERSTITIAL_MIN_INTERVAL = 5 * 60 * 1000; // 5 minutes
   const INTERSTITIAL_MAX_PER_SESSION = 3;
 
+  function isMiniAppExpanded(){
+    try { return !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.isExpanded); } catch(e){ return false; }
+  }
+  function ensureExpandedOrNotify(){
+    if (isMiniAppExpanded()) return true;
+    try { if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.expand === 'function') window.Telegram.WebApp.expand(); } catch(e){}
+    if (appMessage) {
+      appMessage.textContent = 'Разверните MiniApp на весь экран для просмотра рекламы';
+      setTimeout(()=>{ if (appMessage && appMessage.textContent === 'Разверните MiniApp на весь экран для просмотра рекламы') appMessage.textContent = ''; }, 3000);
+    }
+    return false;
+  }
+
   tabs.forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       tabs.forEach(b=>b.classList.remove('active'));
@@ -78,40 +91,58 @@
     });
   });
 
-  // Interstitial scheduler: will run independently every 10 minutes and show countdown
-  let interstitialScheduler = null;
-  function startInterstitialScheduler() {
-    if (interstitialScheduler) return;
-    async function showInterstitialWithCountdown() {
-      try {
-        if (!AdController || typeof AdController.show !== 'function') return;
-        // show 3-second countdown overlay
-        const overlay = document.getElementById('ad-countdown-overlay');
-        if (overlay) {
-          overlay.classList.remove('hidden');
-          let count = 3;
-          const badge = document.getElementById('ad-countdown-badge');
+  // Interstitial scheduler counting only when MiniApp fully expanded
+  async function showInterstitialWithCountdown() {
+    try {
+      if (!AdController || typeof AdController.show !== 'function') return;
+      if (!isMiniAppExpanded()) return;
+      const overlay = document.getElementById('ad-countdown-overlay');
+      if (overlay) {
+        overlay.classList.remove('hidden');
+        let count = 3;
+        const badge = document.getElementById('ad-countdown-badge');
+        if (badge) badge.textContent = `Реклама через ${count}`;
+        while (count > 0 && isMiniAppExpanded()) {
           if (badge) badge.textContent = `Реклама через ${count}`;
-          while (count > 0) {
-            if (badge) badge.textContent = `Реклама через ${count}`;
-            await new Promise(r=>setTimeout(r,1000));
-            count -= 1;
-          }
-          overlay.classList.add('hidden');
+          await new Promise(r=>setTimeout(r,1000));
+          count -= 1;
         }
-        const result = await AdController.show();
-        console.log('Scheduled interstitial shown', result);
-      } catch (e) { console.warn('Scheduled interstitial failed', e); }
-    }
-    // initial delay: 10 minutes from start
-    interstitialScheduler = setInterval(showInterstitialWithCountdown, 10 * 60 * 1000);
-    // also schedule first showing in 10 minutes
-    setTimeout(()=>{ showInterstitialWithCountdown(); }, 10 * 60 * 1000);
+        overlay.classList.add('hidden');
+      }
+      if (!isMiniAppExpanded()) return;
+      const result = await AdController.show();
+      console.log('Scheduled interstitial shown', result);
+    } catch (e) { console.warn('Scheduled interstitial failed', e); }
   }
-  function stopInterstitialScheduler(){ if (interstitialScheduler) { clearInterval(interstitialScheduler); interstitialScheduler = null; } }
 
-  // start scheduler if AdsGram initialized
-  if (AdController) startInterstitialScheduler();
+  let interstitialTick = null;
+  let interstitialElapsed = 0;
+  const INTERSTITIAL_PERIOD = 10 * 60 * 1000; // 10 minutes
+
+  function startInterstitialTick(){
+    if (interstitialTick) return;
+    interstitialTick = setInterval(async ()=>{
+      if (!AdController) return;
+      if (!isMiniAppExpanded()) return;
+      interstitialElapsed += 1000;
+      if (interstitialElapsed >= INTERSTITIAL_PERIOD) {
+        interstitialElapsed = 0;
+        await showInterstitialWithCountdown();
+      }
+    }, 1000);
+  }
+  function stopInterstitialTick(){ if (interstitialTick) { clearInterval(interstitialTick); interstitialTick = null; } }
+
+  try {
+    const W = window.Telegram && window.Telegram.WebApp;
+    if (W && typeof W.onEvent === 'function') {
+      W.onEvent('viewportChanged', ()=>{
+        if (isMiniAppExpanded()) startInterstitialTick(); else stopInterstitialTick();
+      });
+    }
+  } catch(e){}
+
+  if (AdController && isMiniAppExpanded()) startInterstitialTick();
 
   // Helpers: cooldowns and animations for better UX
   function addAdCooldown(button, duration = 10000) {
@@ -297,6 +328,7 @@
     adBusy = true;
     try {
       if (!tgid) { adBusy = false; return alert('tgid is required'); }
+      if (!ensureExpandedOrNotify()) { adBusy = false; return; }
       // prevent rapid re-click by adding a 10s cooldown
       addAdCooldown(watchAdBtn, 10000);
     const cfg = window.ADSGRAM_CONFIG || {};
@@ -346,6 +378,7 @@
       refillBusy = true;
       try {
         if (!tgid) { refillBusy = false; return alert('tgid is required'); }
+        if (!ensureExpandedOrNotify()) { refillBusy = false; return; }
         // add cooldown to avoid rapid ad openings
         addAdCooldown(refillBtn, 10000);
       const cfg = window.ADSGRAM_CONFIG || {};
