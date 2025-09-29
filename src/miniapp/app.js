@@ -260,10 +260,19 @@
           const controller = window.Adsgram.init({ blockId: cfg.energyAdBlockId });
           const result = await controller.show();
           if (result && result.done && !result.error) {
-            showStoreFeedback('Реклама просмотрена. Ожидается подтверждение и восполнение энергии...');
-            const updated = await pollForChange(u => u.energy, beforeEnergy, 30000, 2000);
-            if (updated) { energyEl.textContent = updated.energy; showStoreFeedback('Энергия восполнена'); }
-            else showStoreFeedback('Восполнение не подтверждено сервером');
+            // Immediately request server to refill energy after confirmed ad view
+            const resRefill = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
+            if (resRefill.ok) {
+              const jsonRefill = await resRefill.json();
+              if (jsonRefill.ok) {
+                energyEl.textContent = jsonRefill.energy;
+                showStoreFeedback('Энергия восполнена');
+              } else {
+                showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
+              }
+            } else {
+              showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
+            }
           } else {
             showStoreFeedback('Реклама не была просмотрена полностью');
           }
