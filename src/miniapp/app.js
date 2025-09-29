@@ -46,7 +46,7 @@
   // throttle interstitials to avoid repeated errors/messages
   let lastInterstitialAt = 0;
   let interstitialShownCount = 0;
-  const INTERSTITIAL_MIN_INTERVAL = 60 * 1000; // 60s
+  const INTERSTITIAL_MIN_INTERVAL = 5 * 60 * 1000; // 5 minutes
   const INTERSTITIAL_MAX_PER_SESSION = 3;
 
   tabs.forEach(btn=>{
@@ -108,7 +108,7 @@
             fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) })
               .then(()=> loadUser())
               .then(()=> { if (taskFeedback) taskFeedback.textContent = 'Награда за задание получена'; setTimeout(()=> taskFeedback.textContent = '', 3000); })
-              .catch((e)=>{ console.warn('Failed to claim task reward', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при получении награды'; });
+              .catch((e)=>{ console.warn('Failed to claim task reward', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при получении н��грады'; });
           }
         };
         taskEl.addEventListener('reward', handler);
@@ -132,6 +132,18 @@
     dailyLimitEl.textContent = (250 + user.daily_limit_level * 50);
     dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
     avatarEl.textContent = (user.name && user.name[0]) || 'A';
+
+    // if server just did a daily refill, inform player
+    if (user.last_refill) {
+      const last = new Date(user.last_refill).toISOString().slice(0,10);
+      const today = new Date().toISOString().slice(0,10);
+      if (last === today) {
+        showStoreFeedback('Энергия автоматически восстановлена сегодня (1 раз в день)');
+      }
+    }
+
+    // start auto-tick if enabled
+    if (user.auto_energy) startAutoTick(); else stopAutoTick();
   }
 
   golden.addEventListener('click', async ()=>{
@@ -175,6 +187,36 @@
       window.open(url, '_blank');
     }
   });
+
+  // refill button handler
+  const refillBtn = document.getElementById('refill-btn');
+  if (refillBtn) {
+    refillBtn.addEventListener('click', async ()=>{
+      if (!tgid) return alert('tgid is required');
+      const res = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
+      const json = await res.json();
+      if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
+      energyEl.textContent = json.energy;
+      showStoreFeedback('Энергия восполнена до максимума');
+    });
+  }
+
+  // auto-energy tick: if user has auto_energy, call endpoint every 10 seconds
+  let autoTickInterval = null;
+  async function startAutoTick(){
+    if (autoTickInterval) return;
+    autoTickInterval = setInterval(async ()=>{
+      try {
+        const res = await fetch(`${apiBase}/user/${tgid}/auto-tick`, { method: 'POST' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok) energyEl.textContent = json.energy;
+        }
+      } catch (e) { console.warn('auto tick failed', e); }
+    }, 10000);
+  }
+  function stopAutoTick(){ if (autoTickInterval) { clearInterval(autoTickInterval); autoTickInterval = null; } }
+
 
   scubeToGBtn.addEventListener('click', async ()=>{
     if (!tgid) return alert('tgid is required');
@@ -229,13 +271,14 @@
       if (!json.ok) return showStoreFeedback(json.message || 'Ошибка покупки');
       await loadUser();
       showStoreFeedback('Покупка успешна');
+      if (type === 'auto_energy') startAutoTick();
     });
   });
 
   // Confirm on exchange
   scubeToGBtn.addEventListener('click', async ()=>{
     if (!tgid) return alert('tgid is required');
-    const confirmed = await showConfirm('Поменять 50 SCube на 1 GCube?');
+    const confirmed = await showConfirm('Поме��ять 50 SCube на 1 GCube?');
     if (!confirmed) return showStoreFeedback('Обмен отменён');
     const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'scube_to_gcube', units: 1 }) });
     const json = await res.json();

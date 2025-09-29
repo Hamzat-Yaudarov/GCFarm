@@ -118,6 +118,32 @@ app.post('/api/user/:tgid/buy-upgrade', async (req, res) => {
   }
 });
 
+// Refill endpoint
+app.post('/api/user/:tgid/refill', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  if (!tgid) return res.status(400).json({ error: 'Invalid params' });
+  try {
+    const result = await db.refillToFull(tgid);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Auto-tick endpoint
+app.post('/api/user/:tgid/auto-tick', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  if (!tgid) return res.status(400).json({ error: 'Invalid params' });
+  try {
+    const result = await db.autoTick(tgid);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
 // Reward claim (manual button) or landing page
 app.post('/api/user/:tgid/claim-reward', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);

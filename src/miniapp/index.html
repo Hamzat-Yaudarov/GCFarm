@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GC Farm - MiniApp</title>
   <link rel="stylesheet" href="/miniapp/static/styles.css" />
-  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15458', rewardBlockId: '15459', taskBlockId: 'task-15460' };</script>
+  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15441', rewardBlockId: '15442', taskBlockId: 'task-15446' };</script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 </head>
 <body>
@@ -26,6 +26,7 @@
           <div class="daily">Сегодня: <span id="daily">0</span> / <span id="daily-limit">250</span></div>
           <div class="ad-block">
             <button id="watch-ad" class="watch-ad">Смотреть рекламу (получить 5 SCube)</button>
+            <button id="refill-btn" class="watch-ad" style="margin-left:8px;background:#2266ff">Восполнить энергию полностью</button>
           </div>
         </div>
       </section>
@@ -51,6 +52,12 @@
               <div class="upgrade-cost">Стоимость: <span id="daily-cost">90</span> SCube (зависит от уровня)</div>
               <div class="upgrade-level">Текущий уровень: <span id="daily-level">0</span></div>
               <button class="upgrade-btn" data-type="daily_limit">Купить</button>
+            </div>
+
+            <div class="upgrade-card">
+              <div class="upgrade-title">Автоэнергия (энергия восполняется +1 каждые 10 секунд)</div>
+              <div class="upgrade-cost">Стоимость: 2000 SCube</div>
+              <button class="upgrade-btn" data-type="auto_energy">Купить автоэнергию</button>
             </div>
           </div>
 

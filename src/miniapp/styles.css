@@ -9,7 +9,7 @@ body{margin:0;background:#0b1221;color:#fff}
 .tab-content{min-height:220px}
 .hidden{display:none}
 .cube-area{display:flex;flex-direction:column;align-items:center;gap:12px}
-.golden-cube{font-size:48px;width:120px;height:120px;border-radius:16px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.golden-cube{font-size:72px;width:180px;height:180px;border-radius:20px;background:linear-gradient(180deg,#ffd54b,#ffb300);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 25px rgba(0,0,0,0.4)}
 .energy,.daily{font-size:14px;color:#e6f0f8}
 .store-empty{padding:20px;text-align:center;color:#9fb6c9}
 
