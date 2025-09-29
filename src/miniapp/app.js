@@ -5,6 +5,9 @@
   }
   let tgid = qs('tgid');
   const apiBase = '/api';
+  const APP_CONFIG = window.APP_CONFIG || {};
+  const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
+  const BASE_URL = APP_CONFIG.BASE_URL || window.location.origin;
 
   // If tgid not provided via query, try to get from Telegram WebApp init data
   if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
@@ -140,7 +143,30 @@
   function animateGolden() {
     if (!golden) return;
     golden.classList.add('golden-press');
+    spawnParticles(golden, 18);
     setTimeout(() => golden.classList.remove('golden-press'), 320);
+  }
+
+  function spawnParticles(originEl, count) {
+    const rect = originEl.getBoundingClientRect();
+    const container = originEl;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('span');
+      p.className = 'gold-particle';
+      const angle = Math.random() * Math.PI * 2;
+      const distance = rect.width * (0.35 + Math.random() * 0.55);
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      const size = 4 + Math.random() * 8;
+      const dur = 400 + Math.random() * 600;
+      p.style.setProperty('--dx', `${dx}px`);
+      p.style.setProperty('--dy', `${dy}px`);
+      p.style.width = `${size}px`;
+      p.style.height = `${size}px`;
+      p.style.animationDuration = `${dur}ms`;
+      container.appendChild(p);
+      setTimeout(()=>{ p.remove(); }, dur + 50);
+    }
   }
 
   // Insert task block if available
@@ -219,11 +245,15 @@
       // start auto-tick if enabled
     if (user.auto_energy) startAutoTick(); else stopAutoTick();
 
-    // set referrer if present in URL param (only once)
+    // set referrer if present in start_param or URL param (only once)
     try {
-      const ref = qs('ref');
+      const startParam = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) || '';
+      const urlRef = qs('ref');
+      const payload = startParam || urlRef || '';
+      const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
+      const ref = m && m[1] ? Number(m[1]) : null;
       const refSetKey = `ref_set_${tgid}`;
-      if (ref && Number(ref) && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
+      if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
         await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
         localStorage.setItem(refSetKey, '1');
       }
@@ -233,8 +263,8 @@
     try {
       if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
-        const link = `${window.location.origin}${window.location.pathname}?ref=${user.tgid}&tgid=${user.tgid}`;
-        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${link}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
+        const deepLink = BOT_USERNAME ? `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}` : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
+        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш ��од: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
         const copyBtn = document.getElementById('copy-referral');
         if (copyBtn) copyBtn.addEventListener('click', ()=>{
           const input = document.getElementById('referral-link-input');
@@ -242,6 +272,19 @@
             try { navigator.clipboard.writeText(input.value); showStoreFeedback('Ссылка скопирована'); } catch(e){ input.select(); document.execCommand('copy'); showStoreFeedback('Ссылка скопирована'); }
           }
         });
+        const inviteBtn = document.getElementById('invite-btn');
+        if (inviteBtn) inviteBtn.onclick = ()=>{
+          const shareText = encodeURIComponent('Залетай в GC Farm! Мой инвайт:');
+          const shareUrl = encodeURIComponent(deepLink);
+          const tgLink = `https://t.me/share/url?url=${shareUrl}&text=${shareText}`;
+          try {
+            if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function') {
+              window.Telegram.WebApp.openTelegramLink(tgLink);
+            } else {
+              window.open(tgLink, '_blank');
+            }
+          } catch (e) { window.open(tgLink, '_blank'); }
+        };
       }
       if (referralStatsEl) referralStatsEl.innerHTML = `Приглашено: ${user.referrals_count || 0} | Бонусы получено: ${user.referrer_bonus || 0} SCube`;
     } catch(e){ console.warn('referral ui update failed', e); }

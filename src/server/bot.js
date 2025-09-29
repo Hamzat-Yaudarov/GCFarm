@@ -7,6 +7,7 @@ const db = require('./db');
 
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+const BOT_USERNAME = process.env.BOT_USERNAME || '';
 const PORT = process.env.PORT || 3000;
 const ADSGRAM_SECRET = process.env.ADSGRAM_SECRET || 'c6a7a8b7cd30418d9844aebc37b6aaf2';
 const ADSGRAM_INTERSTITIAL_ID = process.env.ADSGRAM_INTERSTITIAL_ID || 'int-15441';
@@ -38,7 +39,17 @@ bot.start(async (ctx) => {
     }
   }
 
-  const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}`;
+  // Try to pass referral param via URL if present in /start payload
+  let refQuery = '';
+  try {
+    const payload = ctx.startPayload;
+    if (payload) {
+      const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
+      if (m && m[1]) refQuery = `&ref=${Number(m[1])}`;
+    }
+  } catch(e) { /* ignored */ }
+
+  const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}${refQuery}`;
 
   try {
     await ctx.reply(`Привет, ${firstName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
@@ -59,6 +70,16 @@ app.use(bodyParser.json({ verify: (req, res, buf) => { req.rawBody = buf ? buf.t
 
 // Serve miniapp static files
 app.use('/miniapp/static', express.static(path.join(__dirname, '..', 'miniapp')));
+
+// Expose minimal runtime config for MiniApp
+app.get('/miniapp/config.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  const safe = {
+    BASE_URL,
+    BOT_USERNAME
+  };
+  res.send(`window.APP_CONFIG = ${JSON.stringify(safe)};`);
+});
 
 // Serve miniapp page
 app.get('/miniapp', (req, res) => {
