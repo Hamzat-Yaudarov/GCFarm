@@ -117,7 +117,7 @@
           }
         };
         taskEl.addEventListener('reward', handler);
-        taskEl.addEventListener('onError', (e) => { console.warn('task onError', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка загрузки задания'; setTimeout(()=> taskFeedback.textContent = '',3000); });
+        taskEl.addEventListener('onError', (e) => { console.warn('task onError', e); if (taskFeedback) taskFeedback.textContent = '��шибка загрузки задания'; setTimeout(()=> taskFeedback.textContent = '',3000); });
         taskEl.addEventListener('onBannerNotFound', (e) => { console.log('task not found', e); if (taskFeedback) taskFeedback.textContent = 'Задания пока недоступны'; setTimeout(()=> taskFeedback.textContent = '',3000); });
       }
     }
@@ -226,20 +226,21 @@
     }
   });
 
-  // energy ad button: uses energyAdBlockId if provided, else rewardBlock
-  const watchEnergyAdBtn = document.getElementById('watch-energy-ad');
-  if (watchEnergyAdBtn) {
-    watchEnergyAdBtn.addEventListener('click', async ()=>{
+
+  // refill button handler: show energy ad if block exists, otherwise do direct refill
+  const refillBtn = document.getElementById('refill-btn');
+  if (refillBtn) {
+    refillBtn.addEventListener('click', async ()=>{
       if (!tgid) return alert('tgid is required');
       const cfg = window.ADSGRAM_CONFIG || {};
-      const block = cfg.energyAdBlockId || cfg.rewardBlockId || cfg.interstitialBlockId;
-      if (window.Adsgram && block) {
+      const energyBlock = cfg.energyAdBlockId || cfg.rewardBlockId || cfg.interstitialBlockId;
+      if (window.Adsgram && cfg.energyAdBlockId) {
         try {
-          const controller = window.Adsgram.init({ blockId: block });
           const beforeRes = await fetch(`${apiBase}/user/${tgid}`);
           const before = beforeRes.ok ? await beforeRes.json() : null;
           const beforeEnergy = before ? Number(before.energy) : null;
 
+          const controller = window.Adsgram.init({ blockId: cfg.energyAdBlockId });
           const result = await controller.show();
           if (result && result.done && !result.error) {
             showStoreFeedback('Реклама просмотрена. Ожидается подтверждение и восполнение энергии...');
@@ -251,26 +252,16 @@
           }
         } catch (e) {
           console.warn('Energy ad show error', e);
-          const url = `/reward?userId=${tgid}`;
-          window.open(url, '_blank');
+          showStoreFeedback('Ошибка при показе рекламы');
         }
       } else {
-        const url = `/reward?userId=${tgid}`;
-        window.open(url, '_blank');
+        // fallback: direct refill (only for testing) — in production prefer ad-based refill
+        const res = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
+        const json = await res.json();
+        if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
+        energyEl.textContent = json.energy;
+        showStoreFeedback('Энергия восполнена до максимума (без рекламы)');
       }
-    });
-  }
-
-  // refill button handler
-  const refillBtn = document.getElementById('refill-btn');
-  if (refillBtn) {
-    refillBtn.addEventListener('click', async ()=>{
-      if (!tgid) return alert('tgid is required');
-      const res = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
-      const json = await res.json();
-      if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
-      energyEl.textContent = json.energy;
-      showStoreFeedback('Энергия восполнена до максимума');
     });
   }
 

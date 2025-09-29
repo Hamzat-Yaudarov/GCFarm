@@ -171,14 +171,24 @@ app.post('/adsgram/callback', async (req, res) => {
     const raw = req.rawBody || '';
     if (!signatureHeader) {
       console.warn('No signature header provided');
+      console.warn('Raw body:', raw);
       return res.status(400).json({ ok:false, message: 'Missing signature' });
     }
     // compute HMAC-SHA256
     const hmac = crypto.createHmac('sha256', ADSGRAM_SECRET);
     hmac.update(raw);
     const expected = hmac.digest('hex');
-    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader))) {
-      console.warn('Signature mismatch', { expected, received: signatureHeader });
+    try {
+      if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader))) {
+        console.warn('Signature mismatch on AdsGram callback');
+        console.warn('Received signature header:', signatureHeader);
+        console.warn('Raw body (truncated):', raw && raw.substring(0,1000));
+        return res.status(403).json({ ok:false, message: 'Invalid signature' });
+      }
+    } catch (e) {
+      console.warn('Signature comparison error', e);
+      console.warn('Received signature header:', signatureHeader);
+      console.warn('Raw body (truncated):', raw && raw.substring(0,1000));
       return res.status(403).json({ ok:false, message: 'Invalid signature' });
     }
 
