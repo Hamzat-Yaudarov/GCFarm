@@ -141,84 +141,50 @@
     setTimeout(() => scubeEl.classList.remove('scube-pop'), 700);
   }
   function animateGolden() {
-    if (!golden) return;
-    golden.classList.add('golden-press');
-    spawnParticles(golden, 18);
-    setTimeout(() => golden.classList.remove('golden-press'), 320);
-  }
-
-  function spawnParticles(originEl, count) {
-    const rect = originEl.getBoundingClientRect();
-    const container = originEl;
-    for (let i = 0; i < count; i++) {
-      const p = document.createElement('span');
-      p.className = 'gold-particle';
-      const angle = Math.random() * Math.PI * 2;
-      const distance = rect.width * (0.35 + Math.random() * 0.55);
-      const dx = Math.cos(angle) * distance;
-      const dy = Math.sin(angle) * distance;
-      const size = 4 + Math.random() * 8;
-      const dur = 400 + Math.random() * 600;
-      p.style.setProperty('--dx', `${dx}px`);
-      p.style.setProperty('--dy', `${dy}px`);
-      p.style.width = `${size}px`;
-      p.style.height = `${size}px`;
-      p.style.animationDuration = `${dur}ms`;
-      container.appendChild(p);
-      setTimeout(()=>{ p.remove(); }, dur + 50);
-    }
+    // Subtle shrink via :active CSS only
   }
 
   // Insert task block if available
   try {
     const cfg = window.ADSGRAM_CONFIG || {};
     const taskId = cfg.taskBlockId;
-    if (taskId && typeof customElements !== 'undefined' && customElements.get && window.Adsgram) {
-      // create adsgram-task element
-      const wrapper = document.getElementById('ads-task-wrap');
-      if (wrapper) {
-        const taskEl = document.createElement('adsgram-task');
-        taskEl.setAttribute('data-block-id', taskId);
-        taskEl.setAttribute('data-debug', 'true');
-        taskEl.className = 'task';
-        wrapper.appendChild(taskEl);
-
-        const taskFeedback = document.getElementById('task-feedback');
-        const handler = async (event) => {
-          // event.detail may contain reward amount and debug info
-          const detail = event && event.detail;
-          console.log('adsgram task event', event.type, detail);
-          if (event.type === 'reward') {
-            const amount = (detail && (detail.reward || detail.amount)) || 5;
-            if (taskFeedback) taskFeedback.textContent = 'Задание выполнено. На��исление...';
-            try {
-              const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) });
-              const claimJson = await claimRes.json();
-              if (claimJson.ok) {
-                await loadUser();
-                // visual feedback for scube change
-                setTimeout(()=> animateScube(), 200);
-                if (taskFeedback) taskFeedback.textContent = 'Награда за задание зачислена';
-              } else {
-                if (taskFeedback) taskFeedback.textContent = claimJson.message || 'Невозможно зачислить награду';
-              }
-            } catch (e) {
-              console.warn('Failed to claim task reward', e);
-              if (taskFeedback) taskFeedback.textContent = 'Ошибка при зачислении награды';
-            }
-            setTimeout(()=>{ if (taskFeedback) taskFeedback.textContent = ''; }, 5000);
+    const wrapper = document.getElementById('ads-task-wrap');
+    const taskFeedback = document.getElementById('task-feedback');
+    if (wrapper) wrapper.textContent = '';
+    if (taskFeedback) taskFeedback.textContent = '';
+    if (taskId && window.Adsgram) {
+      const taskEl = document.createElement('adsgram-task');
+      taskEl.setAttribute('data-block-id', taskId);
+      const onNotFound = () => {
+        if (wrapper) wrapper.textContent = 'Пока заданий нет';
+        if (taskFeedback) taskFeedback.textContent = '';
+      };
+      taskEl.addEventListener('onBannerNotFound', onNotFound);
+      taskEl.addEventListener('onError', onNotFound);
+      taskEl.addEventListener('reward', async (event) => {
+        const detail = event && event.detail;
+        const amount = (detail && (detail.reward || detail.amount)) || 5;
+        try {
+          const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) });
+          const claimJson = await claimRes.json();
+          if (claimJson.ok) {
+            await loadUser();
+            setTimeout(()=> animateScube(), 200);
           }
-        };
-        taskEl.addEventListener('reward', handler);
-        taskEl.addEventListener('onError', (e) => { console.warn('task onError', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка загрузки задания'; setTimeout(()=> taskFeedback.textContent = '',3000); });
-        taskEl.addEventListener('onBannerNotFound', (e) => { console.log('task not found', e); if (taskFeedback) taskFeedback.textContent = 'Задания пока недоступны'; setTimeout(()=> taskFeedback.textContent = '',3000); });
+        } catch (e) { console.warn('Failed to claim task reward', e); }
+      });
+      if (wrapper) {
+        wrapper.innerHTML = '';
+        wrapper.appendChild(taskEl);
       }
+    } else {
+      if (wrapper) wrapper.textContent = 'Пока заданий нет';
     }
   } catch (e) { console.warn('Failed to setup task block', e); }
 
   async function loadUser(){
     if (!tgid) {
-      if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
+      if (appMessage) appMessage.textContent = 'Откройте и��ру через кнопку в боте (нажмите /start и затем "Открыть игру").';
       return;
     }
     try {
@@ -324,10 +290,14 @@
     return null;
   }
 
+  let adBusy = false;
   watchAdBtn.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    // prevent rapid re-click by adding a 10s cooldown
-    addAdCooldown(watchAdBtn, 10000);
+    if (adBusy) return;
+    adBusy = true;
+    try {
+      if (!tgid) { adBusy = false; return alert('tgid is required'); }
+      // prevent rapid re-click by adding a 10s cooldown
+      addAdCooldown(watchAdBtn, 10000);
     const cfg = window.ADSGRAM_CONFIG || {};
     const rewardBlock = cfg.rewardBlockId || cfg.interstitialBlockId;
     if (window.Adsgram && rewardBlock) {
@@ -362,16 +332,21 @@
       const url = `/reward?userId=${tgid}`;
       window.open(url, '_blank');
     }
+    } finally { adBusy = false; }
   });
 
 
   // refill button handler: show energy ad if block exists, otherwise do direct refill
   const refillBtn = document.getElementById('refill-btn');
   if (refillBtn) {
+    let refillBusy = false;
     refillBtn.addEventListener('click', async ()=>{
-      if (!tgid) return alert('tgid is required');
-      // add cooldown to avoid rapid ad openings
-      addAdCooldown(refillBtn, 10000);
+      if (refillBusy) return;
+      refillBusy = true;
+      try {
+        if (!tgid) { refillBusy = false; return alert('tgid is required'); }
+        // add cooldown to avoid rapid ad openings
+        addAdCooldown(refillBtn, 10000);
       const cfg = window.ADSGRAM_CONFIG || {};
       const energyBlock = cfg.energyAdBlockId || cfg.rewardBlockId || cfg.interstitialBlockId;
       if (window.Adsgram && cfg.energyAdBlockId) {
@@ -410,6 +385,9 @@
         if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
         energyEl.textContent = json.energy;
         showStoreFeedback('Энергия восполнена до максимума (без рекламы)');
+      }
+      } finally {
+        refillBusy = false;
       }
     });
   }
