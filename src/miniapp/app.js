@@ -15,6 +15,26 @@
     tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
   }
 
+  // Populate username and avatar from Telegram
+  try {
+    const wa = window.Telegram && window.Telegram.WebApp;
+    const tgUser = wa && wa.initDataUnsafe && wa.initDataUnsafe.user;
+    if (tgUser) {
+      const uname = tgUser.username ? `@${tgUser.username}` : (tgUser.first_name || '');
+      if (usernameEl) usernameEl.textContent = uname;
+      if (avatarEl) {
+        const letter = (tgUser.first_name || tgUser.username || 'A').charAt(0).toUpperCase();
+        avatarEl.textContent = letter;
+        if (tgUser.photo_url) {
+          const img = new Image();
+          img.onload = ()=>{ avatarEl.style.backgroundImage = `url('${tgUser.photo_url}')`; avatarEl.textContent = ''; };
+          img.onerror = ()=>{ /* keep letter */ };
+          img.src = tgUser.photo_url;
+        }
+      }
+    }
+  } catch(e){ console.warn('Failed to set username/avatar', e); }
+
   const appMessage = document.getElementById('app-message');
 
   const scubeEl = document.getElementById('scube');
@@ -26,6 +46,7 @@
   const dailyLevelEl = document.getElementById('daily-level');
   const dailyCostEl = document.getElementById('daily-cost');
   const avatarEl = document.getElementById('avatar');
+  const usernameEl = document.getElementById('username');
   const golden = document.getElementById('golden-cube');
 
   // Referrals elements
@@ -262,7 +283,7 @@
       if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
         const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
-        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
+        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш ��од: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
         const copyBtn = document.getElementById('copy-referral');
         if (copyBtn) copyBtn.addEventListener('click', ()=>{
           const input = document.getElementById('referral-link-input');
