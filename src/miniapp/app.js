@@ -24,6 +24,13 @@
   const avatarEl = document.getElementById('avatar');
   const golden = document.getElementById('golden-cube');
 
+  // Referrals elements
+  const referralsSection = document.getElementById('referrals');
+  const referralInfoEl = document.getElementById('referral-info');
+  const referralCodeEl = document.getElementById('referral-code');
+  const referralStatsEl = document.getElementById('referral-stats');
+  const copyReferralBtn = document.getElementById('copy-referral');
+
   const watchAdBtn = document.getElementById('watch-ad');
   const scubeToGBtn = document.getElementById('scube-to-gcube');
   const gcubeToSBtn = document.getElementById('gcube-to-scube');
@@ -102,6 +109,40 @@
   // start scheduler if AdsGram initialized
   if (AdController) startInterstitialScheduler();
 
+  // Helpers: cooldowns and animations for better UX
+  function addAdCooldown(button, duration = 10000) {
+    if (!button) return;
+    if (button.disabled) return;
+    button.disabled = true;
+    button.classList.add('btn-disabled');
+    const orig = button.dataset.origText || button.textContent;
+    button.dataset.origText = orig;
+    let seconds = Math.ceil(duration / 1000);
+    button.textContent = `${orig} (${seconds}s)`;
+    const iv = setInterval(() => {
+      seconds -= 1;
+      if (seconds > 0) button.textContent = `${orig} (${seconds}s)`;
+      else {
+        clearInterval(iv);
+        button.disabled = false;
+        button.classList.remove('btn-disabled');
+        // restore original text
+        button.textContent = button.dataset.origText || orig;
+      }
+    }, 1000);
+  }
+
+  function animateScube() {
+    if (!scubeEl) return;
+    scubeEl.classList.add('scube-pop');
+    setTimeout(() => scubeEl.classList.remove('scube-pop'), 700);
+  }
+  function animateGolden() {
+    if (!golden) return;
+    golden.classList.add('golden-press');
+    setTimeout(() => golden.classList.remove('golden-press'), 320);
+  }
+
   // Insert task block if available
   try {
     const cfg = window.ADSGRAM_CONFIG || {};
@@ -129,6 +170,8 @@
               const claimJson = await claimRes.json();
               if (claimJson.ok) {
                 await loadUser();
+                // visual feedback for scube change
+                setTimeout(()=> animateScube(), 200);
                 if (taskFeedback) taskFeedback.textContent = 'Награда за задание зачислена';
               } else {
                 if (taskFeedback) taskFeedback.textContent = claimJson.message || 'Невозможно зачислить награду';
@@ -185,6 +228,23 @@
         localStorage.setItem(refSetKey, '1');
       }
     } catch (e) { console.warn('set-referrer failed', e); }
+
+    // update referrals panel (if present)
+    try {
+      if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
+      if (referralCodeEl) {
+        const link = `${window.location.origin}${window.location.pathname}?ref=${user.tgid}&tgid=${user.tgid}`;
+        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${link}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
+        const copyBtn = document.getElementById('copy-referral');
+        if (copyBtn) copyBtn.addEventListener('click', ()=>{
+          const input = document.getElementById('referral-link-input');
+          if (input) {
+            try { navigator.clipboard.writeText(input.value); showStoreFeedback('Ссылка скопирована'); } catch(e){ input.select(); document.execCommand('copy'); showStoreFeedback('Ссылка скопирована'); }
+          }
+        });
+      }
+      if (referralStatsEl) referralStatsEl.innerHTML = `Приглашено: ${user.referrals_count || 0} | Бонусы получено: ${user.referrer_bonus || 0} SCube`;
+    } catch(e){ console.warn('referral ui update failed', e); }
     } catch (err) {
       console.error('loadUser error', err);
       if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
@@ -200,6 +260,8 @@
     energyEl.textContent = json.energy;
     dailyEl.textContent = json.daily_count;
     dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
+    animateScube();
+    animateGolden();
   });
 
   // helper to poll server for changes
@@ -221,6 +283,8 @@
 
   watchAdBtn.addEventListener('click', async ()=>{
     if (!tgid) return alert('tgid is required');
+    // prevent rapid re-click by adding a 10s cooldown
+    addAdCooldown(watchAdBtn, 10000);
     const cfg = window.ADSGRAM_CONFIG || {};
     const rewardBlock = cfg.rewardBlockId || cfg.interstitialBlockId;
     if (window.Adsgram && rewardBlock) {
@@ -238,6 +302,7 @@
           const claimJson = await claimRes.json();
           if (claimJson.ok) {
             scubeEl.textContent = claimJson.scube;
+            animateScube();
             showStoreFeedback('Награда зачислена');
           } else {
             showStoreFeedback(claimJson.message || 'Невозможно зачислить награду');
@@ -262,6 +327,8 @@
   if (refillBtn) {
     refillBtn.addEventListener('click', async ()=>{
       if (!tgid) return alert('tgid is required');
+      // add cooldown to avoid rapid ad openings
+      addAdCooldown(refillBtn, 10000);
       const cfg = window.ADSGRAM_CONFIG || {};
       const energyBlock = cfg.energyAdBlockId || cfg.rewardBlockId || cfg.interstitialBlockId;
       if (window.Adsgram && cfg.energyAdBlockId) {

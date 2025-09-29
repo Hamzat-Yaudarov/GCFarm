@@ -55,3 +55,26 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 /* Ad countdown overlay */
 .ad-countdown-overlay{position:fixed;top:14px;right:14px;z-index:1200}
 .ad-countdown-badge{background:rgba(0,0,0,0.6);padding:10px 14px;border-radius:12px;color:#fff;font-weight:800;border:1px solid rgba(255,255,255,0.06)}
+
+/* New UI: referrals and animations */
+.app-message{padding:8px 16px}
+.referrals-container{width:100%;max-width:480px;background:linear-gradient(180deg,#071b2a,#05202b);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+.referral-info,.referral-stats{color:#cfeaf9;margin-bottom:8px}
+.referral-code-line{margin-bottom:6px}
+.referral-link-input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:#fff}
+.small-btn{padding:8px 10px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer;margin-left:8px}
+.copy-referral{display:inline-block}
+
+/* button disabled visual */
+.btn-disabled{opacity:0.6;cursor:default}
+
+/* scube pop animation */
+.scube-pop{animation:scubePop .6s ease}
+@keyframes scubePop{0%{transform:scale(1);color:#fff}40%{transform:scale(1.25);color:#ffd54b}100%{transform:scale(1);color:#fff}}
+
+/* golden cube press animation */
+.golden-press{transform:translateY(22px) scale(0.98);box-shadow:0 10px 30px rgba(0,0,0,0.6);transition:transform .12s ease, box-shadow .12s ease}
+
+/* small fade-in for tab content */
+.tab-content{animation:fadeIn .28s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
