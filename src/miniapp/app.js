@@ -63,6 +63,22 @@
   const avatarEl = document.getElementById('avatar');
   const golden = document.getElementById('golden-cube');
 
+  // Improve touch/pointer UX for golden cube to avoid default compression on press
+  try {
+    if (golden) {
+      // add pressed state on pointer down and remove on up/cancel/leave
+      golden.addEventListener('pointerdown', ()=>{
+        golden.classList.add('pressed');
+      });
+      ['pointerup','pointerleave','pointercancel'].forEach(ev => {
+        golden.addEventListener(ev, ()=>{
+          // keep pressed briefly so animation can start from stable state
+          setTimeout(()=> golden.classList.remove('pressed'), 30);
+        });
+      });
+    }
+  } catch(e){ console.warn('golden pointer handlers failed', e); }
+
   const leaderList = document.getElementById('leader-list');
   const leaderEmpty = document.getElementById('leader-empty');
   const leaderButtons = document.querySelectorAll('.leader-btn');
