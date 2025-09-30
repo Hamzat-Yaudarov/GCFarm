@@ -482,7 +482,7 @@
     } catch(e){ console.warn('referral ui update failed', e); }
     } catch (err) {
       console.error('loadUser error', err);
-      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Поп��обуйте позже.';
+      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Поп��обуйте по��же.';
     }
   }
 
@@ -650,26 +650,6 @@
   function stopAutoTick(){ if (autoTickInterval) { clearInterval(autoTickInterval); autoTickInterval = null; } }
 
 
-  scubeToGBtn.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'scube_to_gcube', units: 1 }) });
-    const json = await res.json();
-    if (!json.ok) return showStoreFeedback(json.message || 'Ошибка');
-    scubeEl.textContent = json.scube;
-    gcubeEl.textContent = json.gcube;
-    showStoreFeedback('Обмен выполнен');
-  });
-
-  gcubeToSBtn.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'gcube_to_scube', units: 1 }) });
-    const json = await res.json();
-    if (!json.ok) return showStoreFeedback(json.message || 'Ошибка');
-    scubeEl.textContent = json.scube;
-    gcubeEl.textContent = json.gcube;
-    showStoreFeedback('Обмен выполнен');
-  });
-
   // Confirm modal helpers
   const confirmModal = document.getElementById('confirm-modal');
   const confirmMessage = document.getElementById('confirm-message');
@@ -708,33 +688,57 @@
   });
 
   // Confirm on exchange
-  scubeToGBtn.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const confirmed = await showConfirm('Поменять 50 SCube на 1 GCube?');
-    if (!confirmed) return showStoreFeedback('Обмен отменён');
-    const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'scube_to_gcube', units: 1 }) });
-    const json = await res.json();
-    if (!json.ok) return showStoreFeedback(json.message || 'Ошибка');
-    scubeEl.textContent = json.scube;
-    gcubeEl.textContent = json.gcube;
-    showStoreFeedback('Обмен выполнен');
-  });
+  async function executeExchange(direction, successMessage){
+    if (!tgid) {
+      alert('tgid is required');
+      return;
+    }
+    try {
+      const res = await fetch(`${apiBase}/user/${tgid}/exchange`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ direction, units: 1 })
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        showStoreFeedback(json.message || 'Ошибка');
+        return;
+      }
+      scubeEl.textContent = json.scube;
+      gcubeEl.textContent = json.gcube;
+      showStoreFeedback(successMessage);
+    } catch (err) {
+      console.warn('exchange failed', err);
+      showStoreFeedback('Не удалось выполнить обмен');
+    }
+  }
 
-  gcubeToSBtn.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const confirmed = await showConfirm('Поменять 1 GCube на 50 SCube?');
-    if (!confirmed) return showStoreFeedback('Обмен отменён');
-    const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ direction: 'gcube_to_scube', units: 1 }) });
-    const json = await res.json();
-    if (!json.ok) return showStoreFeedback(json.message || 'Ошибка');
-    scubeEl.textContent = json.scube;
-    gcubeEl.textContent = json.gcube;
-    showStoreFeedback('Обмен выполнен');
-  });
+  if (scubeToGBtn) {
+    scubeToGBtn.addEventListener('click', async ()=>{
+      const confirmed = await showConfirm('Поменять 50 SCube на 1 GCube?');
+      if (!confirmed) {
+        showStoreFeedback('Обмен отменён');
+        return;
+      }
+      await executeExchange('scube_to_gcube', 'Обмен выполнен');
+    });
+  }
+
+  if (gcubeToSBtn) {
+    gcubeToSBtn.addEventListener('click', async ()=>{
+      const confirmed = await showConfirm('Поменять 1 GCube на 50 SCube?');
+      if (!confirmed) {
+        showStoreFeedback('Обмен отменён');
+        return;
+      }
+      await executeExchange('gcube_to_scube', 'Обмен выполнен');
+    });
+  }
 
   function showStoreFeedback(msg){
+    if (!storeFeedback) return;
     storeFeedback.textContent = msg;
-    setTimeout(()=>{ storeFeedback.textContent = ''; }, 3000);
+    setTimeout(()=>{ if (storeFeedback) storeFeedback.textContent = ''; }, 3000);
   }
 
   // Periodically refresh user data
