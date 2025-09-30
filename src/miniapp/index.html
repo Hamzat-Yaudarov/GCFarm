@@ -62,7 +62,7 @@
 
       <section class="tab-content hidden" id="store">
         <div class="store-container">
-          <h3>💱 Космический об��ен валют</h3>
+          <h3>💱 Космический обмен валют</h3>
           <p class="section-hint">📦 Прокачивай ресурсы, чтобы добывать ещё быстрее.</p>
           <div class="exchange">
             <button id="scube-to-gcube" class="exchange-btn">💠 Поменять 50 SCube → 1 GCube</button>
@@ -127,59 +127,10 @@
         </div>
       </section>
 
-      <section class="tab-content hidden" id="games">
-        <div class="games-container">
-          <div class="games-heading">
-            <h3>🎮 Космопорт игр</h3>
-            <p class="section-hint games-hint">Выбирай ставку, бросай вызов друзьям и забирай космическую добычу.</p>
-          </div>
-          <div class="stakes-wrapper">
-            <div class="stakes-header">
-              <h4 class="stakes-title">Размер ставки</h4>
-              <p class="stakes-note">SCube списываются перед стартом партии и возвращаются победителю.</p>
-            </div>
-            <div class="stakes-grid" role="group" aria-label="Выбор ставки">
-              <button class="stake-chip active" data-stake="50">50 SCube</button>
-              <button class="stake-chip" data-stake="150">150 SCube</button>
-              <button class="stake-chip" data-stake="300">300 SCube</button>
-              <button class="stake-chip" data-stake="500">500 SCube</button>
-              <button class="stake-chip" data-stake="1000">1000 SCube</button>
-              <button class="stake-chip" data-stake="2000">2000 SCube</button>
-            </div>
-          </div>
-          <div class="games-grid">
-            <article class="game-card" data-game="rps">
-              <div class="game-card-glow" aria-hidden="true"></div>
-              <div class="game-card-header">
-                <div class="game-card-icon" aria-hidden="true">🪨✂️📄</div>
-                <div>
-                  <h4 class="game-card-title">Камень, ножницы, бумага</h4>
-                  <p class="game-card-subtitle">Молниеносные дуэли 1 на 1. Выбирай фигуру, побеждай и умножай ставку.</p>
-                </div>
-              </div>
-              <button class="game-card-action" data-action="launch-rps">Играть</button>
-            </article>
-            <article class="game-card" data-game="tictactoe">
-              <div class="game-card-glow" aria-hidden="true"></div>
-              <div class="game-card-header">
-                <div class="game-card-icon" aria-hidden="true">✖️⭕</div>
-                <div>
-                  <h4 class="game-card-title">Крестики-нолики Арена</h4>
-                  <p class="game-card-subtitle">Играй Best-of-3, занимай центр и получай бонусы за идеальные партии.</p>
-                </div>
-              </div>
-              <button class="game-card-action" data-action="launch-ttt">Играть</button>
-            </article>
-          </div>
-          <div id="games-feedback" class="games-feedback" role="status" aria-live="polite"></div>
-          <div class="games-footer-note">⚠️ Мини-игры находятся в разработке. Победы и поражения учитываются в статистике SCube.</div>
-        </div>
-      </section>
-
       <section class="tab-content hidden" id="referrals">
         <div class="referrals-container">
           <h3>👥 Реферальная система</h3>
-          <p class="section-hint">🤝 Делись ссылкой и получай бонусные SCube от др��зей.</p>
+          <p class="section-hint">🤝 Делись ссылкой и получай бонусные SCube от друзей.</p>
           <div id="referral-info" class="referral-info"></div>
           <div id="referral-code" class="referral-code"></div>
           <div id="referral-stats" class="referral-stats"></div>
@@ -204,7 +155,7 @@
                 <span class="leader-personal-value" id="leader-self-value">—</span>
               </div>
             </div>
-            <p class="leader-personal-note" id="leader-self-note">Собирай кристаллы и выпол��яй задания, чтобы ворваться в т��п!</p>
+            <p class="leader-personal-note" id="leader-self-note">Собирай кристаллы и выполняй задания, чтобы ворваться в т��п!</p>
           </div>
           <div class="leader-tabs">
             <button id="leader-by-clicks" class="leader-btn active">⛏️ SCube (нажатия)</button>
@@ -215,21 +166,51 @@
         </div>
       </section>
 
+      <section class="tab-content hidden" id="games">
+        <div class="games-container">
+          <h3>🎮 Игры</h3>
+          <p class="section-hint">Выбери игру и ставку, затем присоединись к комнате или создай свою.</p>
+          <div class="game-cards" id="game-cards">
+            <button class="game-card" data-game="rps">
+              <span class="card-icon">✊✋✌️</span>
+              <span class="card-title">Камень, ножницы, бумага</span>
+            </button>
+            <button class="game-card" data-game="ttt">
+              <span class="card-icon">⭕❌</span>
+              <span class="card-title">Крестики-нолики</span>
+            </button>
+          </div>
+          <div class="bet-selector" id="bet-selector">
+            <button class="bet-chip" data-bet="50">50</button>
+            <button class="bet-chip" data-bet="150">150</button>
+            <button class="bet-chip" data-bet="300">300</button>
+            <button class="bet-chip" data-bet="500">500</button>
+            <button class="bet-chip" data-bet="1000">1000</button>
+            <button class="bet-chip" data-bet="2000">2000</button>
+          </div>
+          <div class="rooms-actions">
+            <button id="create-room" class="create-room-btn">Создать комнату</button>
+          </div>
+          <div class="rooms-list" id="rooms-list"></div>
+          <div class="game-stage hidden" id="game-stage"></div>
+        </div>
+      </section>
+
     </main>
 
     <nav class="tabs-bottom">
       <button class="tab-button active" data-tab="home">🏠 Главная</button>
-      <button class="tab-button" data-tab="tasks">🧾 Задания</button>
       <button class="tab-button" data-tab="games">🎮 Игры</button>
+      <button class="tab-button" data-tab="tasks">🧾 Задания</button>
       <button class="tab-button" data-tab="leaderboard">🏆 Рейтинг</button>
       <button class="tab-button" data-tab="referrals">🤝 Рефералы</button>
     </nav>
 
-    <button id="store-float-btn" class="store-float-btn" type="button">🛒 Магазин</button>
+    <button id="store-fab" class="store-fab">🛒 Магазин</button>
 
     <!-- Ad countdown overlay top-right -->
     <div id="ad-countdown-overlay" class="ad-countdown-overlay hidden">
-      <div id="ad-countdown-badge" class="ad-countdown-badge">Реклама чер��з 3</div>
+      <div id="ad-countdown-badge" class="ad-countdown-badge">Реклама через 3</div>
     </div>
 
     <div id="confirm-modal" class="confirm-modal hidden">

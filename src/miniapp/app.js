@@ -48,6 +48,7 @@
   const referralInfoEl = document.getElementById('referral-info');
   const referralCodeEl = document.getElementById('referral-code');
   const referralStatsEl = document.getElementById('referral-stats');
+  const copyReferralBtn = document.getElementById('copy-referral');
 
   const watchAdBtn = document.getElementById('watch-ad');
   const scubeToGBtn = document.getElementById('scube-to-gcube');
@@ -57,6 +58,30 @@
 
   const tabs = document.querySelectorAll('.tab-button');
   const contents = document.querySelectorAll('.tab-content');
+
+  const storeFab = document.getElementById('store-fab');
+  const gamesSection = document.getElementById('games');
+  const gameCards = document.getElementById('game-cards');
+  const betSelector = document.getElementById('bet-selector');
+  const roomsList = document.getElementById('rooms-list');
+  const createRoomBtn = document.getElementById('create-room');
+  const gameStage = document.getElementById('game-stage');
+
+  function setStoreFabVisibility(activeTab){
+    if (!storeFab) return;
+    if (activeTab === 'home') storeFab.classList.remove('hidden'); else storeFab.classList.add('hidden');
+  }
+
+  function showTab(tab){
+    contents.forEach(c=>{ if (c.id===tab) c.classList.remove('hidden'); else c.classList.add('hidden'); });
+    tabs.forEach(b=>{
+      if (b.dataset.tab === tab) b.classList.add('active'); else b.classList.remove('active');
+    });
+    if (tab === 'leaderboard') loadLeaderboard(leaderboardMode);
+    setStoreFabVisibility(tab);
+  }
+
+  if (storeFab) storeFab.addEventListener('click', ()=>{ showTab('store'); });
 
   // Initialize AdsGram controllers if available
   let AdController = null;
@@ -95,15 +120,8 @@
 
   tabs.forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      tabs.forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
       const tab = btn.dataset.tab;
-      contents.forEach(c=>{
-        if (c.id===tab) c.classList.remove('hidden'); else c.classList.add('hidden');
-      });
-      if (tab === 'leaderboard') {
-        loadLeaderboard(leaderboardMode);
-      }
+      showTab(tab);
     });
   });
 
@@ -740,7 +758,211 @@
     setTimeout(()=>{ if (storeFeedback) storeFeedback.textContent = ''; }, 3000);
   }
 
+  // Games state and handlers
+  let selectedGame = 'rps';
+  let selectedBet = 50;
+  let currentRoomId = null;
+  let roomPollIv = null;
+
+  function renderRooms(rooms){
+    if (!roomsList) return;
+    roomsList.innerHTML = '';
+    if (!rooms || !rooms.length){
+      const empty = document.createElement('div');
+      empty.className = 'store-empty';
+      empty.textContent = 'Нет доступных комнат. Создайте свою!';
+      roomsList.appendChild(empty);
+      return;
+    }
+    rooms.forEach(r=>{
+      const card = document.createElement('div');
+      card.className = 'room-card';
+      const meta = document.createElement('div'); meta.className = 'room-meta';
+      const title = document.createElement('div'); title.className = 'room-title'; title.textContent = `${r.game === 'rps' ? 'КНБ' : 'Крестики-нолики'} • Ставка ${r.bet}`;
+      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `Создатель: ${r.creator}`;
+      meta.append(title, sub);
+      const join = document.createElement('button'); join.className = 'join-btn'; join.textContent = 'Вступить';
+      join.addEventListener('click', ()=> joinRoom(r.id));
+      card.append(meta, join);
+      roomsList.appendChild(card);
+    });
+  }
+
+  async function loadRooms(){
+    try{
+      const res = await fetch(`${apiBase}/games/rooms?game=${selectedGame}&bet=${selectedBet}`);
+      const json = await res.json();
+      if (json.ok) renderRooms(json.rooms);
+    } catch(e){ console.warn('rooms load failed', e); }
+  }
+
+  async function createRoom(){
+    if (!tgid) return alert('tgid is required');
+    try{
+      const res = await fetch(`${apiBase}/games/rooms`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid, game: selectedGame, bet: selectedBet }) });
+      const json = await res.json();
+      if (!json.ok) return alert(json.message || 'Не удалось создать комнату');
+      currentRoomId = json.room.id;
+      openRoom(json.room);
+      await loadUser();
+    } catch(e){ console.warn('create room failed', e); }
+  }
+
+  async function joinRoom(id){
+    if (!tgid) return alert('tgid is required');
+    try{
+      const res = await fetch(`${apiBase}/games/rooms/${id}/join`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) });
+      const json = await res.json();
+      if (!json.ok) return alert(json.message || 'Не удалось войти в комнату');
+      currentRoomId = json.room.id;
+      openRoom(json.room);
+      await loadUser();
+    } catch(e){ console.warn('join room failed', e); }
+  }
+
+  async function leaveRoom(){
+    if (!currentRoomId) return;
+    try{
+      await fetch(`${apiBase}/games/rooms/${currentRoomId}/leave`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) });
+    } catch(e){}
+    clearInterval(roomPollIv); roomPollIv=null;
+    currentRoomId = null;
+    gameStage.innerHTML = '';
+    gameStage.classList.add('hidden');
+    loadRooms();
+    await loadUser();
+  }
+
+  function startRoomPolling(){
+    if (roomPollIv) clearInterval(roomPollIv);
+    roomPollIv = setInterval(async ()=>{
+      if (!currentRoomId) return;
+      try{
+        const res = await fetch(`${apiBase}/games/rooms/${currentRoomId}`);
+        const json = await res.json();
+        if (json.ok) openRoom(json.room);
+      } catch(e){}
+    }, 1500);
+  }
+
+  function openRoom(room){
+    if (!gameStage) return;
+    gameStage.classList.remove('hidden');
+    if (room.game === 'rps') renderRps(room); else renderTtt(room);
+    if (!roomPollIv) startRoomPolling();
+  }
+
+  function renderRps(room){
+    const me = String(tgid);
+    const opp = me === String(room.creator) ? String(room.opponent||'') : String(room.creator);
+    const moves = room.state && room.state.moves || {};
+    const myMove = moves[me];
+    const oppMove = moves[opp];
+    const finished = room.status === 'finished';
+
+    const wrap = document.createElement('div');
+    const title = document.createElement('div'); title.className='room-title'; title.textContent = `КНБ • Ставка ${room.bet}`;
+    const controls = document.createElement('div'); controls.className='rps-controls';
+    ['rock','paper','scissors'].forEach(m=>{
+      const btn = document.createElement('button'); btn.className='rps-btn'; btn.textContent = m==='rock'?'✊':(m==='paper'?'✋':'✌️');
+      btn.disabled = !!myMove || finished || !room.opponent;
+      btn.addEventListener('click', ()=> submitMove(room.id, { move: m }));
+      controls.appendChild(btn);
+    });
+    const result = document.createElement('div'); result.className='rps-result';
+    if (!room.opponent) result.textContent = 'Ожидание соперника...';
+    else if (!myMove) result.textContent = 'Сделайте ход';
+    else if (!oppMove) result.textContent = 'Ожидаем ход соперника';
+    if (finished){
+      if (room.state && room.state.result){
+        const r = room.state.result;
+        if (r.type==='draw') result.textContent = 'Ничья. Ставки возвращены';
+        else if (String(r.winner)===me) result.textContent = 'Победа! Вы получили банк';
+        else result.textContent = 'Поражение';
+      }
+    }
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : 'Сдаться';
+    leave.addEventListener('click', leaveRoom);
+
+    wrap.append(title, controls, result, leave);
+    gameStage.innerHTML='';
+    gameStage.appendChild(wrap);
+  }
+
+  function renderTtt(room){
+    const me = String(tgid);
+    const board = room.state && room.state.board || Array(9).fill(null);
+    const turn = room.state && room.state.turn;
+    const symbols = room.state && room.state.symbols || {};
+    const mySym = symbols[me];
+    const finished = room.status === 'finished';
+
+    const wrap = document.createElement('div');
+    const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
+    const grid = document.createElement('div'); grid.className='ttt-board';
+    board.forEach((cell, idx)=>{
+      const c = document.createElement('div'); c.className='ttt-cell'; c.textContent = cell || '';
+      const canClick = !finished && mySym && String(turn)===me && !cell;
+      if (canClick) c.addEventListener('click', ()=> submitMove(room.id, { idx }));
+      grid.appendChild(c);
+    });
+    const status = document.createElement('div'); status.className='ttt-status';
+    if (!room.opponent) status.textContent = 'Ожидание соперника...';
+    else if (finished){
+      if (room.state && room.state.winner){ status.textContent = String(room.state.winner)===me ? 'Победа!' : 'Поражение'; }
+      else status.textContent = 'Ничья';
+    } else if (String(turn)===me) status.textContent = 'Ваш ход'; else status.textContent = 'Ход соперника';
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : 'Сдаться';
+    leave.addEventListener('click', leaveRoom);
+
+    wrap.append(title, grid, status, leave);
+    gameStage.innerHTML='';
+    gameStage.appendChild(wrap);
+  }
+
+  async function submitMove(roomId, payload){
+    try{
+      const res = await fetch(`${apiBase}/games/rooms/${roomId}/move`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid, ...payload }) });
+      const json = await res.json();
+      if (!json.ok) return;
+      openRoom(json.room);
+      if (json.room.status==='finished') { clearInterval(roomPollIv); roomPollIv=null; await loadUser(); }
+    } catch(e){}
+  }
+
+  // UI bindings for games
+  if (gameCards){
+    gameCards.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.game-card');
+      if (!btn) return;
+      selectedGame = btn.dataset.game || 'rps';
+      loadRooms();
+    });
+  }
+  if (betSelector){
+    betSelector.addEventListener('click', (e)=>{
+      const chip = e.target.closest('.bet-chip');
+      if (!chip) return;
+      const v = parseInt(chip.dataset.bet,10);
+      if (!v) return;
+      selectedBet = v;
+      betSelector.querySelectorAll('.bet-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      loadRooms();
+    });
+    // set default active
+    const def = betSelector.querySelector('[data-bet="50"]'); if (def) def.classList.add('active');
+  }
+  if (createRoomBtn){ createRoomBtn.addEventListener('click', createRoom); }
+
+  // when entering games tab, load rooms
+  const gamesTabBtn = Array.from(tabs).find(b=>b.dataset.tab==='games');
+  if (gamesTabBtn){ gamesTabBtn.addEventListener('click', ()=>{ loadRooms(); }); }
+
   // Periodically refresh user data
   setInterval(loadUser, 5000);
   loadUser();
+  // initial tab effects
+  const activeBtn = document.querySelector('.tab-button.active');
+  setStoreFabVisibility(activeBtn ? activeBtn.dataset.tab : 'home');
 })();

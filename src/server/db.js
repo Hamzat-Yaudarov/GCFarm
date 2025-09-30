@@ -413,4 +413,34 @@ async function getLeaderboard(by = 'clicks', viewerTgid) {
   }
 }
 
-module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard };
+async function tryReserveScube(tgid, amount) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const res = await client.query('SELECT scube FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (!res.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
+    let scube = Number(res.rows[0].scube);
+    if (scube < amount) { await client.query('ROLLBACK'); return { ok:false, message:'Недостаточно SCube' }; }
+    scube -= amount;
+    await client.query('UPDATE users SET scube=$1 WHERE tgid=$2', [scube, tgid]);
+    await client.query('COMMIT');
+    return { ok:true, scube };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function creditScube(tgid, amount) {
+  const client = await pool.connect();
+  try {
+    await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2', [amount, tgid]);
+    return { ok:true };
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube };
