@@ -12,6 +12,18 @@
 </head>
 <body>
   <div class="game-root">
+    <div id="splash" class="splash-screen">
+      <div class="splash-wrap">
+        <div class="splash-art">
+          <div class="splash-planet"></div>
+          <div class="splash-ship"></div>
+          <div class="splash-stars"></div>
+        </div>
+        <div class="splash-title">GC Farm</div>
+        <div class="splash-dots"><span></span><span></span><span></span></div>
+        <button id="splash-retry" class="splash-retry hidden">Повторить</button>
+      </div>
+    </div>
     <header class="game-header">
       <div class="player-avatar" id="avatar">A</div>
       <div class="balances">
@@ -24,6 +36,7 @@
 
     <main class="game-main">
       <section class="tab-content" id="home">
+        <div class="home-galaxy" aria-hidden="true"></div>
         <div class="cube-area">
           <div class="cube-aurora" aria-hidden="true"></div>
           <button id="golden-cube" class="golden-cube" title="Нажми чтобы получить 1 SCube" aria-label="Золотой куб">🔶</button>
@@ -147,7 +160,7 @@
           <div class="leader-personal" id="leader-personal" aria-live="polite">
             <div class="leader-personal-cards">
               <div class="leader-personal-card" id="leader-personal-rank">
-                <span class="leader-personal-label">🤩 Твой ранг</span>
+                <span class="leader-personal-label">🤩 Тв��й ранг</span>
                 <span class="leader-personal-value" id="leader-self-rank">—</span>
               </div>
               <div class="leader-personal-card" id="leader-personal-score">

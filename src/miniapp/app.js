@@ -26,6 +26,7 @@
             const json = await res.json();
             if (json && json.ok && json.tgid) {
               tgid = json.tgid;
+              loadUser();
             }
           }
         }
@@ -34,6 +35,11 @@
   })();
 
   const appMessage = document.getElementById('app-message');
+
+  // Splash helpers
+  function hideSplash(){ if (splash) splash.classList.add('hidden'); }
+  function showSplash(){ if (splash) splash.classList.remove('hidden'); }
+  if (splashRetry) splashRetry.addEventListener('click', ()=>{ showSplash(); loadUser(); });
 
   const scubeEl = document.getElementById('scube');
   const gcubeEl = document.getElementById('gcube');
@@ -78,6 +84,8 @@
   const contents = document.querySelectorAll('.tab-content');
 
   const storeFab = document.getElementById('store-fab');
+  const splash = document.getElementById('splash');
+  const splashRetry = document.getElementById('splash-retry');
   const gamesSection = document.getElementById('games');
   const gameCards = document.getElementById('game-cards');
   const betSelector = document.getElementById('bet-selector');
@@ -448,7 +456,9 @@
 
   async function loadUser(){
     if (!tgid) {
-      if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в ��оте (нажмите /start и затем "Открыть игру").';
+      if (appMessage) appMessage.textContent = 'Откройте игру через бота (нажмите /start и затем "Открыть игру").';
+      showSplash();
+      if (splashRetry) splashRetry.classList.remove('hidden');
       return;
     }
     try {
@@ -457,11 +467,14 @@
         let body = null;
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
-        if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
+        if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользова��еля: ' + msg;
+        if (splashRetry) splashRetry.classList.remove('hidden');
         return;
       }
       const user = await res.json();
       if (appMessage) appMessage.textContent = '';
+      if (splashRetry) splashRetry.classList.add('hidden');
+      hideSplash();
       scubeEl.textContent = user.scube;
       gcubeEl.textContent = user.gcube;
       energyEl.textContent = user.energy;
@@ -967,7 +980,7 @@
       grid.appendChild(c);
     });
     const status = document.createElement('div'); status.className='ttt-status';
-    if (!room.opponent) status.textContent = 'Ожидание соперника...';
+    if (!room.opponent) status.textContent = 'Ожидание сопер��ика...';
     else if (finished){
       let banner;
       if (room.state && room.state.winner){
