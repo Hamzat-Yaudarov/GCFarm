@@ -170,8 +170,22 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .tab-content{animation:fadeIn .28s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
+/* In-match minimal UI */
+.in-match .tabs-bottom{display:none}
+.in-match .game-header{display:none}
+.in-match .games-container > *:not(#game-stage){display:none}
+.in-match #game-stage{display:block}
+.in-match .store-fab{display:none}
+
+/* Result banner */
+.result-banner{margin:8px 0;padding:14px;border-radius:12px;background:linear-gradient(180deg,#0f2536,#092033);border:1px solid rgba(255,255,255,0.06);text-align:center;font-weight:800;font-size:16px;letter-spacing:.2px;animation:bannerPop .28s ease}
+.result-banner.win{background:linear-gradient(180deg,#174e2f,#0e2a22);box-shadow:0 0 24px rgba(63,203,108,0.28);color:#cfffdb;border-color:rgba(63,203,108,0.35)}
+.result-banner.lose{background:linear-gradient(180deg,#4e1b1b,#2a0e0e);box-shadow:0 0 24px rgba(255,94,94,0.28);color:#ffd0d0;border-color:rgba(255,94,94,0.35)}
+.result-banner.draw{background:linear-gradient(180deg,#3b3b3b,#1e1e1e);box-shadow:0 0 24px rgba(180,180,180,0.2);color:#eee;border-color:rgba(200,200,200,0.2)}
+@keyframes bannerPop{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
+
 /* Store floating button */
-.store-fab{position:fixed;top:14px;right:14px;z-index:950;padding:10px 12px;border-radius:12px;background:#0f2536;color:#fff;border:1px solid rgba(255,255,255,0.06);font-weight:800;box-shadow:0 10px 26px rgba(0,0,0,0.35);transition:transform .12s ease,opacity .2s ease}
+.store-fab{position:fixed;top:28px;right:14px;z-index:950;padding:10px 12px;border-radius:10px;background:#0f2536;color:#fff;border:1px solid rgba(255,255,255,0.06);font-weight:800;box-shadow:0 10px 26px rgba(0,0,0,0.35);transition:transform .12s ease,opacity .2s ease}
 .store-fab.hidden{display:none}
 .store-fab:hover{transform:translateY(-1px)}
 

@@ -106,8 +106,80 @@ function serializeRoom(room){
     creator: room.creator,
     opponent: room.opponent,
     createdAt: room.createdAt,
-    state: room.state
+    state: room.state,
+    deadlineAt: room.deadlineAt || null
   };
+}
+
+function clearRoomTimer(room){
+  try { if (room._timer) { clearTimeout(room._timer); room._timer = null; } } catch(e){}
+}
+
+async function finishRoomWithWinner(room, winnerTgid, reason){
+  try{
+    if (room.status === 'finished') return;
+    clearRoomTimer(room);
+    room.status = 'finished';
+    if (winnerTgid) {
+      await db.creditScube(Number(winnerTgid), room.bet * 2);
+      if (room.game === 'rps') {
+        room.state = room.state || {};
+        room.state.result = Object.assign({}, room.state.result || {}, { type:'win', winner: String(winnerTgid), reason });
+      } else if (room.game === 'ttt') {
+        room.state = room.state || {};
+        room.state.winner = String(winnerTgid);
+        room.state.reason = reason;
+      }
+    } else {
+      // draw case
+      await db.creditScube(room.creator, room.bet);
+      if (room.opponent) await db.creditScube(room.opponent, room.bet);
+      if (room.game === 'rps') {
+        room.state = room.state || {};
+        room.state.result = Object.assign({}, room.state.result || {}, { type:'draw', reason });
+      } else if (room.game === 'ttt') {
+        room.state = room.state || {};
+        room.state.winner = null;
+        room.state.reason = reason || 'draw';
+      }
+    }
+  } finally {
+    userActiveRoom.delete(String(room.creator));
+    if (room.opponent) userActiveRoom.delete(String(room.opponent));
+  }
+}
+
+function startRpsTimer(room){
+  clearRoomTimer(room);
+  room.deadlineAt = Date.now() + 30000;
+  room._timer = setTimeout(async ()=>{
+    try{
+      if (room.status !== 'active') return;
+      const moves = room.state && room.state.moves || {};
+      const a = moves[String(room.creator)];
+      const b = moves[String(room.opponent)];
+      if (a && b) return; // already resolved
+      if (a && !b) { await finishRoomWithWinner(room, room.creator, 'timeout'); }
+      else if (!a && b) { await finishRoomWithWinner(room, room.opponent, 'timeout'); }
+      else { await finishRoomWithWinner(room, null, 'timeout'); }
+    } catch(e){ console.warn('RPS timer error', e); }
+  }, 30000);
+}
+
+function startTttTimer(room){
+  clearRoomTimer(room);
+  if (!room.state || !room.state.turn) return; // no turn yet
+  const turnTgid = String(room.state.turn);
+  room.deadlineAt = Date.now() + 30000;
+  room._timer = setTimeout(async ()=>{
+    try{
+      if (room.status !== 'active') return;
+      const loser = turnTgid;
+      const winner = String(loser) === String(room.creator) ? room.opponent : room.creator;
+      if (!winner) return; // cannot decide
+      await finishRoomWithWinner(room, winner, 'timeout');
+    } catch(e){ console.warn('TTT timer error', e); }
+  }, 30000);
 }
 
 function createRoom(tgid, game, bet){
@@ -120,7 +192,9 @@ function createRoom(tgid, game, bet){
     opponent: null,
     status: 'waiting',
     createdAt: Date.now(),
-    state: game === 'rps' ? { moves: {} } : { board: Array(9).fill(null), turn: null, symbols: {}, winner: null }
+    state: game === 'rps' ? { moves: {}, notice: 'Сделайте ход за 30 секунд, иначе поражение.' } : { board: Array(9).fill(null), turn: null, symbols: {}, winner: null, notice: 'На ход даётся 30 секунд. Превышение — поражение.' },
+    deadlineAt: null,
+    _timer: null
   };
   gameRooms.set(id, room);
   userActiveRoom.set(String(tgid), id);
@@ -186,6 +260,9 @@ app.post('/api/games/rooms/:id/join', async (req, res)=>{
     if (room.game==='ttt'){
       room.state.symbols = { [String(room.creator)] : 'X', [String(tgid)] : 'O' };
       if (!room.state.turn) room.state.turn = String(room.creator);
+      startTttTimer(room);
+    } else if (room.game==='rps'){
+      startRpsTimer(room);
     }
     userActiveRoom.set(String(tgid), id);
     res.json({ ok:true, room: serializeRoom(room) });
@@ -215,21 +292,16 @@ app.post('/api/games/rooms/:id/move', async (req,res)=>{
         const a = room.state.moves[String(room.creator)];
         const b = room.state.moves[String(room.opponent)];
         const out = rpsOutcome(a,b);
+        clearRoomTimer(room);
         if (out===0){ // draw
-          await db.creditScube(room.creator, room.bet);
-          await db.creditScube(room.opponent, room.bet);
-          room.status = 'finished';
-          room.state.result = { type:'draw', a, b };
+          await finishRoomWithWinner(room, null, 'both_moved');
+          room.state.result = Object.assign({}, room.state.result || {}, { a, b });
         } else if (out===1){
-          const win = room.bet*2;
-          await db.creditScube(room.creator, win);
-          room.status = 'finished';
-          room.state.result = { type:'win', winner: String(room.creator), a, b };
+          await finishRoomWithWinner(room, room.creator, 'both_moved');
+          room.state.result = Object.assign({}, room.state.result || {}, { a, b });
         } else {
-          const win = room.bet*2;
-          await db.creditScube(room.opponent, win);
-          room.status = 'finished';
-          room.state.result = { type:'win', winner: String(room.opponent), a, b };
+          await finishRoomWithWinner(room, room.opponent, 'both_moved');
+          room.state.result = Object.assign({}, room.state.result || {}, { a, b });
         }
       }
       return res.json({ ok:true, room: serializeRoom(room) });
@@ -238,23 +310,20 @@ app.post('/api/games/rooms/:id/move', async (req,res)=>{
       if (!(idx>=0 && idx<9)) return res.status(400).json({ ok:false, message:'Invalid cell' });
       const sym = room.state.symbols[String(tgid)];
       if (!sym) return res.status(403).json({ ok:false, message:'Not a player' });
-      if (room.state.turn !== String(tgid)) return res.json({ ok:false, message:'Хо�� соперника' });
+      if (room.state.turn !== String(tgid)) return res.json({ ok:false, message:'Ход соперника' });
       if (room.state.board[idx]) return res.json({ ok:false, message:'Клетка занята' });
       room.state.board[idx] = sym;
       const w = tttCheckWinner(room.state.board);
+      clearRoomTimer(room);
       if (w==='draw'){
-        await db.creditScube(room.creator, room.bet);
-        await db.creditScube(room.opponent, room.bet);
-        room.status='finished';
-        room.state.winner = null;
+        await finishRoomWithWinner(room, null, 'board_draw');
       } else if (w){
         const winnerTgid = Object.entries(room.state.symbols).find(([,s])=>s===w)[0];
-        await db.creditScube(Number(winnerTgid), room.bet*2);
-        room.status='finished';
-        room.state.winner = winnerTgid;
+        await finishRoomWithWinner(room, Number(winnerTgid), 'board_win');
       } else {
         const next = (String(tgid)===String(room.creator)) ? String(room.opponent) : String(room.creator);
         room.state.turn = next;
+        startTttTimer(room);
       }
       return res.json({ ok:true, room: serializeRoom(room) });
     }
@@ -274,11 +343,13 @@ app.post('/api/games/rooms/:id/leave', async (req,res)=>{
 
     if (room.status==='waiting'){
       // refund creator and close
+      clearRoomTimer(room);
       await db.creditScube(room.creator, room.bet);
       room.status='finished';
     } else if (room.status==='active'){
       // forfeit: pay full pot to the other
       const winner = isCreator ? room.opponent : room.creator;
+      clearRoomTimer(room);
       await db.creditScube(winner, room.bet*2);
       room.status='finished';
       room.state.forfeit = String(tgid);
