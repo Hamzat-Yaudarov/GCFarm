@@ -40,12 +40,24 @@
           <div class="cube-sparkles" aria-hidden="true"></div>
           <div class="resource-cards">
             <div class="resource-card energy-card">
-              <span class="resource-card-label">Энергия</span>
-              <span class="resource-card-value">⚡ <span id="energy">0</span> / <span id="energy-capacity">50</span></span>
+              <div class="resource-card-header">
+                <div class="resource-card-icon" aria-hidden="true">⚡</div>
+                <div class="resource-card-info">
+                  <span class="resource-card-label">Энергия</span>
+                  <span class="resource-card-value"><span id="energy">0</span> / <span id="energy-capacity">50</span></span>
+                </div>
+              </div>
+              <p class="resource-card-note">Держи заряд на пике, чтобы добывать без пауз.</p>
             </div>
             <div class="resource-card daily-card">
-              <span class="resource-card-label">Прогресс дня</span>
-              <span class="resource-card-value">📅 <span id="daily">0</span> / <span id="daily-limit">250</span></span>
+              <div class="resource-card-header">
+                <div class="resource-card-icon" aria-hidden="true">📅</div>
+                <div class="resource-card-info">
+                  <span class="resource-card-label">Прогресс дня</span>
+                  <span class="resource-card-value"><span id="daily">0</span> / <span id="daily-limit">250</span></span>
+                </div>
+              </div>
+              <p class="resource-card-note">Закрывай лимит и открывай новые апгрейды базы.</p>
             </div>
           </div>
           <div class="ad-block">
@@ -105,7 +117,7 @@
                   <div class="upgrade-subtitle">Пусть дрон пополняет заряд</div>
                 </div>
               </div>
-              <div class="upgrade-cost">Стоимость: 2000 SCube</div>
+              <div class="upgrade-cost">Стоимо��ть: 2000 SCube</div>
               <button class="upgrade-btn" data-type="auto_energy">Купить автоэнергию</button>
               <div class="card-glow" aria-hidden="true"></div>
             </div>
@@ -141,7 +153,20 @@
       <section class="tab-content hidden" id="leaderboard">
         <div class="leader-container">
           <h3>🏆 Рейтинг</h3>
-          <p class="leader-hint">✨ Выбирай таблицу �� смотри, кто впереди команды.</p>
+          <p class="leader-hint">✨ Выбирай таблицу и смотри, кто впереди команды.</p>
+          <div class="leader-personal" id="leader-personal" aria-live="polite">
+            <div class="leader-personal-cards">
+              <div class="leader-personal-card" id="leader-personal-rank">
+                <span class="leader-personal-label">🤩 Твой ранг</span>
+                <span class="leader-personal-value" id="leader-self-rank">—</span>
+              </div>
+              <div class="leader-personal-card" id="leader-personal-score">
+                <span class="leader-personal-label">📊 Твои очки</span>
+                <span class="leader-personal-value" id="leader-self-value">—</span>
+              </div>
+            </div>
+            <p class="leader-personal-note" id="leader-self-note">Собирай кристаллы и выполняй задания, чтобы ворваться в т��п!</p>
+          </div>
           <div class="leader-tabs">
             <button id="leader-by-clicks" class="leader-btn active">⛏️ SCube (нажатия)</button>
             <button id="leader-by-tasks" class="leader-btn">✅ Выполненные задания</button>

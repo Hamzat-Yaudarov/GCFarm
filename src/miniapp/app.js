@@ -32,6 +32,10 @@
   const leaderEmpty = document.getElementById('leader-empty');
   const leaderButtons = document.querySelectorAll('.leader-btn');
   const leaderboardSection = document.getElementById('leaderboard');
+  const leaderSelfRank = document.getElementById('leader-self-rank');
+  const leaderSelfValue = document.getElementById('leader-self-value');
+  const leaderSelfNote = document.getElementById('leader-self-note');
+  const leaderPersonal = document.getElementById('leader-personal');
 
   const leaderboardCache = { clicks: null, tasks: null };
   const leaderboardCacheTime = { clicks: 0, tasks: 0 };
@@ -115,15 +119,77 @@
     leaderEmpty.classList.add('hidden');
   }
 
-  function renderLeaderboard(entries, mode) {
+  function pluralizeRu(value, forms) {
+    const abs = Math.abs(Number(value) || 0) % 100;
+    const last = abs % 10;
+    if (abs > 10 && abs < 20) return forms[2];
+    if (last === 1) return forms[0];
+    if (last >= 2 && last <= 4) return forms[1];
+    return forms[2];
+  }
+
+  function formatViewerValue(mode, value) {
+    const safe = Number(value) || 0;
+    if (mode === 'tasks') {
+      const label = pluralizeRu(safe, ['задача', 'задачи', 'задач']);
+      return `${safe} ${label}`;
+    }
+    return `${safe} SCube`;
+  }
+
+  function updateLeaderboardInsights(viewer, mode, state = 'ready') {
+    if (!leaderSelfRank || !leaderSelfValue || !leaderSelfNote) return;
+    const isTasks = mode === 'tasks';
+    if (state === 'loading') {
+      leaderSelfRank.textContent = '…';
+      leaderSelfValue.textContent = '…';
+      leaderSelfNote.textContent = isTasks ? 'Загружаем рейтинг по заданиям…' : 'Загружаем рейтинг по SCube…';
+      if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
+      return;
+    }
+
+    if (!tgid) {
+      leaderSelfRank.textContent = '—';
+      leaderSelfValue.textContent = formatViewerValue(mode, 0);
+      leaderSelfNote.textContent = 'Открой игру через бота, чтобы участвовать в рейтинге.';
+      if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
+      return;
+    }
+
+    if (!viewer) {
+      leaderSelfRank.textContent = '—';
+      leaderSelfValue.textContent = formatViewerValue(mode, 0);
+      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
+      if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
+      return;
+    }
+
+    if (leaderPersonal) leaderPersonal.classList.remove('leader-personal-empty');
+    leaderSelfRank.textContent = viewer.rank ? `#${viewer.rank}` : '—';
+    leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
+    if (viewer.rank <= 3) {
+      leaderSelfNote.textContent = 'Ты на пьедестале! Держи темп. 🌟';
+    } else if (viewer.rank <= 10) {
+      leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
+    } else {
+      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+    }
+  }
+
+  function renderLeaderboard(entries, mode, viewer) {
     if (!leaderList) return;
     leaderList.innerHTML = '';
-    if (!Array.isArray(entries) || entries.length === 0) {
+    const hasEntries = Array.isArray(entries) && entries.length > 0;
+    if (!hasEntries) {
+      updateLeaderboardInsights(viewer, mode);
       showLeaderboardMessage('Пока нет данных');
       return;
     }
+
     hideLeaderboardMessage();
     const podiumIcons = ['🥇', '🥈', '🥉'];
+    let viewerPlaced = false;
+
     entries.forEach((entry)=>{
       const item = document.createElement('li');
       item.className = 'leader-item';
@@ -141,40 +207,73 @@
 
       const valueSpan = document.createElement('span');
       valueSpan.className = 'leader-value';
-      valueSpan.textContent = mode === 'tasks' ? `${entry.value} задач` : `${entry.value} SCube`;
+      valueSpan.textContent = formatViewerValue(mode, entry.value);
+
+      if (viewer && Number(entry.tgid) === Number(viewer.tgid)) {
+        item.classList.add('leader-item-self');
+        viewerPlaced = true;
+      }
 
       item.append(rankSpan, nameSpan, valueSpan);
       leaderList.appendChild(item);
     });
+
+    if (viewer && !viewerPlaced) {
+      const viewerItem = document.createElement('li');
+      viewerItem.className = 'leader-item leader-item-self leader-item-outside';
+      const rankSpan = document.createElement('span');
+      rankSpan.className = 'leader-rank';
+      rankSpan.textContent = viewer.rank ? `#${viewer.rank}` : '—';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'leader-name';
+      nameSpan.textContent = viewer.name || `Игрок ${viewer.tgid}`;
+
+      const valueSpan = document.createElement('span');
+      valueSpan.className = 'leader-value';
+      valueSpan.textContent = formatViewerValue(mode, viewer.value);
+
+      viewerItem.append(rankSpan, nameSpan, valueSpan);
+      leaderList.appendChild(viewerItem);
+    }
+
+    updateLeaderboardInsights(viewer, mode);
   }
 
   async function loadLeaderboard(by, forceReload = false) {
     if (!leaderList || !leaderEmpty) return;
     const mode = by === 'tasks' ? 'tasks' : 'clicks';
     const now = Date.now();
-    if (!forceReload && Array.isArray(leaderboardCache[mode]) && now - leaderboardCacheTime[mode] < LEADERBOARD_CACHE_TTL) {
-      renderLeaderboard(leaderboardCache[mode], mode);
+    const cached = leaderboardCache[mode];
+    if (!forceReload && cached && now - leaderboardCacheTime[mode] < LEADERBOARD_CACHE_TTL) {
+      renderLeaderboard(cached.entries, mode, cached.viewer);
       return;
     }
 
+    updateLeaderboardInsights(null, mode, 'loading');
     const requestId = ++leaderboardRequestId;
     leaderList.innerHTML = '';
     showLeaderboardMessage('Загружаем рейтинг...');
 
     try {
-      const res = await fetch(`${apiBase}/leaderboard?by=${mode}`);
+      const viewerQuery = tgid ? `&viewer=${tgid}` : '';
+      const res = await fetch(`${apiBase}/leaderboard?by=${mode}${viewerQuery}`);
       if (!res.ok) throw new Error(`Failed with status ${res.status}`);
       const json = await res.json();
       if (!json.ok) throw new Error(json.message || 'Bad response');
-      const entries = Array.isArray(json.entries) ? json.entries : [];
-      leaderboardCache[mode] = entries;
+      const payload = {
+        entries: Array.isArray(json.entries) ? json.entries : [],
+        viewer: json.viewer || null
+      };
+      leaderboardCache[mode] = payload;
       leaderboardCacheTime[mode] = Date.now();
       if (leaderboardRequestId === requestId) {
-        renderLeaderboard(entries, mode);
+        renderLeaderboard(payload.entries, mode, payload.viewer);
       }
     } catch (err) {
       if (leaderboardRequestId === requestId) {
         showLeaderboardMessage('Не удалось загрузить рейтинг');
+        updateLeaderboardInsights(null, mode);
       }
       console.warn('leaderboard fetch failed', err);
     }

@@ -366,22 +366,48 @@ async function autoTick(tgid) {
 }
 
 // Leaderboard
-async function getLeaderboard(by = 'clicks') {
+async function getLeaderboard(by = 'clicks', viewerTgid) {
   const client = await pool.connect();
   try {
     const column = by === 'tasks' ? 'tasks_completed' : 'clicks_total';
     const res = await client.query(
-      `SELECT tgid, COALESCE(name, CONCAT('Player ', tgid::text)) AS name, ${column} AS value
+      `SELECT tgid, COALESCE(name, 'Player ' || tgid::text) AS name, COALESCE(${column}, 0) AS value
        FROM users
-       ORDER BY ${column} DESC NULLS LAST, tgid ASC
+       ORDER BY COALESCE(${column}, 0) DESC, tgid ASC
        LIMIT 100`
     );
-    return res.rows.map((r, idx) => ({
+    const entries = res.rows.map((r, idx) => ({
       rank: idx + 1,
       tgid: Number(r.tgid),
       name: r.name,
       value: Number(r.value || 0)
     }));
+
+    let viewer = null;
+    if (typeof viewerTgid === 'number' && Number.isFinite(viewerTgid)) {
+      const viewerRes = await client.query(
+        `WITH ranked AS (
+           SELECT tgid,
+                  COALESCE(name, 'Player ' || tgid::text) AS name,
+                  COALESCE(${column}, 0) AS value,
+                  RANK() OVER (ORDER BY COALESCE(${column}, 0) DESC, tgid ASC) AS rank
+           FROM users
+         )
+         SELECT rank, tgid, name, value FROM ranked WHERE tgid = $1`,
+        [viewerTgid]
+      );
+      if (viewerRes.rows.length) {
+        const row = viewerRes.rows[0];
+        viewer = {
+          rank: Number(row.rank),
+          tgid: Number(row.tgid),
+          name: row.name,
+          value: Number(row.value || 0)
+        };
+      }
+    }
+
+    return { entries, viewer };
   } finally {
     client.release();
   }

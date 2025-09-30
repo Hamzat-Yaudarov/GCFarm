@@ -204,8 +204,10 @@ app.post('/api/user/:tgid/claim-reward', async (req, res) => {
 app.get('/api/leaderboard', async (req, res) => {
   try {
     const by = (req.query.by === 'tasks') ? 'tasks' : 'clicks';
-    const entries = await db.getLeaderboard(by);
-    res.json({ ok: true, by, entries });
+    const viewerRaw = req.query.viewer;
+    const viewerTgid = viewerRaw ? parseInt(viewerRaw, 10) : undefined;
+    const leaderboard = await db.getLeaderboard(by, Number.isFinite(viewerTgid) ? viewerTgid : undefined);
+    res.json({ ok: true, by, entries: leaderboard.entries, viewer: leaderboard.viewer || null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ ok:false, message: 'Internal error' });
