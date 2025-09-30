@@ -15,26 +15,6 @@
     tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
   }
 
-  // Populate username and avatar from Telegram
-  try {
-    const wa = window.Telegram && window.Telegram.WebApp;
-    const tgUser = wa && wa.initDataUnsafe && wa.initDataUnsafe.user;
-    if (tgUser) {
-      const uname = tgUser.username ? `@${tgUser.username}` : (tgUser.first_name || '');
-      if (usernameEl) usernameEl.textContent = uname;
-      if (avatarEl) {
-        const letter = (tgUser.first_name || tgUser.username || 'A').charAt(0).toUpperCase();
-        avatarEl.textContent = letter;
-        if (tgUser.photo_url) {
-          const img = new Image();
-          img.onload = ()=>{ avatarEl.style.backgroundImage = `url('${tgUser.photo_url}')`; avatarEl.textContent = ''; };
-          img.onerror = ()=>{ /* keep letter */ };
-          img.src = tgUser.photo_url;
-        }
-      }
-    }
-  } catch(e){ console.warn('Failed to set username/avatar', e); }
-
   const appMessage = document.getElementById('app-message');
 
   const scubeEl = document.getElementById('scube');
@@ -46,7 +26,6 @@
   const dailyLevelEl = document.getElementById('daily-level');
   const dailyCostEl = document.getElementById('daily-cost');
   const avatarEl = document.getElementById('avatar');
-  const usernameEl = document.getElementById('username');
   const golden = document.getElementById('golden-cube');
 
   // Referrals elements
@@ -82,24 +61,23 @@
     }
   } catch (e) { console.warn('AdsGram init failed', e); }
 
+  // Track Telegram MiniApp expansion state
+  let isExpanded = false;
+  function computeExpanded(){
+    try { return !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.isExpanded); } catch(e){ return false; }
+  }
+  isExpanded = computeExpanded();
+  try {
+    if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.onEvent === 'function') {
+      window.Telegram.WebApp.onEvent('viewportChanged', ()=>{ isExpanded = computeExpanded(); });
+    }
+  } catch(e) {}
+
   // throttle interstitials to avoid repeated errors/messages
   let lastInterstitialAt = 0;
   let interstitialShownCount = 0;
   const INTERSTITIAL_MIN_INTERVAL = 5 * 60 * 1000; // 5 minutes
   const INTERSTITIAL_MAX_PER_SESSION = 3;
-
-  function isMiniAppExpanded(){
-    try { return !!(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.isExpanded); } catch(e){ return false; }
-  }
-  function ensureExpandedOrNotify(){
-    if (isMiniAppExpanded()) return true;
-    try { if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.expand === 'function') window.Telegram.WebApp.expand(); } catch(e){}
-    if (appMessage) {
-      appMessage.textContent = 'Разверните MiniApp на весь экран для просмотра рекламы';
-      setTimeout(()=>{ if (appMessage && appMessage.textContent === 'Разверните MiniApp на весь экран для просмотра рекламы') appMessage.textContent = ''; }, 3000);
-    }
-    return false;
-  }
 
   tabs.forEach(btn=>{
     btn.addEventListener('click', async ()=>{
@@ -112,58 +90,46 @@
     });
   });
 
-  // Interstitial scheduler counting only when MiniApp fully expanded
-  async function showInterstitialWithCountdown() {
+  // Interstitial scheduler: count only while MiniApp is fully expanded
+  let interstitialTicker = null;
+  let interstitialElapsed = 0; // ms accumulated only when expanded
+  async function showInterstitialWithCountdownIfExpanded() {
     try {
+      if (!isExpanded) return;
       if (!AdController || typeof AdController.show !== 'function') return;
-      if (!isMiniAppExpanded()) return;
       const overlay = document.getElementById('ad-countdown-overlay');
       if (overlay) {
         overlay.classList.remove('hidden');
         let count = 3;
         const badge = document.getElementById('ad-countdown-badge');
-        if (badge) badge.textContent = `Реклама через ${count}`;
-        while (count > 0 && isMiniAppExpanded()) {
+        while (count > 0 && isExpanded) {
           if (badge) badge.textContent = `Реклама через ${count}`;
           await new Promise(r=>setTimeout(r,1000));
           count -= 1;
         }
         overlay.classList.add('hidden');
       }
-      if (!isMiniAppExpanded()) return;
+      if (!isExpanded) return;
       const result = await AdController.show();
       console.log('Scheduled interstitial shown', result);
     } catch (e) { console.warn('Scheduled interstitial failed', e); }
   }
-
-  let interstitialTick = null;
-  let interstitialElapsed = 0;
-  const INTERSTITIAL_PERIOD = 10 * 60 * 1000; // 10 minutes
-
-  function startInterstitialTick(){
-    if (interstitialTick) return;
-    interstitialTick = setInterval(async ()=>{
-      if (!AdController) return;
-      if (!isMiniAppExpanded()) return;
+  function startInterstitialScheduler() {
+    if (interstitialTicker) return;
+    interstitialTicker = setInterval(()=>{
+      if (!isExpanded) return;
       interstitialElapsed += 1000;
-      if (interstitialElapsed >= INTERSTITIAL_PERIOD) {
+      const TEN_MIN = 10 * 60 * 1000;
+      if (interstitialElapsed >= TEN_MIN) {
         interstitialElapsed = 0;
-        await showInterstitialWithCountdown();
+        showInterstitialWithCountdownIfExpanded();
       }
     }, 1000);
   }
-  function stopInterstitialTick(){ if (interstitialTick) { clearInterval(interstitialTick); interstitialTick = null; } }
+  function stopInterstitialScheduler(){ if (interstitialTicker) { clearInterval(interstitialTicker); interstitialTicker = null; } }
 
-  try {
-    const W = window.Telegram && window.Telegram.WebApp;
-    if (W && typeof W.onEvent === 'function') {
-      W.onEvent('viewportChanged', ()=>{
-        if (isMiniAppExpanded()) startInterstitialTick(); else stopInterstitialTick();
-      });
-    }
-  } catch(e){}
-
-  if (AdController && isMiniAppExpanded()) startInterstitialTick();
+  // start scheduler if AdsGram initialized
+  if (AdController) startInterstitialScheduler();
 
   // Helpers: cooldowns and animations for better UX
   function addAdCooldown(button, duration = 10000) {
@@ -283,7 +249,7 @@
       if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
         const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
-        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш ��од: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
+        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
         const copyBtn = document.getElementById('copy-referral');
         if (copyBtn) copyBtn.addEventListener('click', ()=>{
           const input = document.getElementById('referral-link-input');
@@ -346,10 +312,14 @@
   let adBusy = false;
   watchAdBtn.addEventListener('click', async ()=>{
     if (adBusy) return;
+    // require full expansion before proceeding
+    if (!isExpanded) {
+      try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
+      return showStoreFeedback('Разверните MiniApp полностью и повторите');
+    }
     adBusy = true;
     try {
       if (!tgid) { adBusy = false; return alert('tgid is required'); }
-      if (!ensureExpandedOrNotify()) { adBusy = false; return; }
       // prevent rapid re-click by adding a 10s cooldown
       addAdCooldown(watchAdBtn, 10000);
     const cfg = window.ADSGRAM_CONFIG || {};
@@ -396,10 +366,14 @@
     let refillBusy = false;
     refillBtn.addEventListener('click', async ()=>{
       if (refillBusy) return;
+      // require full expansion before proceeding
+      if (!isExpanded) {
+        try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
+        return showStoreFeedback('Разверните MiniApp полностью и повторите');
+      }
       refillBusy = true;
       try {
         if (!tgid) { refillBusy = false; return alert('tgid is required'); }
-        if (!ensureExpandedOrNotify()) { refillBusy = false; return; }
         // add cooldown to avoid rapid ad openings
         addAdCooldown(refillBtn, 10000);
       const cfg = window.ADSGRAM_CONFIG || {};

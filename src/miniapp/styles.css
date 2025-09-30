@@ -2,9 +2,8 @@
 body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .game-root{max-width:520px;margin:18px auto;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#071029 0%,#081426 100%);position:relative;border:1px solid rgba(255,255,255,0.04)}
 .game-header{display:flex;align-items:center;padding:14px;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent)}
-.player-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,#2b475b,#23354b);display:flex;align-items:center;justify-content:center;font-weight:700;background-size:cover;background-position:center center;overflow:hidden}
+.player-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,#2b475b,#23354b);display:flex;align-items:center;justify-content:center;font-weight:700}
 .balances{margin-left:12px;display:flex;flex-direction:column}
-.player-username{font-size:12px;color:#bcd3e6;margin-bottom:2px}
 .balance-s,.balance-g{font-size:14px}
 .game-main{padding:18px;padding-bottom:140px;display:flex;flex-direction:column;align-items:center}
 .tab-content{min-height:360px;display:flex;align-items:center;justify-content:center}
