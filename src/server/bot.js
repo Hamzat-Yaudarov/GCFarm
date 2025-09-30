@@ -496,14 +496,20 @@ app.post('/api/user/:tgid/click', async (req, res) => {
   }
 });
 
-// Exchange endpoint
+// Exchange endpoint (supports legacy direction+units or advanced {from,to,amount})
 app.post('/api/user/:tgid/exchange', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
-  const { direction, units } = req.body || {};
+  const body = req.body || {};
   const authTgid = getAuthTgid(req);
   if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
-  if (!tgid || !direction) return res.status(400).json({ error: 'Invalid params' });
+  if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
+    if (body && body.from && body.to && body.amount) {
+      const result = await db.exchangeAdvanced(tgid, body.from, body.to, Math.max(1, parseInt(body.amount, 10) || 0));
+      return res.json(result);
+    }
+    const { direction, units } = body;
+    if (!direction) return res.status(400).json({ error: 'Invalid params' });
     const result = await db.exchange(tgid, direction, Math.max(1, parseInt(units || 1, 10)));
     res.json(result);
   } catch (err) {

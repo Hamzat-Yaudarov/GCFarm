@@ -33,6 +33,7 @@
       <div class="balances">
         <div class="balance-s">💎 SCube: <span id="scube">0</span></div>
         <div class="balance-g">🟡 GCube: <span id="gcube">0</span></div>
+        <div class="balance-stars">✨ Stars: <span id="stars">0</span></div>
       </div>
       <div class="header-glow" aria-hidden="true"></div>
     </header>
@@ -81,8 +82,41 @@
           <h3>💱 Космический обмен валют</h3>
           <p class="section-hint">📦 Прокачивай ресурсы, чтобы добывать ещё быстрее.</p>
           <div class="exchange">
-            <button id="scube-to-gcube" class="exchange-btn">💠 Поменять 50 SCube → 1 GCube</button>
-            <button id="gcube-to-scube" class="exchange-btn">🟡 Поменять 1 GCube → 50 SCube</button>
+            <button id="open-exchange" class="exchange-btn">🔁 Обменник</button>
+          </div>
+
+          <!-- Exchange modal -->
+          <div id="exchange-modal" class="confirm-modal hidden" aria-hidden="true">
+            <div class="confirm-box">
+              <div id="exchange-content">
+                <h3 style="margin:0 0 8px">Обменник валют</h3>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                  <label style="min-width:56px">От</label>
+                  <select id="exchange-from">
+                    <option value="scube">SCube</option>
+                    <option value="gcube">GCube</option>
+                    <option value="stars">Stars</option>
+                  </select>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                  <label style="min-width:56px">Кому</label>
+                  <select id="exchange-to">
+                    <option value="gcube">GCube</option>
+                    <option value="scube">SCube</option>
+                    <option value="stars">Stars</option>
+                  </select>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+                  <label style="min-width:56px">Сумма</label>
+                  <input id="exchange-amount" type="number" min="1" value="50" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff" />
+                </div>
+                <div id="exchange-preview" style="margin-bottom:8px;color:#cfeaf9">Результат: —</div>
+              </div>
+              <div class="confirm-actions">
+                <button id="exchange-cancel" class="confirm-btn">Отмен��</button>
+                <button id="exchange-confirm" class="confirm-btn primary">Обменять</button>
+              </div>
+            </div>
           </div>
 
           <h3>🚀 Лабор��тория улучшений</h3>
@@ -105,7 +139,7 @@
               <div class="card-header">
                 <span class="card-icon">📈</span>
                 <div class="card-text">
-                  <div class="upgrade-title">Увеличение дневного лимита +50</div>
+                  <div class="upgrade-title">Увели��ение дневного лимита +50</div>
                   <div class="upgrade-subtitle">Повышай пределы заработка</div>
                 </div>
               </div>

@@ -174,10 +174,15 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 /* Confirm modal */
 .confirm-modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1000}
 .confirm-modal.hidden{display:none}
-.confirm-box{background:#071429;padding:16px;border-radius:10px;width:90%;max-width:360px;border:1px solid rgba(255,255,255,0.03)}
+.confirm-box{background:#071429;padding:16px;border-radius:10px;width:90%;max-width:420px;border:1px solid rgba(255,255,255,0.03)}
 .confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 .confirm-btn{padding:8px 12px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
 .confirm-btn.primary{background:#3a8f5a}
+
+/* Exchange specific */
+#exchange-content h3{font-size:18px;margin-bottom:6px;color:#fff}
+#exchange-content select, #exchange-content input{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);color:#fff;padding:8px;border-radius:8px}
+#exchange-preview{font-weight:700}
 
 /* Ad countdown overlay */
 .ad-countdown-overlay{position:fixed;top:14px;right:14px;z-index:1200}

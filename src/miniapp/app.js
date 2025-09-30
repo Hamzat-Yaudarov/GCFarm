@@ -126,6 +126,14 @@
   const watchAdBtn = document.getElementById('watch-ad');
   const scubeToGBtn = document.getElementById('scube-to-gcube');
   const gcubeToSBtn = document.getElementById('gcube-to-scube');
+  const openExchangeBtn = document.getElementById('open-exchange');
+  const exchangeModal = document.getElementById('exchange-modal');
+  const exchangeFrom = document.getElementById('exchange-from');
+  const exchangeTo = document.getElementById('exchange-to');
+  const exchangeAmount = document.getElementById('exchange-amount');
+  const exchangePreview = document.getElementById('exchange-preview');
+  const exchangeConfirm = document.getElementById('exchange-confirm');
+  const exchangeCancel = document.getElementById('exchange-cancel');
   const upgradeBtns = document.querySelectorAll('.upgrade-btn');
   const storeFeedback = document.getElementById('store-feedback');
 
@@ -525,7 +533,7 @@
         let body = null;
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
-        if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
+        if (appMessage) appMessage.textContent = 'Не уд��лось загрузить данные пользователя: ' + msg;
         if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
         return;
       }
@@ -533,6 +541,8 @@
       if (appMessage) appMessage.textContent = '';
       scubeEl.textContent = user.scube;
       gcubeEl.textContent = user.gcube;
+      // stars may be added later
+      const starsEl = document.getElementById('stars'); if (starsEl) starsEl.textContent = user.stars || 0;
       energyEl.textContent = user.energy;
       energyCapEl.textContent = user.energy_capacity;
       dailyEl.textContent = user.daily_count;
@@ -826,27 +836,87 @@
     }
   }
 
-  if (scubeToGBtn) {
-    scubeToGBtn.addEventListener('click', async ()=>{
-      const confirmed = await showConfirm('Поменять 50 SCube на 1 GCube?');
-      if (!confirmed) {
-        showStoreFeedback('Обмен отменён');
-        return;
-      }
-      await executeExchange('scube_to_gcube', 'Обмен выполнен');
-    });
+  // Remove legacy quick-exchange buttons (if present)
+  if (scubeToGBtn) scubeToGBtn.remove && scubeToGBtn.remove();
+  if (gcubeToSBtn) gcubeToSBtn.remove && gcubeToSBtn.remove();
+
+  // Exchange modal logic
+  const RATES = { scube: 1, gcube: 50, stars: 60 };
+  function computeExchange(from, to, amount) {
+    if (!RATES[from] || !RATES[to]) return 0;
+    // amount is in units of `from`
+    const scubeEquivalent = Number(amount) * RATES[from];
+    const targetUnits = Math.floor(scubeEquivalent / RATES[to]);
+    return targetUnits;
   }
 
-  if (gcubeToSBtn) {
-    gcubeToSBtn.addEventListener('click', async ()=>{
-      const confirmed = await showConfirm('Поменять 1 GCube на 50 SCube?');
-      if (!confirmed) {
-        showStoreFeedback('Обмен отменён');
-        return;
-      }
-      await executeExchange('gcube_to_scube', '��бмен выполнен');
-    });
+  function updateExchangePreview() {
+    if (!exchangePreview || !exchangeFrom || !exchangeTo || !exchangeAmount) return;
+    const from = exchangeFrom.value;
+    const to = exchangeTo.value;
+    const amount = Number(exchangeAmount.value) || 0;
+    if (from === to) {
+      exchangePreview.textContent = 'Невозможно обменять валюту на саму себя';
+      return;
+    }
+    const target = computeExchange(from, to, amount);
+    exchangePreview.textContent = `Результат: ${amount} ${from.toUpperCase()} → ${target} ${to.toUpperCase()}`;
   }
+
+  function openExchange() {
+    if (!exchangeModal) return;
+    exchangeModal.classList.remove('hidden');
+  }
+  function closeExchange() {
+    if (!exchangeModal) return;
+    exchangeModal.classList.add('hidden');
+  }
+
+  if (openExchangeBtn) openExchangeBtn.addEventListener('click', ()=>{
+    // default values
+    if (exchangeFrom) exchangeFrom.value = 'scube';
+    if (exchangeTo) exchangeTo.value = 'gcube';
+    if (exchangeAmount) exchangeAmount.value = '50';
+    updateExchangePreview();
+    openExchange();
+  });
+
+  [exchangeFrom, exchangeTo, exchangeAmount].forEach(el=>{
+    if (!el) return;
+    el.addEventListener('input', updateExchangePreview);
+    el.addEventListener('change', updateExchangePreview);
+  });
+
+  if (exchangeCancel) exchangeCancel.addEventListener('click', ()=>{ closeExchange(); });
+
+  if (exchangeConfirm) exchangeConfirm.addEventListener('click', async ()=>{
+    if (!tgid) return alert('tgid is required');
+    const from = exchangeFrom.value;
+    const to = exchangeTo.value;
+    const amount = Math.max(1, Math.floor(Number(exchangeAmount.value) || 0));
+    if (from === to) return showStoreFeedback('Невозможно обменять валюту на саму себя');
+    const target = computeExchange(from, to, amount);
+    if (target < 1) return showStoreFeedback('Сумма слишком мала для обмена на выбранную валюту');
+
+    try {
+      const res = await fetch(`${apiBase}/user/${tgid}/exchange`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ from, to, amount })
+      });
+      const json = await res.json();
+      if (!json.ok) return showStoreFeedback(json.message || 'Ошибка обмена');
+      // update balances
+      if (scubeEl) scubeEl.textContent = json.scube;
+      if (gcubeEl) gcubeEl.textContent = json.gcube;
+      if (document.getElementById('stars')) document.getElementById('stars').textContent = json.stars || 0;
+      showStoreFeedback('Обмен выполнен');
+      closeExchange();
+    } catch (e) {
+      console.warn('exchange failed', e);
+      showStoreFeedback('Ошибка при обращении к серверу');
+    }
+  });
 
   function showStoreFeedback(msg){
     if (!storeFeedback) return;
@@ -1005,7 +1075,7 @@
       }
     }
     const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдат��ся');
     leave.addEventListener('click', leaveRoom);
 
     wrap.append(title, notice, timer, controls, result, leave);
