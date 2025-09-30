@@ -60,7 +60,6 @@ bot.start(async (ctx) => {
     });
   } catch (err) {
     console.error('Failed to send welcome message in /start', err);
-    // fallback: try a simpler reply
     try { await ctx.reply('Добро пожаловать!'); } catch (e) { console.error('Fallback reply failed', e); }
   }
 });
@@ -190,13 +189,26 @@ app.post('/api/user/:tgid/auto-tick', async (req, res) => {
 app.post('/api/user/:tgid/claim-reward', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   const amount = parseInt(req.body.amount || 5, 10); // default 5 SCube
+  const source = req.body.source || undefined; // 'task' | 'ad' | undefined
   if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
-    const result = await db.claimReward(tgid, amount);
+    const result = await db.claimReward(tgid, amount, source);
     res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+// Leaderboard endpoint
+app.get('/api/leaderboard', async (req, res) => {
+  try {
+    const by = (req.query.by === 'tasks') ? 'tasks' : 'clicks';
+    const entries = await db.getLeaderboard(by);
+    res.json({ ok: true, by, entries });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ ok:false, message: 'Internal error' });
   }
 });
 
@@ -250,7 +262,7 @@ app.post('/adsgram/callback', async (req, res) => {
       // continue but note discrepancy
     }
 
-    const result = await db.claimReward(tgid, amount);
+    const result = await db.claimReward(tgid, amount, 'ad');
     return res.json({ ok:true, credited: amount, scube: result.scube });
   } catch (err) {
     console.error('Error processing AdsGram callback', err);

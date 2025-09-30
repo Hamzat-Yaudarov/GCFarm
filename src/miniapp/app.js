@@ -28,6 +28,17 @@
   const avatarEl = document.getElementById('avatar');
   const golden = document.getElementById('golden-cube');
 
+  const leaderList = document.getElementById('leader-list');
+  const leaderEmpty = document.getElementById('leader-empty');
+  const leaderButtons = document.querySelectorAll('.leader-btn');
+  const leaderboardSection = document.getElementById('leaderboard');
+
+  const leaderboardCache = { clicks: null, tasks: null };
+  const leaderboardCacheTime = { clicks: 0, tasks: 0 };
+  const LEADERBOARD_CACHE_TTL = 60 * 1000;
+  let leaderboardMode = 'clicks';
+  let leaderboardRequestId = 0;
+
   // Referrals elements
   const referralsSection = document.getElementById('referrals');
   const referralInfoEl = document.getElementById('referral-info');
@@ -87,8 +98,100 @@
       contents.forEach(c=>{
         if (c.id===tab) c.classList.remove('hidden'); else c.classList.add('hidden');
       });
+      if (tab === 'leaderboard') {
+        loadLeaderboard(leaderboardMode);
+      }
     });
   });
+
+  function showLeaderboardMessage(message) {
+    if (!leaderEmpty) return;
+    leaderEmpty.textContent = message;
+    leaderEmpty.classList.remove('hidden');
+  }
+
+  function hideLeaderboardMessage() {
+    if (!leaderEmpty) return;
+    leaderEmpty.classList.add('hidden');
+  }
+
+  function renderLeaderboard(entries, mode) {
+    if (!leaderList) return;
+    leaderList.innerHTML = '';
+    if (!Array.isArray(entries) || entries.length === 0) {
+      showLeaderboardMessage('Пока нет данных');
+      return;
+    }
+    hideLeaderboardMessage();
+    const podiumIcons = ['🥇', '🥈', '🥉'];
+    entries.forEach((entry)=>{
+      const item = document.createElement('li');
+      item.className = 'leader-item';
+      if (entry.rank <= 3) {
+        item.classList.add('leader-item-top');
+      }
+
+      const rankSpan = document.createElement('span');
+      rankSpan.className = 'leader-rank';
+      rankSpan.textContent = entry.rank <= 3 ? (podiumIcons[entry.rank - 1] || `#${entry.rank}`) : `#${entry.rank}`;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'leader-name';
+      nameSpan.textContent = entry.name || `Игрок ${entry.tgid}`;
+
+      const valueSpan = document.createElement('span');
+      valueSpan.className = 'leader-value';
+      valueSpan.textContent = mode === 'tasks' ? `${entry.value} задач` : `${entry.value} SCube`;
+
+      item.append(rankSpan, nameSpan, valueSpan);
+      leaderList.appendChild(item);
+    });
+  }
+
+  async function loadLeaderboard(by, forceReload = false) {
+    if (!leaderList || !leaderEmpty) return;
+    const mode = by === 'tasks' ? 'tasks' : 'clicks';
+    const now = Date.now();
+    if (!forceReload && Array.isArray(leaderboardCache[mode]) && now - leaderboardCacheTime[mode] < LEADERBOARD_CACHE_TTL) {
+      renderLeaderboard(leaderboardCache[mode], mode);
+      return;
+    }
+
+    const requestId = ++leaderboardRequestId;
+    leaderList.innerHTML = '';
+    showLeaderboardMessage('Загружаем рейтинг...');
+
+    try {
+      const res = await fetch(`${apiBase}/leaderboard?by=${mode}`);
+      if (!res.ok) throw new Error(`Failed with status ${res.status}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.message || 'Bad response');
+      const entries = Array.isArray(json.entries) ? json.entries : [];
+      leaderboardCache[mode] = entries;
+      leaderboardCacheTime[mode] = Date.now();
+      if (leaderboardRequestId === requestId) {
+        renderLeaderboard(entries, mode);
+      }
+    } catch (err) {
+      if (leaderboardRequestId === requestId) {
+        showLeaderboardMessage('Не удалось загрузить рейтинг');
+      }
+      console.warn('leaderboard fetch failed', err);
+    }
+  }
+
+  if (leaderButtons && leaderButtons.length) {
+    leaderButtons.forEach((btn)=>{
+      btn.addEventListener('click', ()=>{
+        const mode = btn.id === 'leader-by-tasks' ? 'tasks' : 'clicks';
+        if (leaderboardMode === mode) return;
+        leaderboardMode = mode;
+        leaderButtons.forEach((b)=>b.classList.remove('active'));
+        btn.classList.add('active');
+        loadLeaderboard(mode);
+      });
+    });
+  }
 
   // Interstitial scheduler: count only while MiniApp is fully expanded
   let interstitialTicker = null;
@@ -184,10 +287,15 @@
         const detail = event && event.detail;
         const amount = (detail && (detail.reward || detail.amount)) || 5;
         try {
-          const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount }) });
+          const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount, source: 'task' }) });
           const claimJson = await claimRes.json();
           if (claimJson.ok) {
             await loadUser();
+            leaderboardCache.tasks = null;
+            leaderboardCacheTime.tasks = 0;
+            if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
+              loadLeaderboard('tasks', true);
+            }
             setTimeout(()=> animateScube(), 200);
           }
         } catch (e) { console.warn('Failed to claim task reward', e); }
@@ -275,7 +383,7 @@
     } catch(e){ console.warn('referral ui update failed', e); }
     } catch (err) {
       console.error('loadUser error', err);
-      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
+      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Поп��обуйте позже.';
     }
   }
 
@@ -290,6 +398,11 @@
     dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
     animateScube();
     animateGolden();
+    leaderboardCache.clicks = null;
+    leaderboardCacheTime.clicks = 0;
+    if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
+      loadLeaderboard('clicks', true);
+    }
   });
 
   // helper to poll server for changes
