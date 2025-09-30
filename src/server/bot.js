@@ -78,12 +78,15 @@ const bot = new Telegraf(TG_BOT_TOKEN);
 
 bot.start(async (ctx) => {
   const user = ctx.from || {};
-  const firstName = user.first_name || 'игрок';
+  const first = user.first_name || '';
+  const last = user.last_name || '';
+  const uname = user.username ? `@${user.username}` : '';
+  const displayName = String((first + ' ' + last).trim() || uname || 'Игрок');
   const tgid = user.id;
 
   // Try to ensure user in DB, but do not block reply on DB errors
   try {
-    if (tgid) await db.ensureUser(tgid, firstName || 'Player');
+    if (tgid) await db.ensureUser(tgid, displayName);
   } catch (dbErr) {
     console.error('DB ensureUser failed on /start', dbErr);
     // notify admin about DB issue (best effort)
@@ -145,11 +148,26 @@ app.get('/miniapp', (req, res) => {
 });
 
 // Telegram WebApp auth exchange -> sets secure session cookie
-app.post('/auth/telegram', (req, res) => {
+app.post('/auth/telegram', async (req, res) => {
   try {
     const initData = (req.body && req.body.initData) || '';
+    const params = new URLSearchParams(initData);
+    const userRaw = params.get('user');
+    const parsedUser = userRaw ? JSON.parse(userRaw) : null;
     const uid = verifyTelegramInitData(initData);
     if (!uid) return res.status(401).json({ ok:false, message:'Invalid init data' });
+
+    // Update user's name from Telegram
+    try {
+      if (parsedUser) {
+        const first = parsedUser.first_name || '';
+        const last = parsedUser.last_name || '';
+        const uname = parsedUser.username ? `@${parsedUser.username}` : '';
+        const displayName = String((first + ' ' + last).trim() || uname || 'Игрок');
+        await db.ensureUser(uid, displayName);
+      }
+    } catch (e) { console.warn('ensureUser from auth failed', e); }
+
     const ts = Math.floor(Date.now()/1000);
     const token = signSession(uid, ts);
     const isProd = String(process.env.NODE_ENV||'').toLowerCase() === 'production';
@@ -312,7 +330,7 @@ app.post('/api/games/rooms', async (req, res)=>{
     const B = Math.max(1, parseInt(bet,10)||0);
     if (authTgid && bodyTgid && String(authTgid)!==String(bodyTgid)) return res.json({ ok:false, message:'Auth mismatch' });
     if (!playerTgid || !B) return res.status(400).json({ ok:false, message:'Invalid params' });
-    if (userActiveRoom.get(String(playerTgid))) return res.json({ ok:false, message:'У вас уже есть активная комната' });
+    if (userActiveRoom.get(String(playerTgid))) return res.json({ ok:false, message:'У вас уже есть активная комнат��' });
     const reserve = await db.tryReserveScube(playerTgid, B);
     if (!reserve.ok) return res.json(reserve);
     const room = createRoom(playerTgid, G, B);
@@ -395,7 +413,7 @@ app.post('/api/games/rooms/:id/move', async (req,res)=>{
       if (!(idx>=0 && idx<9)) return res.status(400).json({ ok:false, message:'Invalid cell' });
       const sym = room.state.symbols[String(tgid)];
       if (!sym) return res.status(403).json({ ok:false, message:'Not a player' });
-      if (room.state.turn !== String(tgid)) return res.json({ ok:false, message:'Ход соп��рника' });
+      if (room.state.turn !== String(tgid)) return res.json({ ok:false, message:'Ход соперника' });
       if (room.state.board[idx]) return res.json({ ok:false, message:'Клетка занята' });
       room.state.board[idx] = sym;
       const w = tttCheckWinner(room.state.board);

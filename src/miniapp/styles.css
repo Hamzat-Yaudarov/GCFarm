@@ -1,6 +1,7 @@
 *{box-sizing:border-box;font-family:Inter, Roboto, Arial, sans-serif}
+html,body{height:100%}
 body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
-.game-root{max-width:520px;margin:18px auto;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#071029 0%,#081426 100%);position:relative;border:1px solid rgba(255,255,255,0.04)}
+.game-root{max-width:520px;margin:18px auto;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#071029 0%,#081426 100%);position:relative;border:1px solid rgba(255,255,255,0.04);min-height:100vh}
 .game-header{display:flex;align-items:center;padding:14px;background:linear-gradient(90deg,rgba(255,255,255,0.02),transparent)}
 .player-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(180deg,#2b475b,#23354b);display:flex;align-items:center;justify-content:center;font-weight:700}
 .balances{margin-left:12px;display:flex;flex-direction:column}
@@ -14,7 +15,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .hero-illustration{position:relative;width:100px;height:100px;display:flex;align-items:center;justify-content:center;z-index:1}
 .hero-planet{width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff1b8,#ffd54b 55%,#ffb300);box-shadow:0 0 32px rgba(255,213,75,0.5);animation:planetPulse 6s ease-in-out infinite}
 .hero-satellite{position:absolute;top:50%;left:50%;margin:-14px;border-radius:50%;width:28px;height:28px;background:radial-gradient(circle,#cfeaf9,#2b6d91);transform-origin:-40px center;animation:satelliteOrbit 6s linear infinite}
-.game-main{padding:18px;padding-bottom:calc(180px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center}
+.game-main{padding:18px;padding-bottom:calc(100px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center}
 .tab-content{min-height:360px;display:flex;align-items:flex-start;justify-content:center;width:100%;padding-bottom:32px}
 .hidden{display:none}
 .cube-area{display:flex;flex-direction:column;align-items:center;gap:24px;margin-top:8px;position:relative}
@@ -126,6 +127,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
   .game-root{margin:0;border-radius:0}
   .golden-cube{width:220px;height:220px;font-size:96px;transform:translateY(8px)}
   .leader-personal-cards{flex-direction:column}
+  .store-fab{top:96px}
 }
 
 @media (max-width:420px){
@@ -184,9 +186,11 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 @keyframes bannerPop{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
 
 /* Store floating button */
-.store-fab{position:fixed;top:28px;right:14px;z-index:950;padding:10px 12px;border-radius:10px;background:#0f2536;color:#fff;border:1px solid rgba(255,255,255,0.06);font-weight:800;box-shadow:0 10px 26px rgba(0,0,0,0.35);transition:transform .12s ease,opacity .2s ease}
+.store-fab{position:fixed;top:84px;right:14px;z-index:950;padding:12px;border-radius:8px;background:#0f2536;color:#fff;border:1px solid rgba(255,255,255,0.06);font-weight:800;box-shadow:0 10px 26px rgba(0,0,0,0.35);transition:transform .12s ease,opacity .2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;width:76px;text-align:center;line-height:1.1}
 .store-fab.hidden{display:none}
 .store-fab:hover{transform:translateY(-1px)}
+.store-fab .store-icon{display:block;font-size:16px;margin-bottom:4px}
+.store-fab .store-label{display:block;font-size:12px}
 
 /* Games */
 .games-container{width:100%;max-width:480px;background:linear-gradient(180deg,#071b2a,#05202b);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
