@@ -49,6 +49,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .golden-cube.pressed,
 .golden-cube:active,
 .golden-cube:focus,
+.golden-cube:focus-visible{transform:translateY(18px) rotate(0) !important;box-shadow:0 18px 60px rgba(0,0,0,0.6) !important}
 .golden-cube.pressed{transition:none !important}
 .golden-cube.shake{will-change:transform}
 @keyframes cubeShake{0%{transform:translateY(18px) rotate(0)}15%{transform:translateY(18px) rotate(-2deg)}30%{transform:translateY(18px) rotate(2deg)}45%{transform:translateY(18px) rotate(-1.6deg)}60%{transform:translateY(18px) rotate(1.2deg)}75%{transform:translateY(18px) rotate(-.8deg)}100%{transform:translateY(18px) rotate(0)}}

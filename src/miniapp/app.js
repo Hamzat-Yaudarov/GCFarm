@@ -66,16 +66,36 @@
   // Improve touch/pointer UX for golden cube to avoid default compression on press
   try {
     if (golden) {
+      // ensure element not scaled by UA: force transform and prevent default touch behavior
+      const setStableTransform = ()=>{
+        try {
+          golden.style.transform = 'translateY(18px) rotate(0)';
+          // ensure only our transform is applied
+          golden.style.transition = 'transform .12s ease, box-shadow .12s ease';
+        } catch(e){}
+      };
       // add pressed state on pointer down and remove on up/cancel/leave
-      golden.addEventListener('pointerdown', ()=>{
+      golden.addEventListener('pointerdown', (ev)=>{
+        // prevent default mobile press effect if possible
+        try { if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); } catch(e){}
         golden.classList.add('pressed');
+        setStableTransform();
       });
       ['pointerup','pointerleave','pointercancel'].forEach(ev => {
         golden.addEventListener(ev, ()=>{
           // keep pressed briefly so animation can start from stable state
-          setTimeout(()=> golden.classList.remove('pressed'), 30);
+          setTimeout(()=> {
+            golden.classList.remove('pressed');
+            // restore default transform slightly after interaction
+            setTimeout(()=>{
+              try { golden.style.transform = '';}catch(e){}
+            }, 50);
+          }, 30);
         });
       });
+      // also handle touchstart/touchend for older browsers
+      golden.addEventListener('touchstart', (ev)=>{ try{ ev.preventDefault(); setStableTransform(); }catch(e){} }, { passive:false });
+      golden.addEventListener('touchend', ()=>{ setTimeout(()=>{ try{ golden.style.transform = ''; }catch(e){} }, 40); });
     }
   } catch(e){ console.warn('golden pointer handlers failed', e); }
 
@@ -824,7 +844,7 @@
         showStoreFeedback('Обмен отменён');
         return;
       }
-      await executeExchange('gcube_to_scube', 'Обмен выполнен');
+      await executeExchange('gcube_to_scube', '��бмен выполнен');
     });
   }
 
