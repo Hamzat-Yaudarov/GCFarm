@@ -164,8 +164,7 @@ app.post('/auth/telegram', async (req, res) => {
         const last = parsedUser.last_name || '';
         const uname = parsedUser.username ? `@${parsedUser.username}` : '';
         const displayName = String((first + ' ' + last).trim() || uname || 'Игрок');
-        const photo = parsedUser.photo_url || null;
-        await db.ensureUser(uid, displayName, photo);
+        await db.ensureUser(uid, displayName);
       }
     } catch (e) { console.warn('ensureUser from auth failed', e); }
 
@@ -497,21 +496,22 @@ app.post('/api/user/:tgid/click', async (req, res) => {
   }
 });
 
-// Exchange endpoint (supports legacy direction+units or advanced {from,to,amount})
+// Exchange endpoint
 app.post('/api/user/:tgid/exchange', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
-  const body = req.body || {};
+  const { direction, units, from, to, amount } = req.body || {};
   const authTgid = getAuthTgid(req);
   if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
-    if (body && body.from && body.to && body.amount) {
-      const result = await db.exchangeAdvanced(tgid, body.from, body.to, Math.max(1, parseInt(body.amount, 10) || 0));
-      return res.json(result);
+    let result;
+    if (from && to) {
+      result = await db.exchange(tgid, String(from).toLowerCase(), String(to).toLowerCase(), Math.max(0, parseInt(amount || 0, 10)));
+    } else if (direction) {
+      result = await db.exchange(tgid, direction, Math.max(1, parseInt(units || 1, 10)));
+    } else {
+      return res.status(400).json({ error: 'Invalid params' });
     }
-    const { direction, units } = body;
-    if (!direction) return res.status(400).json({ error: 'Invalid params' });
-    const result = await db.exchange(tgid, direction, Math.max(1, parseInt(units || 1, 10)));
     res.json(result);
   } catch (err) {
     console.error(err);

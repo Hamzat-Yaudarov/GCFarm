@@ -29,14 +29,11 @@
       </div>
     </div>
     <header class="game-header">
-      <div class="player-avatar" id="avatar">
-        <img id="avatar-img" class="player-avatar-img" alt="avatar" src="" style="display:none;border-radius:50%;width:56px;height:56px;object-fit:cover" />
-        <span id="avatar-letter">A</span>
-      </div>
+      <div class="player-avatar" id="avatar">A</div>
       <div class="balances">
         <div class="balance-s">💎 SCube: <span id="scube">0</span></div>
         <div class="balance-g">🟡 GCube: <span id="gcube">0</span></div>
-        <div class="balance-stars">✨ Stars: <span id="stars">0</span></div>
+        <div class="balance-stars">⭐ Stars: <span id="stars">0</span></div>
       </div>
       <div class="header-glow" aria-hidden="true"></div>
     </header>
@@ -91,39 +88,36 @@
           <!-- Exchange modal -->
           <div id="exchange-modal" class="confirm-modal hidden" aria-hidden="true">
             <div class="confirm-box">
-              <div id="exchange-content">
-                <h3 style="margin:0 0 8px">Обменник валют</h3>
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-                  <label style="min-width:56px">От</label>
+              <h3>Обменник валют</h3>
+              <div class="exchange-form">
+                <label style="display:block;margin-bottom:8px">От:
                   <select id="exchange-from">
                     <option value="scube">SCube</option>
                     <option value="gcube">GCube</option>
                     <option value="stars">Stars</option>
                   </select>
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-                  <label style="min-width:56px">Кому</label>
+                </label>
+                <label style="display:block;margin-bottom:8px">Кому:
                   <select id="exchange-to">
                     <option value="gcube">GCube</option>
                     <option value="scube">SCube</option>
                     <option value="stars">Stars</option>
                   </select>
+                </label>
+                <label style="display:block;margin-bottom:8px">Сумма (исходная валюта):
+                  <input id="exchange-amount" type="number" min="1" value="1" />
+                </label>
+                <div id="exchange-preview" style="margin:8px 0;color:#cfeaf9">—</div>
+                <div class="confirm-actions">
+                  <button id="exchange-close" class="confirm-btn">Отмена</button>
+                  <button id="exchange-confirm" class="confirm-btn primary">Обменять</button>
                 </div>
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-                  <label style="min-width:56px">Сумма</label>
-                  <input id="exchange-amount" type="number" min="1" value="50" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff" />
-                </div>
-                <div id="exchange-preview" style="margin-bottom:8px;color:#cfeaf9">Результат: —</div>
-              </div>
-              <div class="confirm-actions">
-                <button id="exchange-cancel" class="confirm-btn">Отмен��</button>
-                <button id="exchange-confirm" class="confirm-btn primary">Обменять</button>
               </div>
             </div>
           </div>
 
           <h3>🚀 Лабор��тория улучшений</h3>
-          <p class="section-hint">🧠 Собирай апгрейды и расширяй мощности ��азы.</p>
+          <p class="section-hint">🧠 Собирай апгрейды и расширяй мощности базы.</p>
           <div class="upgrades">
             <div class="upgrade-card">
               <div class="card-header">
@@ -142,7 +136,7 @@
               <div class="card-header">
                 <span class="card-icon">📈</span>
                 <div class="card-text">
-                  <div class="upgrade-title">Увели��ение дневного лимита +50</div>
+                  <div class="upgrade-title">Увеличение дневного лимита +50</div>
                   <div class="upgrade-subtitle">Повышай пределы заработка</div>
                 </div>
               </div>
@@ -173,7 +167,7 @@
       <section class="tab-content hidden" id="tasks">
         <div class="tasks-container">
           <h3>📝 Командные задания</h3>
-          <p class="section-hint">✅ Выполня�� задания от AdsGram и забирай космические бонусы.</p>
+          <p class="section-hint">✅ Выполняй задания от AdsGram и забирай космические бонусы.</p>
           <div class="tasks-illustration" aria-hidden="true"></div>
           <div id="ads-task-wrap"></div>
           <div class="task-feedback" id="task-feedback"></div>

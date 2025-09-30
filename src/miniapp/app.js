@@ -54,6 +54,7 @@
 
   const scubeEl = document.getElementById('scube');
   const gcubeEl = document.getElementById('gcube');
+  const starsEl = document.getElementById('stars');
   const energyEl = document.getElementById('energy');
   const energyCapEl = document.getElementById('energy-capacity');
   const dailyEl = document.getElementById('daily');
@@ -62,42 +63,6 @@
   const dailyCostEl = document.getElementById('daily-cost');
   const avatarEl = document.getElementById('avatar');
   const golden = document.getElementById('golden-cube');
-
-  // Improve touch/pointer UX for golden cube to avoid default compression on press
-  try {
-    if (golden) {
-      // ensure element not scaled by UA: force transform and prevent default touch behavior
-      const setStableTransform = ()=>{
-        try {
-          golden.style.transform = 'translateY(18px) rotate(0)';
-          // ensure only our transform is applied
-          golden.style.transition = 'transform .12s ease, box-shadow .12s ease';
-        } catch(e){}
-      };
-      // add pressed state on pointer down and remove on up/cancel/leave
-      golden.addEventListener('pointerdown', (ev)=>{
-        // prevent default mobile press effect if possible
-        try { if (ev && typeof ev.preventDefault === 'function') ev.preventDefault(); } catch(e){}
-        golden.classList.add('pressed');
-        setStableTransform();
-      });
-      ['pointerup','pointerleave','pointercancel'].forEach(ev => {
-        golden.addEventListener(ev, ()=>{
-          // keep pressed briefly so animation can start from stable state
-          setTimeout(()=> {
-            golden.classList.remove('pressed');
-            // restore default transform slightly after interaction
-            setTimeout(()=>{
-              try { golden.style.transform = '';}catch(e){}
-            }, 50);
-          }, 30);
-        });
-      });
-      // also handle touchstart/touchend for older browsers
-      golden.addEventListener('touchstart', (ev)=>{ try{ ev.preventDefault(); setStableTransform(); }catch(e){} }, { passive:false });
-      golden.addEventListener('touchend', ()=>{ setTimeout(()=>{ try{ golden.style.transform = ''; }catch(e){} }, 40); });
-    }
-  } catch(e){ console.warn('golden pointer handlers failed', e); }
 
   const leaderList = document.getElementById('leader-list');
   const leaderEmpty = document.getElementById('leader-empty');
@@ -126,14 +91,6 @@
   const watchAdBtn = document.getElementById('watch-ad');
   const scubeToGBtn = document.getElementById('scube-to-gcube');
   const gcubeToSBtn = document.getElementById('gcube-to-scube');
-  const openExchangeBtn = document.getElementById('open-exchange');
-  const exchangeModal = document.getElementById('exchange-modal');
-  const exchangeFrom = document.getElementById('exchange-from');
-  const exchangeTo = document.getElementById('exchange-to');
-  const exchangeAmount = document.getElementById('exchange-amount');
-  const exchangePreview = document.getElementById('exchange-preview');
-  const exchangeConfirm = document.getElementById('exchange-confirm');
-  const exchangeCancel = document.getElementById('exchange-cancel');
   const upgradeBtns = document.querySelectorAll('.upgrade-btn');
   const storeFeedback = document.getElementById('store-feedback');
 
@@ -267,7 +224,7 @@
     if (!viewer) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, �� ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
+      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -533,7 +490,7 @@
         let body = null;
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
-        if (appMessage) appMessage.textContent = 'Не уд��лось загрузить данные пользователя: ' + msg;
+        if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
         if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
         return;
       }
@@ -541,31 +498,30 @@
       if (appMessage) appMessage.textContent = '';
       scubeEl.textContent = user.scube;
       gcubeEl.textContent = user.gcube;
-      // stars may be added later
-      const starsEl = document.getElementById('stars'); if (starsEl) starsEl.textContent = user.stars || 0;
+      if (starsEl) starsEl.textContent = (user.stars || 0);
       energyEl.textContent = user.energy;
       energyCapEl.textContent = user.energy_capacity;
       dailyEl.textContent = user.daily_count;
       dailyLevelEl.textContent = user.daily_limit_level;
       dailyLimitEl.textContent = (250 + user.daily_limit_level * 50);
       dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
-      // avatar letter fallback and server-provided photo_url
+      // attempt to use Telegram avatar if available
       try {
-        const avatarLetter = document.getElementById('avatar-letter');
-        const avatarImg = document.getElementById('avatar-img');
-        // prefer server photo_url (saved during auth), then Telegram initData
-        if (user.photo_url && avatarImg) {
-          avatarImg.src = user.photo_url;
-          avatarImg.style.display = 'block';
-          if (avatarLetter) avatarLetter.style.display = 'none';
-        } else if (avatarImg && avatarImg.src) {
-          // already set from initData
-          if (avatarLetter) avatarLetter.style.display = 'none';
-        } else if (avatarLetter) {
-          avatarLetter.textContent = (user.name && user.name[0]) || 'A';
-          avatarLetter.style.display = 'flex';
+        const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
+        const photo = tgUser && tgUser.photo_url ? tgUser.photo_url : null;
+        if (photo) {
+          avatarEl.textContent = '';
+          avatarEl.style.backgroundImage = `url(${photo})`;
+          avatarEl.style.backgroundSize = 'cover';
+          avatarEl.style.backgroundPosition = 'center';
+        } else {
+          avatarEl.style.backgroundImage = '';
+          avatarEl.textContent = (user.name && user.name[0]) || 'A';
         }
-      } catch(e){}
+      } catch (e) {
+        avatarEl.style.backgroundImage = '';
+        avatarEl.textContent = (user.name && user.name[0]) || 'A';
+      }
 
       if (!initialDataLoaded) {
         initialDataLoaded = true;
@@ -626,66 +582,22 @@
   }
 
   golden.addEventListener('click', async ()=>{
-    console.log('golden click', { tgid, initialDataLoaded });
-    if (!initialDataLoaded) { if (appMessage) appMessage.textContent = 'Данные загружаются, подождите…'; return; }
-    if (!tgid) { if (appMessage) appMessage.textContent = 'Откройте игру через бота (нажмите "Открыть игру" в чате).'; return; }
-    // visual feedback
-    try {
-      if (appMessage) appMessage.textContent = 'Обрабатываем клик…';
-      if (golden) { golden.disabled = true; golden.setAttribute('aria-disabled', 'true'); }
-      console.log('sending click to server', `${apiBase}/user/${tgid}/click`);
-      const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST', credentials: 'same-origin' });
-      if (!res.ok) {
-        let body = null;
-        try { body = await res.json(); } catch(e){}
-        const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
-        console.warn('click response not ok', msg);
-        if (appMessage) appMessage.textContent = msg;
-        if (golden) { golden.disabled = false; golden.removeAttribute('aria-disabled'); }
-        return;
-      }
-      const json = await res.json();
-      if (!json.ok) {
-        if (appMessage) appMessage.textContent = json.message || 'Action failed';
-        if (golden) { golden.disabled = false; golden.removeAttribute('aria-disabled'); }
-        return;
-      }
-      console.log('click success', json);
-      if (scubeEl) scubeEl.textContent = json.scube;
-      if (energyEl) energyEl.textContent = json.energy;
-      if (dailyEl) dailyEl.textContent = json.daily_count;
-      if (dailyLimitEl) dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
-      animateScube();
-      animateGolden();
-      leaderboardCache.clicks = null;
-      leaderboardCacheTime.clicks = 0;
-      if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
-        loadLeaderboard('clicks', true);
-      }
-      if (appMessage) appMessage.textContent = '';
-    } catch (err) {
-      console.warn('click failed', err);
-      if (appMessage) appMessage.textContent = 'Ошибка сети. Повторите попытку';
-    } finally {
-      if (golden) { golden.disabled = false; golden.removeAttribute('aria-disabled'); }
+    if (!tgid) return alert('tgid is required');
+    const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
+    const json = await res.json();
+    if (!json.ok) return alert(json.message || 'Action failed');
+    scubeEl.textContent = json.scube;
+    energyEl.textContent = json.energy;
+    dailyEl.textContent = json.daily_count;
+    dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
+    animateScube();
+    animateGolden();
+    leaderboardCache.clicks = null;
+    leaderboardCacheTime.clicks = 0;
+    if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
+      loadLeaderboard('clicks', true);
     }
   });
-
-  // Show Telegram avatar if available from WebApp initData
-  try {
-    const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
-    const avatarImg = document.getElementById('avatar-img');
-    const avatarLetter = document.getElementById('avatar-letter');
-    if (tgUser && avatarImg) {
-      if (tgUser.photo_url) {
-        avatarImg.src = tgUser.photo_url;
-        avatarImg.style.display = 'block';
-        if (avatarLetter) avatarLetter.style.display = 'none';
-      } else if (tgUser.first_name) {
-        if (avatarLetter) { avatarLetter.textContent = (tgUser.first_name[0] || 'A').toUpperCase(); avatarLetter.style.display = 'flex'; }
-      }
-    }
-  } catch(e){ console.warn('avatar display failed', e); }
 
   // helper to poll server for changes
   async function pollForChange(getter, initialValue, timeout = 30000, interval = 2000) {
@@ -790,7 +702,7 @@
                 energyEl.textContent = jsonRefill.energy;
                 showStoreFeedback('Энергия восполнена');
               } else {
-                showStoreFeedback(jsonRefill.message || 'Ошибка восполн��ния энергии');
+                showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
               }
             } else {
               showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
@@ -870,111 +782,68 @@
     });
   });
 
-  // Confirm on exchange
-  async function executeExchange(direction, successMessage){
-    if (!tgid) {
-      alert('tgid is required');
-      return;
-    }
-    try {
-      const res = await fetch(`${apiBase}/user/${tgid}/exchange`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ direction, units: 1 })
-      });
-      const json = await res.json();
-      if (!json.ok) {
-        showStoreFeedback(json.message || 'Ошибка');
-        return;
-      }
-      scubeEl.textContent = json.scube;
-      gcubeEl.textContent = json.gcube;
-      showStoreFeedback(successMessage);
-    } catch (err) {
-      console.warn('exchange failed', err);
-      showStoreFeedback('Не удалось выполнить обмен');
-    }
+  // Exchange modal UI and logic
+  const openExchangeBtn = document.getElementById('open-exchange');
+  const exchangeModal = document.getElementById('exchange-modal');
+  const exchangeFrom = document.getElementById('exchange-from');
+  const exchangeTo = document.getElementById('exchange-to');
+  const exchangeAmount = document.getElementById('exchange-amount');
+  const exchangePreview = document.getElementById('exchange-preview');
+  const exchangeConfirm = document.getElementById('exchange-confirm');
+  const exchangeClose = document.getElementById('exchange-close');
+
+  const RATES = { scube:1, gcube:50, stars:60 };
+
+  function formatCurrencyLabel(cur, v){
+    if (cur === 'scube') return `${v} SCube`;
+    if (cur === 'gcube') return `${v} GCube`;
+    return `${v} Stars`;
   }
 
-  // Remove legacy quick-exchange buttons (if present)
-  if (scubeToGBtn) scubeToGBtn.remove && scubeToGBtn.remove();
-  if (gcubeToSBtn) gcubeToSBtn.remove && gcubeToSBtn.remove();
-
-  // Exchange modal logic
-  const RATES = { scube: 1, gcube: 50, stars: 60 };
-  function computeExchange(from, to, amount) {
-    if (!RATES[from] || !RATES[to]) return 0;
-    // amount is in units of `from`
-    const scubeEquivalent = Number(amount) * RATES[from];
-    const targetUnits = Math.floor(scubeEquivalent / RATES[to]);
-    return targetUnits;
-  }
-
-  function updateExchangePreview() {
-    if (!exchangePreview || !exchangeFrom || !exchangeTo || !exchangeAmount) return;
-    const from = exchangeFrom.value;
-    const to = exchangeTo.value;
-    const amount = Number(exchangeAmount.value) || 0;
-    if (from === to) {
-      exchangePreview.textContent = 'Невозможно обменять валюту на саму себя';
-      return;
-    }
-    const target = computeExchange(from, to, amount);
-    exchangePreview.textContent = `Результат: ${amount} ${from.toUpperCase()} → ${target} ${to.toUpperCase()}`;
-  }
-
-  function openExchange() {
-    if (!exchangeModal) return;
-    exchangeModal.classList.remove('hidden');
-  }
-  function closeExchange() {
-    if (!exchangeModal) return;
-    exchangeModal.classList.add('hidden');
+  function updateExchangePreview(){
+    if (!exchangeFrom || !exchangeTo || !exchangeAmount || !exchangePreview) return;
+    const from = String(exchangeFrom.value || 'scube').toLowerCase();
+    const to = String(exchangeTo.value || 'gcube').toLowerCase();
+    let amt = parseInt(exchangeAmount.value || '0', 10) || 0;
+    if (from === to){ exchangePreview.textContent = 'Нельзя обменять одну и ту же валюту'; return; }
+    if (amt <= 0){ exchangePreview.textContent = 'Введите сумму для обмена'; return; }
+    const scubeValue = amt * (RATES[from] || 1);
+    const targetUnits = Math.floor(scubeValue / (RATES[to] || 1));
+    if (targetUnits < 1) { exchangePreview.textContent = 'Сумма слишком мала для обмена'; return; }
+    exchangePreview.textContent = `Вы отдадите ${formatCurrencyLabel(from, amt)} и получите ≈ ${formatCurrencyLabel(to, targetUnits)}`;
   }
 
   if (openExchangeBtn) openExchangeBtn.addEventListener('click', ()=>{
-    // default values
-    if (exchangeFrom) exchangeFrom.value = 'scube';
-    if (exchangeTo) exchangeTo.value = 'gcube';
-    if (exchangeAmount) exchangeAmount.value = '50';
+    if (!exchangeModal) return;
+    exchangeModal.classList.remove('hidden');
+    exchangeModal.setAttribute('aria-hidden','false');
     updateExchangePreview();
-    openExchange();
   });
-
-  [exchangeFrom, exchangeTo, exchangeAmount].forEach(el=>{
-    if (!el) return;
-    el.addEventListener('input', updateExchangePreview);
-    el.addEventListener('change', updateExchangePreview);
-  });
-
-  if (exchangeCancel) exchangeCancel.addEventListener('click', ()=>{ closeExchange(); });
+  if (exchangeClose) exchangeClose.addEventListener('click', ()=>{ if (exchangeModal) { exchangeModal.classList.add('hidden'); exchangeModal.setAttribute('aria-hidden','true'); } });
+  [exchangeFrom, exchangeTo, exchangeAmount].forEach(el=>{ if (el) el.addEventListener('input', updateExchangePreview); });
 
   if (exchangeConfirm) exchangeConfirm.addEventListener('click', async ()=>{
     if (!tgid) return alert('tgid is required');
-    const from = exchangeFrom.value;
-    const to = exchangeTo.value;
-    const amount = Math.max(1, Math.floor(Number(exchangeAmount.value) || 0));
-    if (from === to) return showStoreFeedback('Невозможно обменять валюту на саму с��бя');
-    const target = computeExchange(from, to, amount);
-    if (target < 1) return showStoreFeedback('Сумма слишком мала для обмена на выбранную валюту');
-
+    const from = String(exchangeFrom.value || '').toLowerCase();
+    const to = String(exchangeTo.value || '').toLowerCase();
+    const amountVal = Math.max(0, parseInt(exchangeAmount.value || '0', 10));
+    if (!from || !to || from === to || amountVal <= 0) return showStoreFeedback('Неверные параметры обмена');
+    const confirmMsg = `Обменять ${amountVal} ${from.toUpperCase()} → ${to.toUpperCase()}?`;
+    const ok = await showConfirm(confirmMsg);
+    if (!ok) return showStoreFeedback('Обмен отменён');
     try {
-      const res = await fetch(`${apiBase}/user/${tgid}/exchange`, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ from, to, amount })
-      });
+      const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ from, to, amount: amountVal }) });
       const json = await res.json();
-      if (!json.ok) return showStoreFeedback(json.message || 'Ошибка обмена');
+      if (!json.ok) return showStoreFeedback(json.error || json.message || 'Ошибка обмена');
       // update balances
-      if (scubeEl) scubeEl.textContent = json.scube;
-      if (gcubeEl) gcubeEl.textContent = json.gcube;
-      if (document.getElementById('stars')) document.getElementById('stars').textContent = json.stars || 0;
+      if (json.scube !== undefined) scubeEl.textContent = json.scube;
+      if (json.gcube !== undefined) gcubeEl.textContent = json.gcube;
+      if (json.stars !== undefined && starsEl) starsEl.textContent = json.stars;
       showStoreFeedback('Обмен выполнен');
-      closeExchange();
+      if (exchangeModal) { exchangeModal.classList.add('hidden'); exchangeModal.setAttribute('aria-hidden','true'); }
     } catch (e) {
-      console.warn('exchange failed', e);
-      showStoreFeedback('Ошибка при обращении к серверу');
+      console.warn('exchange error', e);
+      showStoreFeedback('Ошибка обмена, попробуйте позже');
     }
   });
 
@@ -1135,7 +1004,7 @@
       }
     }
     const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдат��ся');
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
     leave.addEventListener('click', leaveRoom);
 
     wrap.append(title, notice, timer, controls, result, leave);
@@ -1152,7 +1021,7 @@
     const finished = room.status === 'finished';
 
     const wrap = document.createElement('div');
-    const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • ��тавка ${room.bet}`;
+    const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
     const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение — поражение.';
     const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
     if (room.deadlineAt && room.status === 'active') {

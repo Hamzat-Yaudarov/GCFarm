@@ -32,10 +32,8 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS energy_capacity INTEGER DEFAULT 50`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reward_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
-    // Add Stars currency
+    // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
-    // Add photo_url for avatar images
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     // For rating system
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS clicks_total BIGINT DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tasks_completed BIGINT DEFAULT 0`);
@@ -80,23 +78,14 @@ async function setReferrer(tgid, referrer) {
   }
 }
 
-async function ensureUser(tgid, name, photo_url) {
+async function ensureUser(tgid, name) {
   const client = await pool.connect();
   try {
-    // Insert or update name and photo_url if provided
-    if (photo_url) {
-      await client.query(
-        `INSERT INTO users (tgid, name, photo_url, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,$3,50,50,0,0,current_date,current_date,false)
-         ON CONFLICT (tgid) DO UPDATE SET name = EXCLUDED.name, photo_url = EXCLUDED.photo_url`,
-        [tgid, name, photo_url]
-      );
-    } else {
-      await client.query(
-        `INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false)
-         ON CONFLICT (tgid) DO UPDATE SET name = EXCLUDED.name`,
-        [tgid, name]
-      );
-    }
+    await client.query(
+      `INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)
+       ON CONFLICT (tgid) DO UPDATE SET name = EXCLUDED.name`,
+      [tgid, name]
+    );
   } finally {
     client.release();
   }
@@ -109,7 +98,6 @@ function mapUser(row) {
     scube: Number(row.scube),
     gcube: Number(row.gcube),
     stars: Number(row.stars || 0),
-    photo_url: row.photo_url || null,
     energy: Number(row.energy),
     energy_capacity: Number(row.energy_capacity),
     daily_count: Number(row.daily_count),
@@ -145,7 +133,7 @@ async function getOrCreateUser(tgid) {
       }
       return mapUser(user);
     } else {
-      await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
+      await client.query('INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
       return await getOrCreateUser(tgid);
     }
   } finally {
@@ -206,82 +194,80 @@ async function handleClick(tgid) {
   }
 }
 
-// Exchange: legacy behavior preserved for compatibility
-async function exchange(tgid, direction, units) {
+// Exchange: flexible converter between scube/gcube/stars using SCube as base unit
+async function exchange(tgid, arg1, arg2, arg3) {
+  // support legacy signature: (tgid, direction, units)
+  // or new signature: (tgid, from, to, amount)
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // determine mode
+    let from, to, amount;
+    if (typeof arg2 === 'string' && (arg2 === 'scube_to_gcube' || arg2 === 'gcube_to_scube')) {
+      // legacy
+      const direction = arg1 === undefined ? arg1 : arg2; // unused
+      const directionLegacy = arg2;
+      const units = arg3 || 1;
+      if (directionLegacy === 'scube_to_gcube') { from = 'scube'; to = 'gcube'; amount = Number(units); }
+      else { from = 'gcube'; to = 'scube'; amount = Number(units); }
+    }
+    // detect new signature: arg1 is from (string) if arg2 is string and arg3 number
+    if (typeof arg1 === 'string' && typeof arg2 === 'string') {
+      from = String(arg1).toLowerCase();
+      to = String(arg2).toLowerCase();
+      amount = Math.max(0, parseInt(arg3 || 0, 10));
+    }
+
+    // Fallback when function called as exchange(tgid, direction, units)
+    if (!from && typeof arg2 === 'string' && typeof arg3 === 'number') {
+      const dir = String(arg2);
+      const units = arg3;
+      if (dir === 'scube_to_gcube') { from = 'scube'; to = 'gcube'; amount = Number(units); }
+      else if (dir === 'gcube_to_scube') { from = 'gcube'; to = 'scube'; amount = Number(units); }
+    }
+
+    // Final validation
+    const valid = ['scube','gcube','stars'];
+    if (!from || !to || !valid.includes(from) || !valid.includes(to) || from === to) {
+      await client.query('ROLLBACK');
+      return { ok:false, message: 'Invalid currencies' };
+    }
+    amount = Math.max(0, parseInt(amount || 0, 10));
+    if (!amount || amount <= 0) { await client.query('ROLLBACK'); return { ok:false, message: 'Invalid amount' }; }
+
+    // lock user balances
     const res = await client.query('SELECT scube, gcube, stars FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const user = res.rows[0];
     let scube = Number(user.scube || 0);
     let gcube = Number(user.gcube || 0);
     let stars = Number(user.stars || 0);
-    if (direction === 'scube_to_gcube') {
-      const costPer = 50; // 50 SCube -> 1 GCube
-      const totalCost = costPer * units;
-      if (scube < totalCost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
-      scube -= totalCost;
-      gcube += units;
-    } else if (direction === 'gcube_to_scube') {
-      const gainPer = 50; // 1 GCube -> 50 SCube
-      if (gcube < units) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно GCube' }; }
-      gcube -= units;
-      scube += units * gainPer;
-    } else {
-      await client.query('ROLLBACK');
-      return { ok:false, message: 'Invalid direction' };
-    }
-    await client.query('UPDATE users SET scube=$1, gcube=$2, stars=$3 WHERE tgid=$4', [scube, gcube, stars, tgid]);
-    await client.query('COMMIT');
-    return { ok:true, scube, gcube, stars };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
-}
 
-// Advanced exchange: from, to, amount
-// currencies: 'scube', 'gcube', 'stars'
-async function exchangeAdvanced(tgid, from, to, amount) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const res = await client.query('SELECT scube, gcube, stars FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
-    if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
-    const user = res.rows[0];
-    const balances = {
-      scube: Number(user.scube || 0),
-      gcube: Number(user.gcube || 0),
-      stars: Number(user.stars || 0)
-    };
     const RATES = { scube: 1, gcube: 50, stars: 60 };
-    if (!from || !to) {
-      await client.query('ROLLBACK');
-      return { ok:false, message: 'Invalid direction' };
-    }
-    from = String(from).toLowerCase();
-    to = String(to).toLowerCase();
-    amount = Math.max(1, parseInt(amount, 10) || 0);
-    if (!RATES[from] || !RATES[to]) { await client.query('ROLLBACK'); return { ok:false, message: 'Unknown currency' }; }
-    if (from === to) { await client.query('ROLLBACK'); return { ok:false, message: 'Cannot exchange to same currency' }; }
-    if (balances[from] < amount) { await client.query('ROLLBACK'); return { ok:false, message: `Недостаточно ${from}` }; }
+    const fromRate = RATES[from];
+    const toRate = RATES[to];
 
-    // Convert source amount to scube equivalent
-    const scubeEquivalent = amount * RATES[from];
-    const targetUnits = Math.floor(scubeEquivalent / RATES[to]);
+    // check availability of source units
+    if (from === 'scube' && scube < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
+    if (from === 'gcube' && gcube < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно GCube' }; }
+    if (from === 'stars' && stars < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно Stars' }; }
+
+    const scubeValue = amount * fromRate; // how many scube units provided
+    const targetUnits = Math.floor(scubeValue / toRate);
     if (targetUnits < 1) { await client.query('ROLLBACK'); return { ok:false, message: 'Сумма слишком мала для обмена' }; }
 
-    // Deduct source and add target
-    balances[from] -= amount;
-    balances[to] += targetUnits;
+    // compute how many scube we will consume (equal to targetUnits * toRate)
+    const scubeToConsume = targetUnits * toRate;
+    // compute how many source units to deduct
+    const sourceDeduct = Math.ceil(scubeToConsume / fromRate);
 
-    // Persist changes
-    await client.query('UPDATE users SET scube=$1, gcube=$2, stars=$3 WHERE tgid=$4', [balances.scube, balances.gcube, balances.stars, tgid]);
+    // perform deduction and addition
+    if (from === 'scube') scube -= sourceDeduct; else if (from === 'gcube') gcube -= sourceDeduct; else if (from === 'stars') stars -= sourceDeduct;
+    if (to === 'scube') scube += targetUnits; else if (to === 'gcube') gcube += targetUnits; else if (to === 'stars') stars += targetUnits;
+
+    await client.query('UPDATE users SET scube=$1, gcube=$2, stars=$3 WHERE tgid=$4', [scube, gcube, stars, tgid]);
     await client.query('COMMIT');
-    return { ok:true, scube: balances.scube, gcube: balances.gcube, stars: balances.stars };
+    return { ok:true, scube, gcube, stars, exchanged: { from, to, amount: sourceDeduct, received: targetUnits } };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -506,4 +492,4 @@ async function creditScube(tgid, amount) {
   }
 }
 
-module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, exchangeAdvanced, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube };
+module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube };
