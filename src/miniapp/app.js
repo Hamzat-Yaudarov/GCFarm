@@ -267,7 +267,7 @@
     if (!viewer) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
+      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, �� ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -626,23 +626,35 @@
   }
 
   golden.addEventListener('click', async ()=>{
-    if (!initialDataLoaded) { showStoreFeedback('Данные загружаются, подождите…'); return; }
-    if (!tgid) { showStoreFeedback('Откройте игру через бота (нажмите "Открыть игру" в чате).'); return; }
+    console.log('golden click', { tgid, initialDataLoaded });
+    if (!initialDataLoaded) { if (appMessage) appMessage.textContent = 'Данные загружаются, подождите…'; return; }
+    if (!tgid) { if (appMessage) appMessage.textContent = 'Откройте игру через бота (нажмите "Открыть игру" в чате).'; return; }
+    // visual feedback
     try {
-      const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
+      if (appMessage) appMessage.textContent = 'Обрабатываем клик…';
+      if (golden) { golden.disabled = true; golden.setAttribute('aria-disabled', 'true'); }
+      console.log('sending click to server', `${apiBase}/user/${tgid}/click`);
+      const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST', credentials: 'same-origin' });
       if (!res.ok) {
         let body = null;
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
-        showStoreFeedback(msg);
+        console.warn('click response not ok', msg);
+        if (appMessage) appMessage.textContent = msg;
+        if (golden) { golden.disabled = false; golden.removeAttribute('aria-disabled'); }
         return;
       }
       const json = await res.json();
-      if (!json.ok) { showStoreFeedback(json.message || 'Action failed'); return; }
-      scubeEl.textContent = json.scube;
-      energyEl.textContent = json.energy;
-      dailyEl.textContent = json.daily_count;
-      dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
+      if (!json.ok) {
+        if (appMessage) appMessage.textContent = json.message || 'Action failed';
+        if (golden) { golden.disabled = false; golden.removeAttribute('aria-disabled'); }
+        return;
+      }
+      console.log('click success', json);
+      if (scubeEl) scubeEl.textContent = json.scube;
+      if (energyEl) energyEl.textContent = json.energy;
+      if (dailyEl) dailyEl.textContent = json.daily_count;
+      if (dailyLimitEl) dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
       animateScube();
       animateGolden();
       leaderboardCache.clicks = null;
@@ -650,9 +662,12 @@
       if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
         loadLeaderboard('clicks', true);
       }
+      if (appMessage) appMessage.textContent = '';
     } catch (err) {
       console.warn('click failed', err);
-      showStoreFeedback('Ошибка сети. Повторите попытку');
+      if (appMessage) appMessage.textContent = 'Ошибка сети. Повторите попытку';
+    } finally {
+      if (golden) { golden.disabled = false; golden.removeAttribute('aria-disabled'); }
     }
   });
 
@@ -1137,7 +1152,7 @@
     const finished = room.status === 'finished';
 
     const wrap = document.createElement('div');
-    const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
+    const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • ��тавка ${room.bet}`;
     const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение — поражение.';
     const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
     if (room.deadlineAt && room.status === 'active') {
