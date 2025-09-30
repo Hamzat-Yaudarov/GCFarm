@@ -48,7 +48,6 @@
   const referralInfoEl = document.getElementById('referral-info');
   const referralCodeEl = document.getElementById('referral-code');
   const referralStatsEl = document.getElementById('referral-stats');
-  const copyReferralBtn = document.getElementById('copy-referral');
 
   const watchAdBtn = document.getElementById('watch-ad');
   const scubeToGBtn = document.getElementById('scube-to-gcube');
