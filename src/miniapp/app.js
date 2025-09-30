@@ -758,7 +758,7 @@
         showStoreFeedback('Обмен отменён');
         return;
       }
-      await executeExchange('scube_to_gcube', 'Обмен выполнен');
+      await executeExchange('scube_to_gcube', 'Обмен выпо��нен');
     });
   }
 
@@ -800,7 +800,7 @@
       card.className = 'room-card';
       const meta = document.createElement('div'); meta.className = 'room-meta';
       const title = document.createElement('div'); title.className = 'room-title'; title.textContent = `${r.game === 'rps' ? 'КНБ' : 'Крестики-нолики'} • Ставка ${r.bet}`;
-      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `��оздатель: ${r.creator}`;
+      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `Создатель: ${r.creator}`;
       meta.append(title, sub);
       const join = document.createElement('button'); join.className = 'join-btn'; join.textContent = 'Вступить';
       join.addEventListener('click', ()=> joinRoom(r.id));
@@ -849,9 +849,11 @@
     clearInterval(roomPollIv); roomPollIv=null;
     if (roomCountdownIv) { clearInterval(roomCountdownIv); roomCountdownIv = null; }
     currentRoomId = null;
+    setInMatch(false);
     gameStage.innerHTML = '';
     gameStage.classList.add('hidden');
-    loadRooms();
+    showTab('games');
+    await loadRooms();
     await loadUser();
   }
 

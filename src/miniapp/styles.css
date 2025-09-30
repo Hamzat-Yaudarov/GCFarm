@@ -171,7 +171,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* In-match minimal UI */
-.in-match .game-header{display:none}
+
 .in-match .games-container > *:not(#game-stage){display:none}
 .in-match #game-stage{display:block}
 .in-match .store-fab{display:none}
