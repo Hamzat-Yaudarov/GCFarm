@@ -37,6 +37,7 @@
   const loadingOverlay = document.getElementById('loading-screen');
   const loadingMessageEl = document.getElementById('loading-message');
   let initialDataLoaded = false;
+  let cubeShakeTimer = null;
   const INITIAL_LOADING_TEXT = 'Загружаем вашу базу…';
 
   function showInitialLoading(message = INITIAL_LOADING_TEXT) {
@@ -198,7 +199,7 @@
     if (state === 'loading') {
       leaderSelfRank.textContent = '…';
       leaderSelfValue.textContent = '…';
-      leaderSelfNote.textContent = isTasks ? 'Загружаем рейтинг по заданиям…' : 'Загружаем рейтинг по SCube…';
+      leaderSelfNote.textContent = isTasks ? 'З��гружаем рейтинг по заданиям…' : 'Загружаем рейтинг по SCube…';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -225,7 +226,7 @@
     if (viewer.rank <= 3) {
       leaderSelfNote.textContent = 'Ты на пьедестале! Держи темп. 🌟';
     } else if (viewer.rank <= 10) {
-      leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
+      leaderSelfNote.textContent = 'Д�� медалей рукой подать — продолжай в том же духе!';
     } else {
       leaderSelfNote.textContent = isTasks ? 'Выполняй задания и ��абирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
     }
@@ -327,7 +328,7 @@
       }
     } catch (err) {
       if (leaderboardRequestId === requestId) {
-        showLeaderboardMessage('Не удалось загрузить рейтинг');
+        showLeaderboardMessage('Не удалось ��агрузить рейтинг');
         updateLeaderboardInsights(null, mode);
       }
       console.warn('leaderboard fetch failed', err);
@@ -416,8 +417,22 @@
     scubeEl.classList.add('scube-pop');
     setTimeout(() => scubeEl.classList.remove('scube-pop'), 700);
   }
+  function triggerGoldenShake() {
+    if (!golden) return;
+    if (cubeShakeTimer) clearTimeout(cubeShakeTimer);
+    golden.classList.remove('golden-cube--shake');
+    const applyShake = ()=> golden.classList.add('golden-cube--shake');
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(applyShake);
+    } else {
+      applyShake();
+    }
+    cubeShakeTimer = setTimeout(()=>{
+      golden.classList.remove('golden-cube--shake');
+    }, 420);
+  }
   function animateGolden() {
-    // Subtle shrink via :active CSS only
+    triggerGoldenShake();
   }
 
   // Insert task block if available
@@ -517,30 +532,30 @@
       // update referrals panel (if present)
       try {
         if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
-      if (referralCodeEl) {
-        const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
-        referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
-        const copyBtn = document.getElementById('copy-referral');
-        if (copyBtn) copyBtn.addEventListener('click', ()=>{
-          const input = document.getElementById('referral-link-input');
-          if (input) {
-            try { navigator.clipboard.writeText(input.value); showStoreFeedback('Ссылка скопирована'); } catch(e){ input.select(); document.execCommand('copy'); showStoreFeedback('Ссылка скопирована'); }
-          }
-        });
-        const inviteBtn = document.getElementById('invite-btn');
-        if (inviteBtn) inviteBtn.onclick = ()=>{
-          const shareText = encodeURIComponent('Залетай в GC Farm! Мой инвайт:');
-          const shareUrl = encodeURIComponent(deepLink);
-          const tgLink = `https://t.me/share/url?url=${shareUrl}&text=${shareText}`;
-          try {
-            if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function') {
-              window.Telegram.WebApp.openTelegramLink(tgLink);
-            } else {
-              window.open(tgLink, '_blank');
+        if (referralCodeEl) {
+          const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
+          referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
+          const copyBtn = document.getElementById('copy-referral');
+          if (copyBtn) copyBtn.addEventListener('click', ()=>{
+            const input = document.getElementById('referral-link-input');
+            if (input) {
+              try { navigator.clipboard.writeText(input.value); showStoreFeedback('Ссылка ск��пирована'); } catch(e){ input.select(); document.execCommand('copy'); showStoreFeedback('Ссылка скопирована'); }
             }
-          } catch (e) { window.open(tgLink, '_blank'); }
-        };
-      }
+          });
+          const inviteBtn = document.getElementById('invite-btn');
+          if (inviteBtn) inviteBtn.onclick = ()=>{
+            const shareText = encodeURIComponent('Залетай в GC Farm! Мой инвайт:');
+            const shareUrl = encodeURIComponent(deepLink);
+            const tgLink = `https://t.me/share/url?url=${shareUrl}&text=${shareText}`;
+            try {
+              if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function') {
+                window.Telegram.WebApp.openTelegramLink(tgLink);
+              } else {
+                window.open(tgLink, '_blank');
+              }
+            } catch (e) { window.open(tgLink, '_blank'); }
+          };
+        }
         if (referralStatsEl) referralStatsEl.innerHTML = `Приглашено: ${user.referrals_count || 0} | Бонусы получено: ${user.referrer_bonus || 0} SCube`;
       } catch (e) { console.warn('referral ui update failed', e); }
     } catch (err) {
@@ -550,23 +565,25 @@
     }
   }
 
-  golden.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
-    const json = await res.json();
-    if (!json.ok) return alert(json.message || 'Action failed');
-    scubeEl.textContent = json.scube;
-    energyEl.textContent = json.energy;
-    dailyEl.textContent = json.daily_count;
-    dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
-    animateScube();
-    animateGolden();
-    leaderboardCache.clicks = null;
-    leaderboardCacheTime.clicks = 0;
-    if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
-      loadLeaderboard('clicks', true);
-    }
-  });
+  if (golden) {
+    golden.addEventListener('click', async ()=>{
+      animateGolden();
+      if (!tgid) return alert('tgid is required');
+      const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
+      const json = await res.json();
+      if (!json.ok) return alert(json.message || 'Action failed');
+      scubeEl.textContent = json.scube;
+      energyEl.textContent = json.energy;
+      dailyEl.textContent = json.daily_count;
+      dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
+      animateScube();
+      leaderboardCache.clicks = null;
+      leaderboardCacheTime.clicks = 0;
+      if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
+        loadLeaderboard('clicks', true);
+      }
+    });
+  }
 
   // helper to poll server for changes
   async function pollForChange(getter, initialValue, timeout = 30000, interval = 2000) {
@@ -974,7 +991,7 @@
 
     const wrap = document.createElement('div');
     const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
-    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение — поражение.';
+    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Пре��ышение — поражение.';
     const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
     if (room.deadlineAt && room.status === 'active') {
       const update = ()=>{
