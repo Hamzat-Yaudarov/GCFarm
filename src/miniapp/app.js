@@ -549,7 +549,23 @@
       dailyLevelEl.textContent = user.daily_limit_level;
       dailyLimitEl.textContent = (250 + user.daily_limit_level * 50);
       dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
-      avatarEl.textContent = (user.name && user.name[0]) || 'A';
+      // avatar letter fallback and server-provided photo_url
+      try {
+        const avatarLetter = document.getElementById('avatar-letter');
+        const avatarImg = document.getElementById('avatar-img');
+        // prefer server photo_url (saved during auth), then Telegram initData
+        if (user.photo_url && avatarImg) {
+          avatarImg.src = user.photo_url;
+          avatarImg.style.display = 'block';
+          if (avatarLetter) avatarLetter.style.display = 'none';
+        } else if (avatarImg && avatarImg.src) {
+          // already set from initData
+          if (avatarLetter) avatarLetter.style.display = 'none';
+        } else if (avatarLetter) {
+          avatarLetter.textContent = (user.name && user.name[0]) || 'A';
+          avatarLetter.style.display = 'flex';
+        }
+      } catch(e){}
 
       if (!initialDataLoaded) {
         initialDataLoaded = true;
@@ -610,22 +626,51 @@
   }
 
   golden.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
-    const json = await res.json();
-    if (!json.ok) return alert(json.message || 'Action failed');
-    scubeEl.textContent = json.scube;
-    energyEl.textContent = json.energy;
-    dailyEl.textContent = json.daily_count;
-    dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
-    animateScube();
-    animateGolden();
-    leaderboardCache.clicks = null;
-    leaderboardCacheTime.clicks = 0;
-    if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
-      loadLeaderboard('clicks', true);
+    if (!initialDataLoaded) { showStoreFeedback('Данные загружаются, подождите…'); return; }
+    if (!tgid) { showStoreFeedback('Откройте игру через бота (нажмите "Открыть игру" в чате).'); return; }
+    try {
+      const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
+      if (!res.ok) {
+        let body = null;
+        try { body = await res.json(); } catch(e){}
+        const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
+        showStoreFeedback(msg);
+        return;
+      }
+      const json = await res.json();
+      if (!json.ok) { showStoreFeedback(json.message || 'Action failed'); return; }
+      scubeEl.textContent = json.scube;
+      energyEl.textContent = json.energy;
+      dailyEl.textContent = json.daily_count;
+      dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
+      animateScube();
+      animateGolden();
+      leaderboardCache.clicks = null;
+      leaderboardCacheTime.clicks = 0;
+      if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
+        loadLeaderboard('clicks', true);
+      }
+    } catch (err) {
+      console.warn('click failed', err);
+      showStoreFeedback('Ошибка сети. Повторите попытку');
     }
   });
+
+  // Show Telegram avatar if available from WebApp initData
+  try {
+    const tgUser = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
+    const avatarImg = document.getElementById('avatar-img');
+    const avatarLetter = document.getElementById('avatar-letter');
+    if (tgUser && avatarImg) {
+      if (tgUser.photo_url) {
+        avatarImg.src = tgUser.photo_url;
+        avatarImg.style.display = 'block';
+        if (avatarLetter) avatarLetter.style.display = 'none';
+      } else if (tgUser.first_name) {
+        if (avatarLetter) { avatarLetter.textContent = (tgUser.first_name[0] || 'A').toUpperCase(); avatarLetter.style.display = 'flex'; }
+      }
+    }
+  } catch(e){ console.warn('avatar display failed', e); }
 
   // helper to poll server for changes
   async function pollForChange(getter, initialValue, timeout = 30000, interval = 2000) {
@@ -730,7 +775,7 @@
                 energyEl.textContent = jsonRefill.energy;
                 showStoreFeedback('Энергия восполнена');
               } else {
-                showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
+                showStoreFeedback(jsonRefill.message || 'Ошибка восполн��ния энергии');
               }
             } else {
               showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
@@ -894,7 +939,7 @@
     const from = exchangeFrom.value;
     const to = exchangeTo.value;
     const amount = Math.max(1, Math.floor(Number(exchangeAmount.value) || 0));
-    if (from === to) return showStoreFeedback('Невозможно обменять валюту на саму себя');
+    if (from === to) return showStoreFeedback('Невозможно обменять валюту на саму с��бя');
     const target = computeExchange(from, to, amount);
     if (target < 1) return showStoreFeedback('Сумма слишком мала для обмена на выбранную валюту');
 

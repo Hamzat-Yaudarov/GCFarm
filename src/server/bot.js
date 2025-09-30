@@ -164,7 +164,8 @@ app.post('/auth/telegram', async (req, res) => {
         const last = parsedUser.last_name || '';
         const uname = parsedUser.username ? `@${parsedUser.username}` : '';
         const displayName = String((first + ' ' + last).trim() || uname || 'Игрок');
-        await db.ensureUser(uid, displayName);
+        const photo = parsedUser.photo_url || null;
+        await db.ensureUser(uid, displayName, photo);
       }
     } catch (e) { console.warn('ensureUser from auth failed', e); }
 

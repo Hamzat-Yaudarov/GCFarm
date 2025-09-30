@@ -34,6 +34,8 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
     // Add Stars currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
+    // Add photo_url for avatar images
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT`);
     // For rating system
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS clicks_total BIGINT DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tasks_completed BIGINT DEFAULT 0`);
@@ -78,14 +80,23 @@ async function setReferrer(tgid, referrer) {
   }
 }
 
-async function ensureUser(tgid, name) {
+async function ensureUser(tgid, name, photo_url) {
   const client = await pool.connect();
   try {
-    await client.query(
-      `INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false)
-       ON CONFLICT (tgid) DO UPDATE SET name = EXCLUDED.name`,
-      [tgid, name]
-    );
+    // Insert or update name and photo_url if provided
+    if (photo_url) {
+      await client.query(
+        `INSERT INTO users (tgid, name, photo_url, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,$3,50,50,0,0,current_date,current_date,false)
+         ON CONFLICT (tgid) DO UPDATE SET name = EXCLUDED.name, photo_url = EXCLUDED.photo_url`,
+        [tgid, name, photo_url]
+      );
+    } else {
+      await client.query(
+        `INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false)
+         ON CONFLICT (tgid) DO UPDATE SET name = EXCLUDED.name`,
+        [tgid, name]
+      );
+    }
   } finally {
     client.release();
   }
@@ -98,6 +109,7 @@ function mapUser(row) {
     scube: Number(row.scube),
     gcube: Number(row.gcube),
     stars: Number(row.stars || 0),
+    photo_url: row.photo_url || null,
     energy: Number(row.energy),
     energy_capacity: Number(row.energy_capacity),
     daily_count: Number(row.daily_count),
