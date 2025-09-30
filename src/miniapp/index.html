@@ -12,16 +12,20 @@
 </head>
 <body>
   <div class="game-root">
-    <div id="splash" class="splash-screen">
-      <div class="splash-wrap">
-        <div class="splash-art">
-          <div class="splash-planet"></div>
-          <div class="splash-ship"></div>
-          <div class="splash-stars"></div>
+    <div id="loading-screen" class="loading-overlay" role="status" aria-live="polite">
+      <div class="loading-content">
+        <div class="loading-visual" aria-hidden="true">
+          <div class="loading-planet"></div>
+          <div class="loading-orbit">
+            <span class="loading-satellite"></span>
+          </div>
         </div>
-        <div class="splash-title">GC Farm</div>
-        <div class="splash-dots"><span></span><span></span><span></span></div>
-        <button id="splash-retry" class="splash-retry hidden">Повторить</button>
+        <p id="loading-message" class="loading-message">Загружаем вашу базу…</p>
+        <div class="loading-dots" aria-hidden="true">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </div>
       </div>
     </div>
     <header class="game-header">
@@ -36,7 +40,6 @@
 
     <main class="game-main">
       <section class="tab-content" id="home">
-        <div class="home-galaxy" aria-hidden="true"></div>
         <div class="cube-area">
           <div class="cube-aurora" aria-hidden="true"></div>
           <button id="golden-cube" class="golden-cube" title="Нажми чтобы получить 1 SCube" aria-label="Золотой куб">🔶</button>
@@ -160,7 +163,7 @@
           <div class="leader-personal" id="leader-personal" aria-live="polite">
             <div class="leader-personal-cards">
               <div class="leader-personal-card" id="leader-personal-rank">
-                <span class="leader-personal-label">🤩 Тв��й ранг</span>
+                <span class="leader-personal-label">🤩 Твой ранг</span>
                 <span class="leader-personal-value" id="leader-self-rank">—</span>
               </div>
               <div class="leader-personal-card" id="leader-personal-score">

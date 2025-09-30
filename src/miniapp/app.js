@@ -26,7 +26,6 @@
             const json = await res.json();
             if (json && json.ok && json.tgid) {
               tgid = json.tgid;
-              loadUser();
             }
           }
         }
@@ -35,11 +34,23 @@
   })();
 
   const appMessage = document.getElementById('app-message');
+  const loadingOverlay = document.getElementById('loading-screen');
+  const loadingMessageEl = document.getElementById('loading-message');
+  let initialDataLoaded = false;
+  const INITIAL_LOADING_TEXT = 'Загружаем вашу базу…';
 
-  // Splash helpers
-  function hideSplash(){ if (splash) splash.classList.add('hidden'); }
-  function showSplash(){ if (splash) splash.classList.remove('hidden'); }
-  if (splashRetry) splashRetry.addEventListener('click', ()=>{ showSplash(); loadUser(); });
+  function showInitialLoading(message = INITIAL_LOADING_TEXT) {
+    if (!loadingOverlay) return;
+    if (loadingMessageEl && message) loadingMessageEl.textContent = message;
+    loadingOverlay.classList.remove('loading-overlay--hidden');
+  }
+
+  function hideInitialLoading() {
+    if (!loadingOverlay) return;
+    loadingOverlay.classList.add('loading-overlay--hidden');
+  }
+
+  showInitialLoading();
 
   const scubeEl = document.getElementById('scube');
   const gcubeEl = document.getElementById('gcube');
@@ -84,8 +95,6 @@
   const contents = document.querySelectorAll('.tab-content');
 
   const storeFab = document.getElementById('store-fab');
-  const splash = document.getElementById('splash');
-  const splashRetry = document.getElementById('splash-retry');
   const gamesSection = document.getElementById('games');
   const gameCards = document.getElementById('game-cards');
   const betSelector = document.getElementById('bet-selector');
@@ -197,13 +206,13 @@
     if (!tgid) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = 'Открой игру через бота, чтобы участвовать в рейтинге.';
+      leaderSelfNote.textContent = 'Открой игру через бота, чтобы участвовать в ��ейтинге.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
 
     if (!viewer) {
-      leaderSelfRank.textContent = '—';
+      leaderSelfRank.textContent = '��';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
       leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
@@ -455,10 +464,10 @@
   } catch (e) { console.warn('Failed to setup task block', e); }
 
   async function loadUser(){
+    if (!initialDataLoaded) showInitialLoading();
     if (!tgid) {
-      if (appMessage) appMessage.textContent = 'Откройте игру через бота (нажмите /start и затем "Открыть игру").';
-      showSplash();
-      if (splashRetry) splashRetry.classList.remove('hidden');
+      if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
+      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить данные.');
       return;
     }
     try {
@@ -467,14 +476,12 @@
         let body = null;
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
-        if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользова��еля: ' + msg;
-        if (splashRetry) splashRetry.classList.remove('hidden');
+        if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
       if (appMessage) appMessage.textContent = '';
-      if (splashRetry) splashRetry.classList.add('hidden');
-      hideSplash();
       scubeEl.textContent = user.scube;
       gcubeEl.textContent = user.gcube;
       energyEl.textContent = user.energy;
@@ -485,26 +492,31 @@
       dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
       avatarEl.textContent = (user.name && user.name[0]) || 'A';
 
-      // start auto-tick if enabled
-    if (user.auto_energy) startAutoTick(); else stopAutoTick();
-
-    // set referrer if present in start_param or URL param (only once)
-    try {
-      const startParam = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) || '';
-      const urlRef = qs('ref');
-      const payload = startParam || urlRef || '';
-      const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
-      const ref = m && m[1] ? Number(m[1]) : null;
-      const refSetKey = `ref_set_${tgid}`;
-      if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
-        await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
-        localStorage.setItem(refSetKey, '1');
+      if (!initialDataLoaded) {
+        initialDataLoaded = true;
+        hideInitialLoading();
       }
-    } catch (e) { console.warn('set-referrer failed', e); }
 
-    // update referrals panel (if present)
-    try {
-      if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
+      // start auto-tick if enabled
+      if (user.auto_energy) startAutoTick(); else stopAutoTick();
+
+      // set referrer if present in start_param or URL param (only once)
+      try {
+        const startParam = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) || '';
+        const urlRef = qs('ref');
+        const payload = startParam || urlRef || '';
+        const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
+        const ref = m && m[1] ? Number(m[1]) : null;
+        const refSetKey = `ref_set_${tgid}`;
+        if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
+          await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
+          localStorage.setItem(refSetKey, '1');
+        }
+      } catch (e) { console.warn('set-referrer failed', e); }
+
+      // update referrals panel (if present)
+      try {
+        if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
         const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
         referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
@@ -529,11 +541,12 @@
           } catch (e) { window.open(tgLink, '_blank'); }
         };
       }
-      if (referralStatsEl) referralStatsEl.innerHTML = `Приглашено: ${user.referrals_count || 0} | Бонусы получено: ${user.referrer_bonus || 0} SCube`;
-    } catch(e){ console.warn('referral ui update failed', e); }
+        if (referralStatsEl) referralStatsEl.innerHTML = `Приглашено: ${user.referrals_count || 0} | Бонусы получено: ${user.referrer_bonus || 0} SCube`;
+      } catch (e) { console.warn('referral ui update failed', e); }
     } catch (err) {
       console.error('loadUser error', err);
-      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Поп��обуйте по��же.';
+      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
+      if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повторяем…');
     }
   }
 
@@ -980,7 +993,7 @@
       grid.appendChild(c);
     });
     const status = document.createElement('div'); status.className='ttt-status';
-    if (!room.opponent) status.textContent = 'Ожидание сопер��ика...';
+    if (!room.opponent) status.textContent = 'Ожидание соперника...';
     else if (finished){
       let banner;
       if (room.state && room.state.winner){
