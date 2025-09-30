@@ -15,6 +15,24 @@
     tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
   }
 
+  // Exchange Telegram initData for a secure HttpOnly session (anti-cheat)
+  (async function tryAuth(){
+    try {
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+        const initData = window.Telegram.WebApp.initData;
+        if (initData && initData.length > 0) {
+          const res = await fetch('/auth/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData }) });
+          if (res.ok) {
+            const json = await res.json();
+            if (json && json.ok && json.tgid) {
+              tgid = json.tgid;
+            }
+          }
+        }
+      }
+    } catch (e) { console.warn('Auth exchange failed', e); }
+  })();
+
   const appMessage = document.getElementById('app-message');
 
   const scubeEl = document.getElementById('scube');
@@ -66,6 +84,9 @@
   const roomsList = document.getElementById('rooms-list');
   const createRoomBtn = document.getElementById('create-room');
   const gameStage = document.getElementById('game-stage');
+
+  // in-room countdown interval
+  let roomCountdownIv = null;
 
   function setStoreFabVisibility(activeTab){
     if (!storeFab) return;
@@ -779,7 +800,7 @@
       card.className = 'room-card';
       const meta = document.createElement('div'); meta.className = 'room-meta';
       const title = document.createElement('div'); title.className = 'room-title'; title.textContent = `${r.game === 'rps' ? 'КНБ' : 'Крестики-нолики'} • Ставка ${r.bet}`;
-      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `Создатель: ${r.creator}`;
+      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `��оздатель: ${r.creator}`;
       meta.append(title, sub);
       const join = document.createElement('button'); join.className = 'join-btn'; join.textContent = 'Вступить';
       join.addEventListener('click', ()=> joinRoom(r.id));
@@ -826,6 +847,7 @@
       await fetch(`${apiBase}/games/rooms/${currentRoomId}/leave`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) });
     } catch(e){}
     clearInterval(roomPollIv); roomPollIv=null;
+    if (roomCountdownIv) { clearInterval(roomCountdownIv); roomCountdownIv = null; }
     currentRoomId = null;
     gameStage.innerHTML = '';
     gameStage.classList.add('hidden');
@@ -855,8 +877,10 @@
     if (!gameStage) return;
     const active = room.status !== 'finished';
     setInMatch(active);
+    if (!active && currentRoomId) { leaveRoom(); return; }
     showTab('games');
     gameStage.classList.remove('hidden');
+    if (roomCountdownIv) { clearInterval(roomCountdownIv); roomCountdownIv = null; }
     if (room.game === 'rps') renderRps(room); else renderTtt(room);
     if (active && !roomPollIv) startRoomPolling();
     if (!active && roomPollIv) { clearInterval(roomPollIv); roomPollIv=null; }
@@ -873,6 +897,15 @@
     const wrap = document.createElement('div');
     const title = document.createElement('div'); title.className='room-title'; title.textContent = `КНБ • Ставка ${room.bet}`;
     const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'Сделайте ход за 30 секунд, иначе поражение.';
+    const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
+    if (room.deadlineAt && room.status === 'active') {
+      const update = ()=>{
+        const remain = Math.max(0, Math.ceil((room.deadlineAt - Date.now())/1000));
+        timer.textContent = `⏳ Осталось: ${remain}с`;
+      };
+      update();
+      roomCountdownIv = setInterval(update, 500);
+    }
     const controls = document.createElement('div'); controls.className='rps-controls';
     ['rock','paper','scissors'].forEach(m=>{
       const btn = document.createElement('button'); btn.className='rps-btn'; btn.textContent = m==='rock'?'✊':(m==='paper'?'✋':'✌️');
@@ -894,10 +927,11 @@
         wrap.appendChild(banner);
       }
     }
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : 'Сдаться';
+    const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
     leave.addEventListener('click', leaveRoom);
 
-    wrap.append(title, notice, controls, result, leave);
+    wrap.append(title, notice, timer, controls, result, leave);
     gameStage.innerHTML='';
     gameStage.appendChild(wrap);
   }
@@ -913,6 +947,16 @@
     const wrap = document.createElement('div');
     const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
     const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение — поражение.';
+    const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
+    if (room.deadlineAt && room.status === 'active') {
+      const update = ()=>{
+        const remain = Math.max(0, Math.ceil((room.deadlineAt - Date.now())/1000));
+        const who = String(turn)===me ? 'Ваш ход' : 'Ход соперника';
+        timer.textContent = `⏳ ${who}: ${remain}с`;
+      };
+      update();
+      roomCountdownIv = setInterval(update, 500);
+    }
     const grid = document.createElement('div'); grid.className='ttt-board';
     board.forEach((cell, idx)=>{
       const c = document.createElement('div'); c.className='ttt-cell'; c.textContent = cell || '';
@@ -936,10 +980,11 @@
       }
       wrap.appendChild(banner);
     } else if (String(turn)===me) status.textContent = 'Ваш ход'; else status.textContent = 'Ход соперника';
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : 'Сдаться';
+    const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
     leave.addEventListener('click', leaveRoom);
 
-    wrap.append(title, notice, grid, status, leave);
+    wrap.append(title, notice, timer, grid, status, leave);
     gameStage.innerHTML='';
     gameStage.appendChild(wrap);
   }
@@ -950,7 +995,7 @@
       const json = await res.json();
       if (!json.ok) return;
       openRoom(json.room);
-      if (json.room.status==='finished') { clearInterval(roomPollIv); roomPollIv=null; await loadUser(); }
+      if (json.room.status==='finished') { if (roomCountdownIv) { clearInterval(roomCountdownIv); roomCountdownIv=null; } clearInterval(roomPollIv); roomPollIv=null; await loadUser(); }
     } catch(e){}
   }
 

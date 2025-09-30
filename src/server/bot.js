@@ -17,6 +17,63 @@ if (!TG_BOT_TOKEN) {
   console.error('TG_BOT_TOKEN is not set');
 }
 
+const SESSION_TTL = 24 * 60 * 60; // 24h
+function parseCookies(header){
+  const out = {};
+  String(header||'').split(';').forEach((p)=>{
+    const idx = p.indexOf('=');
+    if (idx > -1){
+      const k = p.slice(0, idx).trim();
+      const v = decodeURIComponent(p.slice(idx+1).trim());
+      out[k] = v;
+    }
+  });
+  return out;
+}
+function signSession(id, ts){
+  const h = crypto.createHmac('sha256', TG_BOT_TOKEN);
+  h.update(`${id}.${ts}`);
+  return `${id}.${ts}.${h.digest('hex')}`;
+}
+function verifySession(token){
+  try{
+    const [id, ts, sig] = String(token||'').split('.');
+    if (!id || !ts || !sig) return null;
+    const now = Math.floor(Date.now()/1000);
+    if (now - Number(ts) > SESSION_TTL) return null;
+    const expected = crypto.createHmac('sha256', TG_BOT_TOKEN).update(`${id}.${ts}`).digest('hex');
+    if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))) return null;
+    return Number(id);
+  } catch(e){ return null; }
+}
+function getAuthTgid(req){
+  try{
+    const cookies = parseCookies(req.headers.cookie || '');
+    const id = verifySession(cookies.session || '');
+    return Number.isFinite(id) ? id : null;
+  } catch(e){ return null; }
+}
+function verifyTelegramInitData(initData){
+  try{
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    params.delete('hash');
+    const data = [];
+    for (const [key, value] of params.entries()) data.push(`${key}=${value}`);
+    data.sort();
+    const dataCheckString = data.join('\n');
+    const secret = crypto.createHmac('sha256', 'WebAppData').update(TG_BOT_TOKEN).digest();
+    const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
+    if (!hash || !crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash))) return null;
+    const auth_date = Number(params.get('auth_date') || 0);
+    const now = Math.floor(Date.now()/1000);
+    if (auth_date && now - auth_date > 3600) return null;
+    const userRaw = params.get('user');
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    return user && user.id ? Number(user.id) : null;
+  } catch(e){ return null; }
+}
+
 const bot = new Telegraf(TG_BOT_TOKEN);
 
 bot.start(async (ctx) => {
@@ -87,6 +144,24 @@ app.get('/miniapp', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'miniapp', 'index.html'));
 });
 
+// Telegram WebApp auth exchange -> sets secure session cookie
+app.post('/auth/telegram', (req, res) => {
+  try {
+    const initData = (req.body && req.body.initData) || '';
+    const uid = verifyTelegramInitData(initData);
+    if (!uid) return res.status(401).json({ ok:false, message:'Invalid init data' });
+    const ts = Math.floor(Date.now()/1000);
+    const token = signSession(uid, ts);
+    const isProd = String(process.env.NODE_ENV||'').toLowerCase() === 'production';
+    const cookie = `session=${encodeURIComponent(token)}; Max-Age=${SESSION_TTL}; Path=/; SameSite=Strict${isProd?'; Secure':''}; HttpOnly`;
+    res.setHeader('Set-Cookie', cookie);
+    return res.json({ ok:true, tgid: uid });
+  } catch (e) {
+    console.error('Auth exchange failed', e);
+    return res.status(500).json({ ok:false, message:'Server error' });
+  }
+});
+
 // Root redirects to miniapp for convenience and external reviews
 app.get('/', (req, res) => {
   res.redirect('/miniapp');
@@ -96,7 +171,6 @@ app.get('/', (req, res) => {
 const gameRooms = new Map();
 let nextRoomId = 1;
 const userActiveRoom = new Map(); // tgid -> roomId
-const ALLOWED_BETS = new Set([50,150,300,500,1000,2000]);
 
 function serializeRoom(room){
   return {
@@ -231,15 +305,17 @@ app.get('/api/games/rooms', (req, res)=>{
 // Create room
 app.post('/api/games/rooms', async (req, res)=>{
   try{
-    const { tgid, game, bet } = req.body || {};
+    const { tgid: bodyTgid, game, bet } = req.body || {};
+    const authTgid = getAuthTgid(req);
+    const playerTgid = authTgid || bodyTgid;
     const G = (game === 'ttt') ? 'ttt' : 'rps';
     const B = Math.max(1, parseInt(bet,10)||0);
-    if (!tgid || !B) return res.status(400).json({ ok:false, message:'Invalid params' });
-    if (!ALLOWED_BETS.has(B)) return res.status(400).json({ ok:false, message:'Недопустимая ставка' });
-    if (userActiveRoom.get(String(tgid))) return res.json({ ok:false, message:'У вас уже есть активная комната' });
-    const reserve = await db.tryReserveScube(tgid, B);
+    if (authTgid && bodyTgid && String(authTgid)!==String(bodyTgid)) return res.json({ ok:false, message:'Auth mismatch' });
+    if (!playerTgid || !B) return res.status(400).json({ ok:false, message:'Invalid params' });
+    if (userActiveRoom.get(String(playerTgid))) return res.json({ ok:false, message:'У вас уже есть активная комната' });
+    const reserve = await db.tryReserveScube(playerTgid, B);
     if (!reserve.ok) return res.json(reserve);
-    const room = createRoom(tgid, G, B);
+    const room = createRoom(playerTgid, G, B);
     if (G==='ttt') { room.state.turn = Math.random()<0.5 ? String(room.creator) : null; }
     res.json({ ok:true, room: serializeRoom(room) });
   } catch (err){ console.error(err); res.status(500).json({ ok:false, message:'Server error' }); }
@@ -249,7 +325,10 @@ app.post('/api/games/rooms', async (req, res)=>{
 app.post('/api/games/rooms/:id/join', async (req, res)=>{
   try{
     const id = req.params.id;
-    const { tgid } = req.body || {};
+    const authTgid = getAuthTgid(req);
+    const bodyTgid = (req.body && req.body.tgid) || null;
+    if (authTgid && bodyTgid && String(authTgid)!==String(bodyTgid)) return res.json({ ok:false, message:'Auth mismatch' });
+    const tgid = authTgid || bodyTgid;
     const room = gameRooms.get(id);
     if (!room) return res.status(404).json({ ok:false, message:'Room not found' });
     if (room.status!=='waiting') return res.json({ ok:false, message:'Комната уже занята' });
@@ -283,17 +362,15 @@ app.post('/api/games/rooms/:id/move', async (req,res)=>{
   try{
     const room = gameRooms.get(req.params.id);
     if (!room) return res.status(404).json({ ok:false, message:'Room not found' });
-    const { tgid } = req.body || {};
+    const authTgid = getAuthTgid(req);
+    const bodyTgid = (req.body && req.body.tgid) || null;
+    if (authTgid && bodyTgid && String(authTgid)!==String(bodyTgid)) return res.json({ ok:false, message:'Auth mismatch' });
+    const tgid = authTgid || bodyTgid;
     if (!tgid) return res.status(400).json({ ok:false, message:'Invalid player' });
-    const isCreator = String(room.creator)===String(tgid);
-    const isOpponent = String(room.opponent||'')===String(tgid);
-    if (!isCreator && !isOpponent) return res.status(403).json({ ok:false, message:'Not a participant' });
     if (room.status!=='active' && room.status!=='waiting') return res.json({ ok:false, message:'Игра завершена' });
     if (room.game==='rps'){
-      if (!room.opponent) return res.status(400).json({ ok:false, message:'Ожидание соперника' });
       const move = String(req.body.move||'').toLowerCase();
       if (!['rock','paper','scissors'].includes(move)) return res.status(400).json({ ok:false, message:'Invalid move' });
-      // prevent changing move after set
       if (room.state.moves[String(tgid)]) return res.json({ ok:false, message:'Ход уже сделан' });
       room.state.moves[String(tgid)] = move;
       if (room.opponent && room.state.moves[String(room.creator)] && room.state.moves[String(room.opponent)]){
@@ -311,8 +388,6 @@ app.post('/api/games/rooms/:id/move', async (req,res)=>{
           await finishRoomWithWinner(room, room.opponent, 'both_moved');
           room.state.result = Object.assign({}, room.state.result || {}, { a, b });
         }
-      } else {
-        startRpsTimer(room);
       }
       return res.json({ ok:true, room: serializeRoom(room) });
     } else if (room.game==='ttt'){
@@ -320,7 +395,7 @@ app.post('/api/games/rooms/:id/move', async (req,res)=>{
       if (!(idx>=0 && idx<9)) return res.status(400).json({ ok:false, message:'Invalid cell' });
       const sym = room.state.symbols[String(tgid)];
       if (!sym) return res.status(403).json({ ok:false, message:'Not a player' });
-      if (room.state.turn !== String(tgid)) return res.json({ ok:false, message:'Ход соперника' });
+      if (room.state.turn !== String(tgid)) return res.json({ ok:false, message:'Ход соп��рника' });
       if (room.state.board[idx]) return res.json({ ok:false, message:'Клетка занята' });
       room.state.board[idx] = sym;
       const w = tttCheckWinner(room.state.board);
@@ -345,18 +420,22 @@ app.post('/api/games/rooms/:id/move', async (req,res)=>{
 app.post('/api/games/rooms/:id/leave', async (req,res)=>{
   try{
     const room = gameRooms.get(req.params.id);
-    const { tgid } = req.body || {};
+    const authTgid = getAuthTgid(req);
+    const bodyTgid = (req.body && req.body.tgid) || null;
+    if (authTgid && bodyTgid && String(authTgid)!==String(bodyTgid)) return res.json({ ok:false, message:'Auth mismatch' });
+    const tgid = authTgid || bodyTgid;
     if (!room) return res.status(404).json({ ok:false, message:'Room not found' });
     const isCreator = String(room.creator)===String(tgid);
     const isOpponent = String(room.opponent||'')===String(tgid);
     if (!isCreator && !isOpponent) return res.status(403).json({ ok:false, message:'Not a participant' });
 
     if (room.status==='waiting'){
-      if (!isCreator) return res.status(403).json({ ok:false, message:'Только создатель может отменить' });
+      // refund creator and close
       clearRoomTimer(room);
       await db.creditScube(room.creator, room.bet);
       room.status='finished';
     } else if (room.status==='active'){
+      // forfeit: pay full pot to the other
       const winner = isCreator ? room.opponent : room.creator;
       clearRoomTimer(room);
       await db.creditScube(winner, room.bet*2);
@@ -366,8 +445,6 @@ app.post('/api/games/rooms/:id/leave', async (req,res)=>{
 
     userActiveRoom.delete(String(room.creator));
     if (room.opponent) userActiveRoom.delete(String(room.opponent));
-    // Optionally cleanup memory for finished rooms
-    setTimeout(()=>{ try{ if (room.status==='finished') gameRooms.delete(room.id); } catch(e){} }, 10000);
     res.json({ ok:true, room: serializeRoom(room) });
   } catch(err){ console.error(err); res.status(500).json({ ok:false, message:'Server error' }); }
 });
@@ -376,6 +453,8 @@ app.post('/api/games/rooms/:id/leave', async (req,res)=>{
 app.get('/api/user/:tgid', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   if (!tgid) return res.status(400).json({ error: 'Invalid tgid' });
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   try {
     const user = await db.getOrCreateUser(tgid);
     res.json(user);
@@ -388,6 +467,8 @@ app.get('/api/user/:tgid', async (req, res) => {
 app.post('/api/user/:tgid/click', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   if (!tgid) return res.status(400).json({ error: 'Invalid tgid' });
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   try {
     const result = await db.handleClick(tgid);
     res.json(result);
@@ -401,6 +482,8 @@ app.post('/api/user/:tgid/click', async (req, res) => {
 app.post('/api/user/:tgid/exchange', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   const { direction, units } = req.body || {};
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid || !direction) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.exchange(tgid, direction, Math.max(1, parseInt(units || 1, 10)));
@@ -415,6 +498,8 @@ app.post('/api/user/:tgid/exchange', async (req, res) => {
 app.post('/api/user/:tgid/buy-upgrade', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   const { type } = req.body || {};
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid || !type) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.buyUpgrade(tgid, type);
@@ -428,6 +513,8 @@ app.post('/api/user/:tgid/buy-upgrade', async (req, res) => {
 // Refill endpoint
 app.post('/api/user/:tgid/refill', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.refillToFull(tgid);
@@ -442,6 +529,8 @@ app.post('/api/user/:tgid/refill', async (req, res) => {
 app.post('/api/user/:tgid/set-referrer', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   const { referrer } = req.body || {};
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid || !referrer) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.setReferrer(tgid, Number(referrer));
@@ -455,6 +544,8 @@ app.post('/api/user/:tgid/set-referrer', async (req, res) => {
 // Auto-tick endpoint
 app.post('/api/user/:tgid/auto-tick', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.autoTick(tgid);
@@ -470,6 +561,8 @@ app.post('/api/user/:tgid/claim-reward', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   const amount = parseInt(req.body.amount || 5, 10); // default 5 SCube
   const source = req.body.source || undefined; // 'task' | 'ad' | undefined
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.claimReward(tgid, amount, source);
