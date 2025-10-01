@@ -49,6 +49,14 @@ async function init() {
       click_count INTEGER DEFAULT 0,
       PRIMARY KEY (referrer, referred)
     );`);
+
+    await client.query(`CREATE TABLE IF NOT EXISTS reward_events (
+      context_id TEXT PRIMARY KEY,
+      tgid BIGINT NOT NULL,
+      amount BIGINT NOT NULL,
+      source TEXT,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );`);
   } finally {
     client.release();
   }
@@ -326,36 +334,54 @@ async function buyUpgrade(tgid, type) {
 }
 
 // Reward claim (from AdsGram callback or client)
-async function claimReward(tgid, amount, source) {
+async function claimReward(tgid, amount, source, options = {}) {
   const client = await pool.connect();
+  const { force = false, contextId = null } = options || {};
   try {
     await client.query('BEGIN');
     const res = await client.query('SELECT scube, last_reward_at, referrer_tgid FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
-    const last = res.rows[0].last_reward_at;
+    const user = res.rows[0];
     const now = new Date();
-    if (last) {
-      const diff = now - new Date(last);
-      // prevent abuse: require at least 10 seconds between reward claims
+    const credit = Math.max(0, Math.round(Number(amount) || 0));
+    if (!credit) {
+      await client.query('ROLLBACK');
+      return { ok:false, message: 'Invalid reward amount', scube: Number(user.scube || 0) };
+    }
+
+    if (!force && user.last_reward_at) {
+      const diff = now - new Date(user.last_reward_at);
       if (diff < 10000) {
         await client.query('ROLLBACK');
-        return { ok:false, message: 'Слишком частые запросы награды' };
+        return { ok:false, message: 'Слишком частые запросы награды', scube: Number(user.scube || 0) };
       }
     }
-    let scube = Number(res.rows[0].scube);
-    scube += amount;
 
-    // If the source is a completed task, increment tasks_completed
-    if (source === 'task') {
-      await client.query('UPDATE users SET scube=$1, last_reward_at = $2, tasks_completed = tasks_completed + 1 WHERE tgid=$3', [scube, now, tgid]);
-    } else {
-      await client.query('UPDATE users SET scube=$1, last_reward_at = $2 WHERE tgid=$3', [scube, now, tgid]);
+    if (contextId) {
+      const inserted = await client.query(
+        `INSERT INTO reward_events (context_id, tgid, amount, source) VALUES ($1,$2,$3,$4)
+         ON CONFLICT (context_id) DO NOTHING
+         RETURNING context_id`,
+        [contextId, tgid, credit, source || null]
+      );
+      if (!inserted.rows.length) {
+        await client.query('COMMIT');
+        return { ok:true, scube: Number(user.scube || 0), duplicate: true };
+      }
     }
 
-    // if user has referrer, credit 10% of amount (rounded down)
-    const referrer = res.rows[0].referrer_tgid;
+    let scube = Number(user.scube || 0);
+    scube += credit;
+
+    if (source === 'task') {
+      await client.query('UPDATE users SET scube=$1, last_reward_at=$2, tasks_completed = tasks_completed + 1 WHERE tgid=$3', [scube, now, tgid]);
+    } else {
+      await client.query('UPDATE users SET scube=$1, last_reward_at=$2 WHERE tgid=$3', [scube, now, tgid]);
+    }
+
+    const referrer = user.referrer_tgid;
     if (referrer) {
-      const bonus = Math.floor(amount * 0.1);
+      const bonus = Math.floor(credit * 0.1);
       if (bonus > 0) {
         await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2', [bonus, referrer]);
       }

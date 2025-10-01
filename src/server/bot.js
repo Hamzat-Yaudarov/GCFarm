@@ -184,6 +184,38 @@ function resolveAdsgramReward(payload){
   return { amount: safeAmount, source: isTask ? 'task' : 'ad' };
 }
 
+function extractAdsgramContextId(payload){
+  const data = payload || {};
+  const candidates = [
+    data.eventId,
+    data.event_id,
+    data.transactionId,
+    data.transaction_id,
+    data.rewardId,
+    data.reward_id,
+    data.taskId,
+    data.task_id,
+    data.clickId,
+    data.click_id,
+    data.orderId,
+    data.order_id,
+    data.id,
+    data.requestId,
+    data.request_id
+  ];
+  for (const candidate of candidates){
+    if (candidate === undefined || candidate === null) continue;
+    const trimmed = String(candidate).trim();
+    if (trimmed) return trimmed;
+  }
+  const user = data.userId || data.tgid || data.user_id;
+  const adUnit = data.adUnit || data.ad_unit;
+  const stamp = data.timestamp || data.time || data.createdAt || data.created_at || data.ts;
+  if (user && stamp) return `${user}:${stamp}`;
+  if (user && adUnit) return `${user}:${adUnit}`;
+  return null;
+}
+
 const bot = new Telegraf(TG_BOT_TOKEN);
 
 bot.start(async (ctx) => {
@@ -701,6 +733,9 @@ app.post('/api/user/:tgid/claim-reward', async (req, res) => {
   if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.claimReward(tgid, amount, source);
+    if (!result.ok) {
+      return res.status(429).json(result);
+    }
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -761,8 +796,14 @@ app.post('/adsgram/callback', async (req, res) => {
     }
 
     const rewardInfo = resolveAdsgramReward(payload);
-    const result = await db.claimReward(tgid, rewardInfo.amount, rewardInfo.source);
-    return res.json({ ok:true, credited: rewardInfo.amount, scube: result.scube, source: rewardInfo.source });
+    const contextId = extractAdsgramContextId(payload);
+    const result = await db.claimReward(tgid, rewardInfo.amount, rewardInfo.source, { force: true, contextId });
+    if (!result.ok) {
+      console.warn('Failed to credit AdsGram reward', { tgid, message: result.message, contextId });
+      const status = result.message === 'Слишком частые запросы награды' ? 429 : 400;
+      return res.status(status).json({ ok:false, message: result.message || 'Reward not credited' });
+    }
+    return res.json({ ok:true, credited: rewardInfo.amount, scube: result.scube, source: rewardInfo.source, duplicate: Boolean(result.duplicate) });
   } catch (err) {
     console.error('Error processing AdsGram callback', err);
     return res.status(500).json({ ok:false, message: 'Server error' });
