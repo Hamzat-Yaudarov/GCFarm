@@ -612,6 +612,118 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
+// Clan and Competition endpoints
+
+// Create clan
+app.post('/api/clans', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.body && req.body.tgid);
+  const { name, tag, description } = req.body || {};
+  if (!tgid || !name) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const result = await db.createClan(tgid, name, tag, description);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Join clan (simple open join)
+app.post('/api/clans/:id/join', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.body && req.body.tgid);
+  const clanId = parseInt(req.params.id, 10);
+  if (!tgid || !clanId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const result = await db.addMemberToClan(clanId, tgid, 'member');
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Leave clan
+app.post('/api/clans/:id/leave', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.body && req.body.tgid);
+  const clanId = parseInt(req.params.id, 10);
+  if (!tgid || !clanId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const result = await db.removeMemberFromClan(clanId, tgid);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Start matchmaking search for clan competition
+app.post('/api/competitions/start-search', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.body && req.body.tgid);
+  const clanId = req.body && req.body.clan_id;
+  if (!tgid || !clanId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const result = await db.startCompetitionSearch(clanId);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Join an existing pending competition (matchmake)
+app.post('/api/competitions/join-search', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.body && req.body.tgid);
+  const clanId = req.body && req.body.clan_id;
+  if (!tgid || !clanId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const result = await db.joinCompetitionSearch(clanId);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Contribute to competition (convert SCube to coins)
+app.post('/api/competitions/:id/contribute', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.body && req.body.tgid);
+  const competitionId = parseInt(req.params.id, 10);
+  const scube = Math.max(0, parseInt(req.body && req.body.scube || 0, 10));
+  if (!tgid || !competitionId || scube <= 0) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const result = await db.contributeToCompetition(competitionId, tgid, scube);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Purchase building (leader/co_leader)
+app.post('/api/competitions/:id/buildings/:buildingId/purchase', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.body && req.body.tgid);
+  const competitionId = parseInt(req.params.id, 10);
+  const buildingId = parseInt(req.params.buildingId, 10);
+  if (!tgid || !competitionId || !buildingId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    // determine which clan user belongs to for this competition
+    const comp = await db.getCompetition(competitionId).catch(()=>null);
+    let clanId = null;
+    if (comp) {
+      // find clan of user
+      const member = await db.getClanMemberByTgid(tgid).catch(()=>null);
+    }
+    // instead of complicated logic here, require clan_id in body
+    const clan_id = req.body && req.body.clan_id;
+    if (!clan_id) return res.status(400).json({ ok:false, message:'clan_id required in body' });
+    const result = await db.purchaseBuilding(competitionId, buildingId, clan_id, tgid);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Finish competition (admin or scheduled job)
+app.post('/api/competitions/:id/finish', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  // restrict to ADMIN_ID or server cron
+  const adminId = process.env.ADMIN_ID;
+  if (adminId && String(authTgid) !== String(adminId)) return res.status(403).json({ ok:false, message:'Forbidden' });
+  const competitionId = parseInt(req.params.id, 10);
+  if (!competitionId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const result = await db.finishCompetition(competitionId);
+    res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
 // Generic reward landing - accepts either tgid or userId as query
 app.get('/reward', (req, res) => {
   const tgid = req.query.tgid || req.query.userId || '';

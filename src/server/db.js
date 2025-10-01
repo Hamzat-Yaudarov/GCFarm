@@ -49,6 +49,13 @@ async function init() {
       click_count INTEGER DEFAULT 0,
       PRIMARY KEY (referrer, referred)
     );`);
+
+    // Ensure clans and competition schema
+    try {
+      await ensureAllSchemas();
+    } catch (e) {
+      console.warn('ensureAllSchemas failed', e);
+    }
   } finally {
     client.release();
   }
@@ -492,4 +499,366 @@ async function creditScube(tgid, amount) {
   }
 }
 
-module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube };
+// === Clan & Competition schema and functions ===
+async function ensureClanSchema(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS clans (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      tag TEXT,
+      description TEXT,
+      leader_tgid BIGINT,
+      members_count INTEGER DEFAULT 0,
+      rating INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS clan_members (
+      clan_id INTEGER REFERENCES clans(id) ON DELETE CASCADE,
+      tgid BIGINT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'member',
+      joined_at TIMESTAMPTZ DEFAULT now(),
+      contribution_today BIGINT DEFAULT 0,
+      total_contribution BIGINT DEFAULT 0,
+      PRIMARY KEY (clan_id, tgid)
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS competitions (
+      id SERIAL PRIMARY KEY,
+      clan_a INTEGER REFERENCES clans(id),
+      clan_b INTEGER REFERENCES clans(id),
+      status TEXT DEFAULT 'pending',
+      start_at TIMESTAMPTZ,
+      end_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS competition_contributions (
+      id SERIAL PRIMARY KEY,
+      competition_id INTEGER REFERENCES competitions(id) ON DELETE CASCADE,
+      tgid BIGINT NOT NULL,
+      scube_amount BIGINT NOT NULL,
+      coins_amount BIGINT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS building_types (
+      id SERIAL PRIMARY KEY,
+      name TEXT,
+      base_price_scube BIGINT DEFAULT 0,
+      coin_yield_per_30min BIGINT DEFAULT 0,
+      is_unique BOOLEAN DEFAULT false,
+      is_strong BOOLEAN DEFAULT false
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS competition_buildings (
+      id SERIAL PRIMARY KEY,
+      competition_id INTEGER REFERENCES competitions(id) ON DELETE CASCADE,
+      building_type_id INTEGER REFERENCES building_types(id),
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS competition_building_history (
+      id SERIAL PRIMARY KEY,
+      competition_building_id INTEGER REFERENCES competition_buildings(id) ON DELETE CASCADE,
+      owner_clan_id INTEGER REFERENCES clans(id),
+      start_at TIMESTAMPTZ NOT NULL,
+      end_at TIMESTAMPTZ
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS building_purchases (
+      id SERIAL PRIMARY KEY,
+      competition_building_id INTEGER REFERENCES competition_buildings(id) ON DELETE CASCADE,
+      clan_id INTEGER REFERENCES clans(id),
+      price_paid_scube BIGINT NOT NULL,
+      purchased_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS building_payouts (
+      id SERIAL PRIMARY KEY,
+      competition_building_id INTEGER REFERENCES competition_buildings(id) ON DELETE CASCADE,
+      paid_to_clan INTEGER REFERENCES clans(id),
+      payout_time TIMESTAMPTZ NOT NULL,
+      coins_paid BIGINT NOT NULL
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS transactions (
+      id SERIAL PRIMARY KEY,
+      tgid BIGINT,
+      clan_id INTEGER,
+      type TEXT,
+      amount_scube BIGINT,
+      meta JSONB,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS competition_logs (
+      id SERIAL PRIMARY KEY,
+      competition_id INTEGER REFERENCES competitions(id),
+      event_type TEXT,
+      data JSONB,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+}
+
+async function ensureAllSchemas() {
+  const client = await pool.connect();
+  try {
+    await ensureClanSchema(client);
+    const res = await client.query('SELECT count(*) as c FROM building_types');
+    if (res.rows.length && Number(res.rows[0].c) === 0) {
+      for (let i=0;i<15;i++) await client.query('INSERT INTO building_types (name, base_price_scube, coin_yield_per_30min, is_unique, is_strong) VALUES ($1,$2,$3,false,false)', [`House ${i+1}`, 10, 100]);
+      for (let i=0;i<7;i++) await client.query('INSERT INTO building_types (name, base_price_scube, coin_yield_per_30min, is_unique, is_strong) VALUES ($1,$2,$3,true,false)', [`Unique ${i+1}`, 100, 1200]);
+      await client.query('INSERT INTO building_types (name, base_price_scube, coin_yield_per_30min, is_unique, is_strong) VALUES ($1,$2,$3,true,true)', ['Stronghold', 500, 10000]);
+    }
+  } finally { client.release(); }
+}
+
+async function createClan(tgid, name, tag, description) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const res = await client.query('INSERT INTO clans (name, tag, description, leader_tgid, members_count) VALUES ($1,$2,$3,$4,1) RETURNING *', [name, tag || null, description || null, tgid]);
+    const clan = res.rows[0];
+    await client.query('INSERT INTO clan_members (clan_id, tgid, role) VALUES ($1,$2,$3)', [clan.id, tgid, 'leader']);
+    await client.query('COMMIT');
+    return { ok:true, clan };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function addMemberToClan(clan_id, tgid, role='member') {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const exists = await client.query('SELECT 1 FROM clan_members WHERE clan_id = $1 AND tgid = $2', [clan_id, tgid]);
+    if (exists.rows.length) { await client.query('ROLLBACK'); return { ok:false, message: 'Already in clan' }; }
+    await client.query('INSERT INTO clan_members (clan_id, tgid, role) VALUES ($1,$2,$3)', [clan_id, tgid, role]);
+    await client.query('UPDATE clans SET members_count = members_count + 1 WHERE id = $1', [clan_id]);
+    await client.query('COMMIT');
+    return { ok:true };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function removeMemberFromClan(clan_id, tgid) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM clan_members WHERE clan_id = $1 AND tgid = $2', [clan_id, tgid]);
+    await client.query('UPDATE clans SET members_count = GREATEST(members_count - 1, 0) WHERE id = $1', [clan_id]);
+    await client.query('COMMIT');
+    return { ok:true };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function startCompetitionSearch(clan_id) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const c = await client.query("SELECT 1 FROM competitions WHERE status IN ('pending','active') AND (clan_a=$1 OR clan_b=$1)", [clan_id]);
+    if (c.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Clan already in competition or searching' }; }
+    const res = await client.query('INSERT INTO competitions (clan_a, status) VALUES ($1, $2) RETURNING *', [clan_id, 'pending']);
+    await client.query('COMMIT');
+    return { ok:true, competition: res.rows[0] };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function joinCompetitionSearch(clan_id) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const c = await client.query("SELECT 1 FROM competitions WHERE status IN ('pending','active') AND (clan_a=$1 OR clan_b=$1)", [clan_id]);
+    if (c.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Clan already in competition or searching' }; }
+    const pending = await client.query('SELECT * FROM competitions WHERE status = $1 AND clan_a IS NOT NULL AND clan_a <> $2 ORDER BY created_at ASC LIMIT 1', ['pending', clan_id]);
+    if (!pending.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'No pending competitions found' }; }
+    const comp = pending.rows[0];
+    const now = new Date();
+    const endAt = new Date(now.getTime() + 4*24*60*60*1000);
+    await client.query('UPDATE competitions SET clan_b=$1, status=$2, start_at=$3, end_at=$4 WHERE id=$5', [clan_id, 'active', now, endAt, comp.id]);
+    const types = await client.query('SELECT * FROM building_types ORDER BY is_unique ASC, is_strong ASC, id ASC');
+    const rows = types.rows;
+    const normals = rows.filter(r=>!r.is_unique).slice(0,15);
+    const uniques = rows.filter(r=>r.is_unique && !r.is_strong).slice(0,7);
+    const strongs = rows.filter(r=>r.is_strong).slice(0,1);
+    const selected = normals.concat(uniques).concat(strongs);
+    for (const t of selected) {
+      const res = await client.query('INSERT INTO competition_buildings (competition_id, building_type_id) VALUES ($1,$2) RETURNING id', [comp.id, t.id]);
+      const bId = res.rows[0].id;
+      await client.query('INSERT INTO competition_building_history (competition_building_id, owner_clan_id, start_at) VALUES ($1, NULL, $2)', [bId, now]);
+    }
+    await client.query('COMMIT');
+    return { ok:true, competition_id: comp.id };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function contributeToCompetition(competition_id, tgid, scubeAmount) {
+  const client = await pool.connect();
+  try {
+    scubeAmount = Math.max(0, parseInt(scubeAmount || 0, 10));
+    if (!scubeAmount) return { ok:false, message:'Invalid amount' };
+    await client.query('BEGIN');
+    const compRes = await client.query('SELECT * FROM competitions WHERE id = $1 FOR UPDATE', [competition_id]);
+    if (!compRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Competition not found' }; }
+    const comp = compRes.rows[0];
+    if (comp.status !== 'active') { await client.query('ROLLBACK'); return { ok:false, message:'Competition not active' }; }
+    const inClan = await client.query('SELECT clan_id, role FROM clan_members WHERE tgid=$1 AND clan_id IN ($2,$3)', [tgid, comp.clan_a, comp.clan_b]);
+    if (!inClan.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not in participating clan' }; }
+    const todayStart = new Date(); todayStart.setUTCHours(0,0,0,0);
+    const todayEnd = new Date(todayStart.getTime() + 24*60*60*1000);
+    const sumRes = await client.query('SELECT COALESCE(SUM(scube_amount),0) as s FROM competition_contributions WHERE tgid=$1 AND created_at >= $2 AND created_at < $3', [tgid, todayStart, todayEnd]);
+    const already = Number(sumRes.rows[0].s || 0);
+    if (already + scubeAmount > 200) { await client.query('ROLLBACK'); return { ok:false, message:'Daily contribution limit exceeded (200 SCube/day)' }; }
+    const userRes = await client.query('SELECT scube FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (!userRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
+    const userScube = Number(userRes.rows[0].scube || 0);
+    if (userScube < scubeAmount) { await client.query('ROLLBACK'); return { ok:false, message:'Insufficient SCube' }; }
+    const newUserScube = userScube - scubeAmount;
+    await client.query('UPDATE users SET scube=$1 WHERE tgid=$2', [newUserScube, tgid]);
+    const coins = scubeAmount * 10;
+    await client.query('INSERT INTO competition_contributions (competition_id, tgid, scube_amount, coins_amount) VALUES ($1,$2,$3,$4)', [competition_id, tgid, scubeAmount, coins]);
+    await client.query('INSERT INTO transactions (tgid, clan_id, type, amount_scube, meta) VALUES ($1,null,$2,$3,$4)', [tgid, 'contribution', scubeAmount, JSON.stringify({ competition_id })]);
+    await client.query('COMMIT');
+    return { ok:true, scube_remaining: newUserScube, coins_contributed: coins };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function purchaseBuilding(competition_id, building_id, clan_id, tgid) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const roleRes = await client.query('SELECT role FROM clan_members WHERE clan_id=$1 AND tgid=$2 FOR UPDATE', [clan_id, tgid]);
+    if (!roleRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not clan member' }; }
+    const role = roleRes.rows[0].role;
+    if (!['leader','co_leader'].includes(role)) { await client.query('ROLLBACK'); return { ok:false, message:'Permission denied' }; }
+    const compRes = await client.query('SELECT * FROM competitions WHERE id = $1 FOR UPDATE', [competition_id]);
+    if (!compRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Competition not found' }; }
+    const comp = compRes.rows[0];
+    if (comp.status !== 'active') { await client.query('ROLLBACK'); return { ok:false, message:'Competition not active' }; }
+    const bRes = await client.query('SELECT cb.*, bt.base_price_scube, bt.coin_yield_per_30min FROM competition_buildings cb JOIN building_types bt ON cb.building_type_id = bt.id WHERE cb.id=$1', [building_id]);
+    if (!bRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Building not found' }; }
+    const b = bRes.rows[0];
+    const hist = await client.query('SELECT * FROM competition_building_history WHERE competition_building_id=$1 ORDER BY start_at DESC LIMIT 1 FOR UPDATE', [building_id]);
+    const currentOwner = hist.rows.length ? hist.rows[0].owner_clan_id : null;
+    let price_scube = Number(b.base_price_scube || 0);
+    if (currentOwner && currentOwner !== clan_id) price_scube = price_scube * 3;
+    const price_coins = price_scube * 10;
+    const avail = await client.query('SELECT COALESCE(SUM(coins_amount),0) as coins FROM competition_contributions WHERE competition_id=$1 AND tgid IN (SELECT tgid FROM clan_members WHERE clan_id=$2)', [competition_id, clan_id]);
+    const spent = await client.query('SELECT COALESCE(SUM(price_paid_scube)*10,0) as spent_coins FROM building_purchases bp JOIN competition_buildings cb ON bp.competition_building_id = cb.id WHERE cb.competition_id=$1 AND bp.clan_id=$2', [competition_id, clan_id]);
+    const coinsAvailable = Number(avail.rows[0].coins || 0) - Number(spent.rows[0].spent_coins || 0);
+    if (coinsAvailable < price_coins) { await client.query('ROLLBACK'); return { ok:false, message:'Not enough clan coins' }; }
+    await client.query('INSERT INTO building_purchases (competition_building_id, clan_id, price_paid_scube, purchased_at) VALUES ($1,$2,$3,$4)', [building_id, clan_id, price_scube, new Date()]);
+    if (hist.rows.length) await client.query('UPDATE competition_building_history SET end_at=$1 WHERE id=$2', [new Date(), hist.rows[0].id]);
+    await client.query('INSERT INTO competition_building_history (competition_building_id, owner_clan_id, start_at) VALUES ($1,$2,$3)', [building_id, clan_id, new Date()]);
+    await client.query('INSERT INTO transactions (tgid, clan_id, type, amount_scube, meta) VALUES ($1,$2,$3,$4,$5)', [tgid, clan_id, 'building_purchase', price_scube, JSON.stringify({ competition_id, building_id })]);
+    await client.query('COMMIT');
+    return { ok:true, price_scube, price_coins };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function computeCompetitionCoins(competition_id) {
+  const client = await pool.connect();
+  try {
+    const compRes = await client.query('SELECT * FROM competitions WHERE id=$1', [competition_id]);
+    if (!compRes.rows.length) return null;
+    const comp = compRes.rows[0];
+    const compStart = comp.start_at;
+    const compEnd = comp.end_at;
+    const results = {};
+    const histRes = await client.query(`
+      SELECT h.*, bt.coin_yield_per_30min
+      FROM competition_building_history h
+      JOIN competition_buildings cb ON cb.id = h.competition_building_id
+      JOIN building_types bt ON bt.id = cb.building_type_id
+      WHERE cb.competition_id = $1
+      ORDER BY h.start_at ASC
+    `, [competition_id]);
+    for (const row of histRes.rows) {
+      const owner = row.owner_clan_id;
+      if (!owner) continue;
+      const start = new Date(row.start_at) < new Date(compStart) ? new Date(compStart) : new Date(row.start_at);
+      const end = row.end_at ? new Date(row.end_at) : new Date(compEnd);
+      if (end <= start) continue;
+      const seconds = Math.floor((end.getTime() - start.getTime())/1000);
+      const intervals = Math.floor(seconds / (30*60));
+      const coins = intervals * Number(row.coin_yield_per_30min || 0);
+      if (!results[owner]) results[owner] = 0;
+      results[owner] += coins;
+    }
+    return results;
+  } finally { client.release(); }
+}
+
+async function finishCompetition(competition_id) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const compRes = await client.query('SELECT * FROM competitions WHERE id=$1 FOR UPDATE', [competition_id]);
+    if (!compRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Competition not found' }; }
+    const comp = compRes.rows[0];
+    if (comp.status !== 'active') { await client.query('ROLLBACK'); return { ok:false, message:'Competition not active' }; }
+    const coinsMap = await computeCompetitionCoins(competition_id);
+    const clanA = comp.clan_a; const clanB = comp.clan_b;
+    const coinsA = Number(coinsMap[clanA] || 0);
+    const coinsB = Number(coinsMap[clanB] || 0);
+    let winnerClan = null;
+    if (coinsA > coinsB) winnerClan = clanA; else if (coinsB > coinsA) winnerClan = clanB; else winnerClan = null;
+    const poolRes = await client.query('SELECT COALESCE(SUM(scube_amount),0) as total_scube FROM competition_contributions WHERE competition_id=$1', [competition_id]);
+    const total_scube = Number(poolRes.rows[0].total_scube || 0);
+    const platform_fee_percent = 30;
+    const platform_fee = Math.floor(total_scube * (platform_fee_percent/100.0));
+    const winners_pool_scube = total_scube - platform_fee;
+    const payouts = [];
+    if (winnerClan) {
+      const contribRes = await client.query('SELECT tgid, COALESCE(SUM(scube_amount),0) as s FROM competition_contributions WHERE competition_id=$1 AND tgid IN (SELECT tgid FROM clan_members WHERE clan_id=$2) GROUP BY tgid', [competition_id, winnerClan]);
+      const total_by_members = contribRes.rows.reduce((acc,r)=>acc+Number(r.s||0),0);
+      if (total_by_members <= 0) {
+        const leaderRes = await client.query('SELECT leader_tgid FROM clans WHERE id=$1', [winnerClan]);
+        const leaderTgid = leaderRes.rows.length ? leaderRes.rows[0].leader_tgid : null;
+        if (leaderTgid) {
+          await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2', [winners_pool_scube, leaderTgid]);
+          await client.query('INSERT INTO transactions (tgid, clan_id, type, amount_scube, meta) VALUES ($1,$2,$3,$4,$5)', [leaderTgid, winnerClan, 'competition_win', winners_pool_scube, JSON.stringify({ competition_id })]);
+          payouts.push({ tgid: leaderTgid, amount: winners_pool_scube });
+        }
+      } else {
+        for (const row of contribRes.rows) {
+          const tgid = row.tgid;
+          const scube_contrib = Number(row.s || 0);
+          const share = Math.floor((scube_contrib / total_by_members) * winners_pool_scube);
+          if (share > 0) {
+            await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2', [share, tgid]);
+            await client.query('INSERT INTO transactions (tgid, clan_id, type, amount_scube, meta) VALUES ($1,$2,$3,$4,$5)', [tgid, winnerClan, 'competition_win', share, JSON.stringify({ competition_id })]);
+            payouts.push({ tgid, amount: share });
+          }
+        }
+      }
+    }
+    if (platform_fee > 0) {
+      await client.query('INSERT INTO transactions (tgid, clan_id, type, amount_scube, meta) VALUES (NULL,$1,$2,$3,$4)', [null, 'platform_fee', platform_fee, JSON.stringify({ competition_id })]);
+    }
+    await client.query('UPDATE competitions SET status=$1 WHERE id=$2', ['finished', competition_id]);
+    await client.query('COMMIT');
+    return { ok:true, winner: winnerClan, coins: { [clanA]: coinsA, [clanB]: coinsB }, payouts, platform_fee, total_scube };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube, ensureAllSchemas, createClan, addMemberToClan, removeMemberFromClan, startCompetitionSearch, joinCompetitionSearch, contributeToCompetition, purchaseBuilding, computeCompetitionCoins, finishCompetition };
