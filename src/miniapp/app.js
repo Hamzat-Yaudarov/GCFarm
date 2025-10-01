@@ -517,7 +517,7 @@
     if (!initialDataLoaded) showInitialLoading();
     if (!tgid) {
       if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
-      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить данные.');
+      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы заг��узить данные.');
       return;
     }
     try {
@@ -677,15 +677,44 @@
         const result = await controller.show();
         console.log('reward show', result);
         if (result && result.done && !result.error) {
-          // Directly claim reward because AdsGram does not provide server postbacks in your panel
-          const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: 5 }) });
-          const claimJson = await claimRes.json();
-          if (claimJson.ok) {
-            scubeEl.textContent = claimJson.scube;
-            animateScube();
-            showStoreFeedback('Награда зачислена');
-          } else {
-            showStoreFeedback(claimJson.message || 'Невозможно зачислить награду');
+          // Ad watched successfully — request server to credit reward.
+          // Try immediate claim; if server prefers callback-based crediting, poll until confirmed.
+          const EXPECTED_REWARD = 5;
+          try {
+            const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: EXPECTED_REWARD, source: 'ad' }) });
+            const claimJson = await claimRes.json();
+            if (claimJson && claimJson.ok) {
+              scubeEl.textContent = claimJson.scube;
+              animateScube();
+              showStoreFeedback('Награда зачислена');
+            } else {
+              // fallback: poll server for up to 15s to detect server-side callback credit
+              let beforeScubeVal = beforeScube || 0;
+              let credited = false;
+              const start = Date.now();
+              const TIMEOUT = 15000;
+              const INT = 2000;
+              while (Date.now() - start < TIMEOUT) {
+                await new Promise(r=>setTimeout(r, INT));
+                try {
+                  const check = await fetch(`${apiBase}/user/${tgid}`);
+                  if (!check.ok) continue;
+                  const js = await check.json();
+                  const nowScube = Number(js.scube || 0);
+                  if (nowScube >= (beforeScubeVal + EXPECTED_REWARD)) {
+                    credited = true;
+                    scubeEl.textContent = nowScube;
+                    animateScube();
+                    showStoreFeedback('Награда зачислена');
+                    break;
+                  }
+                } catch (e) { console.warn('poll error', e); }
+              }
+              if (!credited) showStoreFeedback('Награда не подтверждена — попробуйте позже');
+            }
+          } catch (e) {
+            console.warn('Claim reward error', e);
+            showStoreFeedback('Ошибка при зачислении награды');
           }
         } else {
           showStoreFeedback('Реклама не была просмотрена полностью');
