@@ -4,16 +4,50 @@
     return url.searchParams.get(name);
   }
   let tgid = qs('tgid');
-  const apiBase = '/api';
-  const APP_CONFIG = window.APP_CONFIG || {};
-  const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
-  const BOT_WEBAPP_PATH = APP_CONFIG.BOT_WEBAPP_PATH || '';
-  const BASE_URL = APP_CONFIG.BASE_URL || window.location.origin;
+const apiBase = '/api';
+const APP_CONFIG = window.APP_CONFIG || {};
+const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
+const BOT_WEBAPP_PATH = APP_CONFIG.BOT_WEBAPP_PATH || '';
+const BASE_URL = APP_CONFIG.BASE_URL || window.location.origin;
 
-  // If tgid not provided via query, try to get from Telegram WebApp init data
-  if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-    tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
+const DEFAULT_AD_REWARD = 5;
+const DEFAULT_TASK_REWARD = 15;
+
+function resolveAdsgramReward(detail, fallback = DEFAULT_AD_REWARD) {
+  const data = detail || {};
+  const numericKeys = ['reward','amount','value','payout','reward_amount','rewardAmount','bonus','coins'];
+  let amount;
+  for (const key of numericKeys) {
+    if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+    const parsed = Number(data[key]);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      amount = parsed;
+      break;
+    }
   }
+  const typeCandidates = [
+    data.type,
+    data.event,
+    data.category,
+    data.kind,
+    data.mode,
+    data.source,
+    data.reward_type
+  ].filter(Boolean).map(value => String(value).toLowerCase());
+  const tagCandidates = Array.isArray(data.tags) ? data.tags.map(tag => String(tag).toLowerCase()) : [];
+  const taskMarkers = ['task','mission','quest'];
+  const hasTaskMarker = typeCandidates.concat(tagCandidates).some(entry => taskMarkers.some(marker => entry.includes(marker)));
+  const hasTaskId = Boolean(data.taskId || data.task_id || data.task);
+  const isTask = hasTaskMarker || hasTaskId;
+  const fallbackAmount = isTask ? DEFAULT_TASK_REWARD : fallback;
+  const resolved = amount && amount > 0 ? amount : fallbackAmount;
+  return { amount: Math.min(1000000, Math.max(1, Math.round(resolved))), isTask };
+}
+
+// If tgid not provided via query, try to get from Telegram WebApp init data
+if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+  tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
+}
 
   // Exchange Telegram initData for a secure HttpOnly session (anti-cheat)
   (async function tryAuth(){
@@ -233,7 +267,7 @@
     leaderSelfRank.textContent = viewer.rank ? `#${viewer.rank}` : '—';
     leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
     if (viewer.rank <= 3) {
-      leaderSelfNote.textContent = 'Ты на пьедестале! Держи темп. 🌟';
+      leaderSelfNote.textContent = 'Ты на ��ьедестале! Держи темп. 🌟';
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
@@ -453,23 +487,51 @@
       taskEl.addEventListener('onError', onNotFound);
       taskEl.addEventListener('reward', async (event) => {
         const detail = event && event.detail;
-        // expected reward for tasks (server-side will credit via AdsGram callback)
-        const EXPECTED_REWARD = 15;
+        const rewardMeta = resolveAdsgramReward(detail, DEFAULT_TASK_REWARD);
+        const expectedReward = rewardMeta.amount;
         try {
           if (!tgid) return console.warn('No tgid for reward confirmation');
-          // show feedback
-          if (taskFeedback) taskFeedback.textContent = 'Награда: ожидается подтверждение...';
+          if (taskFeedback) taskFeedback.textContent = `Награда: ожидается подтверждение (+${expectedReward} SCube)`;
 
-          // fetch current scube as baseline
-          let beforeRes = await fetch(`${apiBase}/user/${tgid}`);
-          let beforeJson = beforeRes.ok ? await beforeRes.json() : null;
-          const beforeScube = beforeJson ? Number(beforeJson.scube||0) : null;
+          const applyRewardSuccess = (amountCredited, latestScube) => {
+            const rounded = Math.max(1, Math.round(amountCredited));
+            scubeEl.textContent = latestScube;
+            if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
+              leaderboardCache.tasks = null;
+              leaderboardCacheTime.tasks = 0;
+              loadLeaderboard('tasks', true);
+            }
+            if (taskFeedback) {
+              if (rounded >= expectedReward) {
+                taskFeedback.textContent = `Задание выполнено — вы получили +${rounded} SCube`;
+              } else {
+                taskFeedback.textContent = `Награда зачислена (+${rounded} SCube). Сумма меньше ожидаемой.`;
+              }
+            }
+            const banner = document.createElement('div');
+            banner.className = 'task-reward-banner success';
+            banner.textContent = `+${rounded} SCube — награда за задание!`;
+            document.body.appendChild(banner);
+            setTimeout(()=>{ if (banner && banner.parentNode) banner.parentNode.removeChild(banner); }, 3500);
+            setTimeout(()=> animateScube(), 200);
+          };
 
-          // Poll server for up to 20s to see if server-side callback credited the reward
+          let beforeScube = null;
+          try {
+            const beforeRes = await fetch(`${apiBase}/user/${tgid}`);
+            if (beforeRes.ok) {
+              const beforeJson = await beforeRes.json();
+              beforeScube = Number(beforeJson.scube || 0);
+            }
+          } catch (fetchErr) {
+            console.warn('Failed to fetch baseline before reward', fetchErr);
+          }
+
           const timeout = 20000;
           const interval = 2000;
           const start = Date.now();
           let credited = false;
+
           while (Date.now() - start < timeout) {
             await new Promise(r=>setTimeout(r, interval));
             try {
@@ -477,29 +539,27 @@
               if (!check.ok) continue;
               const js = await check.json();
               const nowScube = Number(js.scube || 0);
-              if (beforeScube !== null && nowScube >= (beforeScube + EXPECTED_REWARD)) {
-                credited = true;
-                // update UI
-                scubeEl.textContent = nowScube;
-                if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
-                  leaderboardCache.tasks = null;
-                  leaderboardCacheTime.tasks = 0;
-                  loadLeaderboard('tasks', true);
+              if (beforeScube !== null) {
+                const delta = nowScube - beforeScube;
+                if (delta >= expectedReward) {
+                  applyRewardSuccess(delta, nowScube);
+                  credited = true;
+                  break;
                 }
-                // feedback and animation
-                if (taskFeedback) taskFeedback.textContent = `Задание выполнено — вы получили +${EXPECTED_REWARD} SCube`;
-                const banner = document.createElement('div');
-                banner.className = 'task-reward-banner success';
-                banner.textContent = `+${EXPECTED_REWARD} SCube — награда за задание!`;
-                document.body.appendChild(banner);
-                setTimeout(()=>{ if (banner && banner.parentNode) banner.parentNode.removeChild(banner); }, 3500);
-                setTimeout(()=> animateScube(), 200);
+                if (delta > 0) {
+                  applyRewardSuccess(delta, nowScube);
+                  credited = true;
+                  break;
+                }
+              } else {
+                applyRewardSuccess(expectedReward, nowScube);
+                credited = true;
                 break;
               }
             } catch (e) { console.warn('poll error', e); }
           }
           if (!credited) {
-            if (taskFeedback) taskFeedback.textContent = 'Награда не подтверждена — попробуйте позже.';
+            if (taskFeedback) taskFeedback.textContent = `Награда не подтверждена — попробуйте позже (ожидали +${expectedReward} SCube).`;
             console.warn('Task reward not confirmed within timeout');
           }
         } catch (e) { console.warn('Failed to process task reward event', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при подтверждении награды'; }
@@ -517,7 +577,7 @@
     if (!initialDataLoaded) showInitialLoading();
     if (!tgid) {
       if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
-      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы заг��узить данные.');
+      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить данные.');
       return;
     }
     try {
@@ -527,7 +587,7 @@
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не у��алось загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -677,7 +737,7 @@
         const result = await controller.show();
         console.log('reward show', result);
         if (result && result.done && !result.error) {
-          // Ad watched successfully — request server to credit reward.
+          // Ad watched successfully ��� request server to credit reward.
           // Try immediate claim; if server prefers callback-based crediting, poll until confirmed.
           const EXPECTED_REWARD = 5;
           try {
@@ -785,7 +845,7 @@
         const json = await res.json();
         if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
         energyEl.textContent = json.energy;
-        showStoreFeedback('Энергия восполнена до максимума (без рекламы)');
+        showStoreFeedback('Энергия восполнена до максимума (��ез рекламы)');
       }
       } finally {
         refillBusy = false;
@@ -1087,7 +1147,7 @@
 
     const wrap = document.createElement('div');
     const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
-    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение — поражение.';
+    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение ��� поражение.';
     const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
     if (room.deadlineAt && room.status === 'active') {
       const update = ()=>{

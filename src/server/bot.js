@@ -74,6 +74,116 @@ function verifyTelegramInitData(initData){
   } catch(e){ return null; }
 }
 
+const DEFAULT_AD_REWARD = 5;
+const DEFAULT_TASK_REWARD = 15;
+
+function base64UrlFromBuffer(buf){
+  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+}
+
+function collectSignatureCandidates(header){
+  const trimmed = String(header || '').trim();
+  if (!trimmed) return [];
+  const candidates = new Set([trimmed]);
+  trimmed.split(',').forEach(part=>{
+    const piece = part.trim();
+    if (!piece) return;
+    const eqIdx = piece.indexOf('=');
+    if (eqIdx === -1) {
+      candidates.add(piece);
+    } else {
+      const val = piece.slice(eqIdx + 1).trim();
+      if (val) candidates.add(val);
+    }
+  });
+  return Array.from(candidates);
+}
+
+function timingSafeEqualString(a, b){
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function verifyAdsgramSignature(signatureHeader, expectedHex){
+  try {
+    const expectedBuf = Buffer.from(expectedHex, 'hex');
+    const variants = [
+      expectedHex,
+      expectedHex.toLowerCase(),
+      expectedHex.toUpperCase(),
+      expectedBuf.toString('base64'),
+      base64UrlFromBuffer(expectedBuf)
+    ].filter(Boolean);
+    const candidates = collectSignatureCandidates(signatureHeader);
+    for (const candidateRaw of candidates){
+      const candidate = candidateRaw.trim();
+      if (!candidate) continue;
+      for (const variant of variants){
+        if (timingSafeEqualString(candidate, variant)) return true;
+      }
+      if (/^[0-9a-fA-F]+$/.test(candidate) && candidate.length === expectedHex.length) {
+        const providedBuf = Buffer.from(candidate, 'hex');
+        if (providedBuf.length === expectedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf)) return true;
+      }
+      try {
+        const providedBuf = Buffer.from(candidate, 'base64');
+        if (providedBuf.length === expectedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf)) return true;
+      } catch(e){}
+      try {
+        const normalized = candidate.replace(/-/g, '+').replace(/_/g, '/');
+        const padding = normalized.length % 4 ? '='.repeat(4 - (normalized.length % 4)) : '';
+        const providedBuf = Buffer.from(normalized + padding, 'base64');
+        if (providedBuf.length === expectedBuf.length && crypto.timingSafeEqual(expectedBuf, providedBuf)) return true;
+      } catch(e){}
+    }
+    return false;
+  } catch (e) {
+    console.warn('Failed to verify AdsGram signature', e);
+    return false;
+  }
+}
+
+function resolveAdsgramReward(payload){
+  const data = payload || {};
+  const rawTags = Array.isArray(data.tags) ? data.tags.map(tag => String(tag).toLowerCase()) : [];
+  const rawTypeCandidates = [
+    data.type,
+    data.event,
+    data.category,
+    data.kind,
+    data.mode,
+    data.source,
+    data.reward_type
+  ].filter(Boolean).map(value => String(value).toLowerCase());
+  const taskMarkers = ['task', 'mission', 'quest'];
+  let isTask = rawTags.some(tag => taskMarkers.some(marker => tag.includes(marker)));
+  if (!isTask) {
+    isTask = rawTypeCandidates.some(type => taskMarkers.some(marker => type.includes(marker)));
+  }
+  if (!isTask) {
+    isTask = Boolean(data.taskId || data.task_id || data.task);
+  }
+
+  const numericFields = ['amount','reward','value','payout','reward_amount','rewardAmount','bonus','coins'];
+  let numericReward;
+  for (const field of numericFields){
+    if (Object.prototype.hasOwnProperty.call(data, field)) {
+      const parsed = Number(data[field]);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        numericReward = parsed;
+        break;
+      }
+    }
+  }
+
+  const fallback = isTask ? DEFAULT_TASK_REWARD : DEFAULT_AD_REWARD;
+  const resolved = numericReward && numericReward > 0 ? numericReward : fallback;
+  const safeAmount = Math.min(1000000, Math.max(1, Math.round(resolved)));
+  return { amount: safeAmount, source: isTask ? 'task' : 'ad' };
+}
+
 const bot = new Telegraf(TG_BOT_TOKEN);
 
 bot.start(async (ctx) => {
@@ -628,42 +738,31 @@ app.post('/adsgram/callback', async (req, res) => {
       console.warn('Raw body:', raw);
       return res.status(400).json({ ok:false, message: 'Missing signature' });
     }
-    // compute HMAC-SHA256
     const hmac = crypto.createHmac('sha256', ADSGRAM_SECRET);
     hmac.update(raw);
     const expected = hmac.digest('hex');
-    try {
-      if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signatureHeader))) {
-        console.warn('Signature mismatch on AdsGram callback');
-        console.warn('Received signature header:', signatureHeader);
-        console.warn('Raw body (truncated):', raw && raw.substring(0,1000));
-        return res.status(403).json({ ok:false, message: 'Invalid signature' });
-      }
-    } catch (e) {
-      console.warn('Signature comparison error', e);
+    if (!verifyAdsgramSignature(signatureHeader, expected)) {
+      console.warn('Signature mismatch on AdsGram callback');
       console.warn('Received signature header:', signatureHeader);
       console.warn('Raw body (truncated):', raw && raw.substring(0,1000));
       return res.status(403).json({ ok:false, message: 'Invalid signature' });
     }
 
-    // parse payload
     const payload = req.body || {};
     const userId = payload.userId || payload.tgid || req.query.userId || req.query.tgid;
-    const amount = parseInt(payload.amount || payload.reward || 5, 10);
-    const adUnit = payload.adUnit || payload.ad_unit || payload.adId || payload.adId || '';
-
     if (!userId) return res.status(400).json({ ok:false, message: 'Missing userId' });
     const tgid = parseInt(userId, 10);
     if (!tgid) return res.status(400).json({ ok:false, message: 'Invalid userId' });
 
-    // Optionally verify adUnit matches expected interstitial id
+    const adUnit = payload.adUnit || payload.ad_unit || payload.adId || payload.ad_id || '';
+
     if (adUnit && ADSGRAM_INTERSTITIAL_ID && adUnit !== ADSGRAM_INTERSTITIAL_ID) {
       console.warn('Ad unit mismatch', { adUnit, expected: ADSGRAM_INTERSTITIAL_ID });
-      // continue but note discrepancy
     }
 
-    const result = await db.claimReward(tgid, amount, 'ad');
-    return res.json({ ok:true, credited: amount, scube: result.scube });
+    const rewardInfo = resolveAdsgramReward(payload);
+    const result = await db.claimReward(tgid, rewardInfo.amount, rewardInfo.source);
+    return res.json({ ok:true, credited: rewardInfo.amount, scube: result.scube, source: rewardInfo.source });
   } catch (err) {
     console.error('Error processing AdsGram callback', err);
     return res.status(500).json({ ok:false, message: 'Server error' });
