@@ -285,7 +285,7 @@ function createRoom(tgid, game, bet){
     opponent: null,
     status: 'waiting',
     createdAt: Date.now(),
-    state: game === 'rps' ? { moves: {}, notice: 'Сделайте ход за 30 секунд, иначе поражение.' } : { board: Array(9).fill(null), turn: null, symbols: {}, winner: null, notice: 'На ход даётся 30 секунд. Прев��шение — поражение.' },
+    state: game === 'rps' ? { moves: {}, notice: 'Сделайте ход за 30 секунд, иначе поражение.' } : { board: Array(9).fill(null), turn: null, symbols: {}, winner: null, notice: 'На ход даётся 30 секунд. Превышение — поражение.' },
     deadlineAt: null,
     _timer: null
   };
@@ -330,7 +330,7 @@ app.post('/api/games/rooms', async (req, res)=>{
     const B = Math.max(1, parseInt(bet,10)||0);
     if (authTgid && bodyTgid && String(authTgid)!==String(bodyTgid)) return res.json({ ok:false, message:'Auth mismatch' });
     if (!playerTgid || !B) return res.status(400).json({ ok:false, message:'Invalid params' });
-    if (userActiveRoom.get(String(playerTgid))) return res.json({ ok:false, message:'У вас уже есть активная комнат��' });
+    if (userActiveRoom.get(String(playerTgid))) return res.json({ ok:false, message:'У вас уже есть активная комната' });
     const reserve = await db.tryReserveScube(playerTgid, B);
     if (!reserve.ok) return res.json(reserve);
     const room = createRoom(playerTgid, G, B);
@@ -615,7 +615,7 @@ app.get('/api/leaderboard', async (req, res) => {
 // Generic reward landing - accepts either tgid or userId as query
 app.get('/reward', (req, res) => {
   const tgid = req.query.tgid || req.query.userId || '';
-  res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Reward</title></head><body><h2>Reward landing (placeholder)</h2><p>После просмотра рекламы нажмите кнопку, чтобы получить награду.</p><form method="post" action="/api/user/${tgid}/claim-reward"><input type="hidden" name="amount" value="15"><button type="submit">Забрать 15 SCube</button></form></body></html>`);
+  res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Reward</title></head><body><h2>Reward landing (placeholder)</h2><p>После просмотра рекламы нажмите кнопку, чтобы получить награду.</p><form method="post" action="/api/user/${tgid}/claim-reward"><input type="hidden" name="amount" value="5"><button type="submit">Забрать 5 SCube</button></form></body></html>`);
 });
 
 // AdsGram callback endpoint - verify signature and credit reward automatically

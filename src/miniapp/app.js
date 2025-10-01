@@ -442,17 +442,6 @@
     const taskFeedback = document.getElementById('task-feedback');
     if (wrapper) wrapper.textContent = '';
     if (taskFeedback) taskFeedback.textContent = '';
-
-    function showTaskRewardBanner(amount){
-      try {
-        const root = document.createElement('div');
-        root.className = 'task-success-banner';
-        root.innerHTML = `<div class="result-banner win">+${amount} SCube — награда за выполнение задания</div>`;
-        document.body.appendChild(root);
-        setTimeout(()=>{ try{ document.body.removeChild(root); }catch(e){} }, 3000);
-      } catch(e){ console.warn('showTaskRewardBanner failed', e); }
-    }
-
     if (taskId && window.Adsgram) {
       const taskEl = document.createElement('adsgram-task');
       taskEl.setAttribute('data-block-id', taskId);
@@ -464,42 +453,70 @@
       taskEl.addEventListener('onError', onNotFound);
       taskEl.addEventListener('reward', async (event) => {
         const detail = event && event.detail;
-        // default reward for tasks increased to 15 SCube
-        const amount = (detail && (detail.reward || detail.amount)) || 15;
+        // expected reward for tasks (server-side will credit via AdsGram callback)
+        const EXPECTED_REWARD = 15;
         try {
-          const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount, source: 'task' }) });
-          const claimJson = await claimRes.json();
-          if (claimJson.ok) {
-            await loadUser();
-            leaderboardCache.tasks = null;
-            leaderboardCacheTime.tasks = 0;
-            if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
-              loadLeaderboard('tasks', true);
-            }
-            setTimeout(()=> animateScube(), 200);
-            // show prominent banner
-            showTaskRewardBanner(amount);
-          } else {
-            // show error feedback
-            showStoreFeedback(claimJson.message || 'Не удалось получить награду');
+          if (!tgid) return console.warn('No tgid for reward confirmation');
+          // show feedback
+          if (taskFeedback) taskFeedback.textContent = 'Награда: ожидается подтверждение...';
+
+          // fetch current scube as baseline
+          let beforeRes = await fetch(`${apiBase}/user/${tgid}`);
+          let beforeJson = beforeRes.ok ? await beforeRes.json() : null;
+          const beforeScube = beforeJson ? Number(beforeJson.scube||0) : null;
+
+          // Poll server for up to 20s to see if server-side callback credited the reward
+          const timeout = 20000;
+          const interval = 2000;
+          const start = Date.now();
+          let credited = false;
+          while (Date.now() - start < timeout) {
+            await new Promise(r=>setTimeout(r, interval));
+            try {
+              const check = await fetch(`${apiBase}/user/${tgid}`);
+              if (!check.ok) continue;
+              const js = await check.json();
+              const nowScube = Number(js.scube || 0);
+              if (beforeScube !== null && nowScube >= (beforeScube + EXPECTED_REWARD)) {
+                credited = true;
+                // update UI
+                scubeEl.textContent = nowScube;
+                if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
+                  leaderboardCache.tasks = null;
+                  leaderboardCacheTime.tasks = 0;
+                  loadLeaderboard('tasks', true);
+                }
+                // feedback and animation
+                if (taskFeedback) taskFeedback.textContent = `Задание выполнено — вы получили +${EXPECTED_REWARD} SCube`;
+                const banner = document.createElement('div');
+                banner.className = 'task-reward-banner success';
+                banner.textContent = `+${EXPECTED_REWARD} SCube — награда за задание!`;
+                document.body.appendChild(banner);
+                setTimeout(()=>{ if (banner && banner.parentNode) banner.parentNode.removeChild(banner); }, 3500);
+                setTimeout(()=> animateScube(), 200);
+                break;
+              }
+            } catch (e) { console.warn('poll error', e); }
           }
-        } catch (e) { console.warn('Failed to claim task reward', e); showStoreFeedback('Ошибка получения награды'); }
+          if (!credited) {
+            if (taskFeedback) taskFeedback.textContent = 'Награда не подтверждена — попробуйте позже.';
+            console.warn('Task reward not confirmed within timeout');
+          }
+        } catch (e) { console.warn('Failed to process task reward event', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при подтверждении награды'; }
       });
       if (wrapper) {
         wrapper.innerHTML = '';
         wrapper.appendChild(taskEl);
       }
-      // also reflect reward badge value if provided
-      try{ const badge = document.getElementById('task-reward-badge'); if (badge) badge.innerHTML = 'Награда: <strong>15 SCube</strong>'; } catch(e){}
     } else {
-      if (wrapper) wrapper.textContent = 'Пока за��аний нет';
+      if (wrapper) wrapper.textContent = 'Пока заданий нет';
     }
   } catch (e) { console.warn('Failed to setup task block', e); }
 
   async function loadUser(){
     if (!initialDataLoaded) showInitialLoading();
     if (!tgid) {
-      if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Отк��ыть игру").';
+      if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
       if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить данные.');
       return;
     }
@@ -641,7 +658,7 @@
     // require full expansion before proceeding
     if (!isExpanded) {
       try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-      return showStoreFeedback('Ра��верните MiniApp полностью �� повторите');
+      return showStoreFeedback('Разверните MiniApp полностью и повторите');
     }
     adBusy = true;
     try {
@@ -666,7 +683,7 @@
           if (claimJson.ok) {
             scubeEl.textContent = claimJson.scube;
             animateScube();
-            showStoreFeedback('Награда за��ислена');
+            showStoreFeedback('Награда зачислена');
           } else {
             showStoreFeedback(claimJson.message || 'Невозможно зачислить награду');
           }
@@ -1017,7 +1034,7 @@
         const r = room.state.result;
         const banner = document.createElement('div');
         if (r.type==='draw') { banner.className = 'result-banner draw'; banner.textContent = 'Ничья. Ставки возвращены'; }
-        else if (String(r.winner)===me) { banner.className = 'result-banner win'; banner.textContent = 'Победа! Вы получили банк'; }
+        else if (String(r.winner)===me) { banner.className = 'result-banner win'; banner.textContent = 'Победа! Вы получили банс'; }
         else { banner.className = 'result-banner lose'; banner.textContent = 'Поражение'; }
         wrap.appendChild(banner);
       }
