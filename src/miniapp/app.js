@@ -442,6 +442,17 @@
     const taskFeedback = document.getElementById('task-feedback');
     if (wrapper) wrapper.textContent = '';
     if (taskFeedback) taskFeedback.textContent = '';
+
+    function showTaskRewardBanner(amount){
+      try {
+        const root = document.createElement('div');
+        root.className = 'task-success-banner';
+        root.innerHTML = `<div class="result-banner win">+${amount} SCube — награда за выполнение задания</div>`;
+        document.body.appendChild(root);
+        setTimeout(()=>{ try{ document.body.removeChild(root); }catch(e){} }, 3000);
+      } catch(e){ console.warn('showTaskRewardBanner failed', e); }
+    }
+
     if (taskId && window.Adsgram) {
       const taskEl = document.createElement('adsgram-task');
       taskEl.setAttribute('data-block-id', taskId);
@@ -453,7 +464,8 @@
       taskEl.addEventListener('onError', onNotFound);
       taskEl.addEventListener('reward', async (event) => {
         const detail = event && event.detail;
-        const amount = (detail && (detail.reward || detail.amount)) || 5;
+        // default reward for tasks increased to 15 SCube
+        const amount = (detail && (detail.reward || detail.amount)) || 15;
         try {
           const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount, source: 'task' }) });
           const claimJson = await claimRes.json();
@@ -465,15 +477,22 @@
               loadLeaderboard('tasks', true);
             }
             setTimeout(()=> animateScube(), 200);
+            // show prominent banner
+            showTaskRewardBanner(amount);
+          } else {
+            // show error feedback
+            showStoreFeedback(claimJson.message || 'Не удалось получить награду');
           }
-        } catch (e) { console.warn('Failed to claim task reward', e); }
+        } catch (e) { console.warn('Failed to claim task reward', e); showStoreFeedback('Ошибка получения награды'); }
       });
       if (wrapper) {
         wrapper.innerHTML = '';
         wrapper.appendChild(taskEl);
       }
+      // also reflect reward badge value if provided
+      try{ const badge = document.getElementById('task-reward-badge'); if (badge) badge.innerHTML = 'Награда: <strong>15 SCube</strong>'; } catch(e){}
     } else {
-      if (wrapper) wrapper.textContent = 'Пока заданий нет';
+      if (wrapper) wrapper.textContent = 'Пока за��аний нет';
     }
   } catch (e) { console.warn('Failed to setup task block', e); }
 
@@ -622,7 +641,7 @@
     // require full expansion before proceeding
     if (!isExpanded) {
       try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-      return showStoreFeedback('Ра��верните MiniApp полностью и повторите');
+      return showStoreFeedback('Ра��верните MiniApp полностью �� повторите');
     }
     adBusy = true;
     try {
