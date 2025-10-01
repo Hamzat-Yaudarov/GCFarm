@@ -111,4 +111,14 @@
       }
     });
   }
+
+  // Hide loading overlay when app is ready
+  (function hideLoadingWhenReady(){
+    const loadingEl = document.getElementById('loading-screen');
+    function hide(){ if (!loadingEl) return; loadingEl.classList.add('loading-overlay--hidden'); }
+    // Prefer to hide after window load or small timeout fallback
+    if (document.readyState === 'complete') { hide(); }
+    else { window.addEventListener('load', hide); setTimeout(hide, 1200); }
+  })();
+
 })();
