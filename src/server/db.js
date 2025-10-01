@@ -65,7 +65,7 @@ async function setReferrer(tgid, referrer) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    if (Number(tgid) === Number(referrer)) { await client.query('ROLLBACK'); return { ok:false, message: 'Нельзя быть своим рефералом' }; }
+    if (Number(tgid) === Number(referrer)) { await client.query('ROLLBACK'); return { ok:false, message: 'Нельзя быть своим р��фералом' }; }
     // ensure users exist
     await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [tgid, `Player ${tgid}`]);
     await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
@@ -808,6 +808,51 @@ async function computeCompetitionCoins(competition_id) {
   } finally { client.release(); }
 }
 
+// get competition by id
+async function getCompetition(competition_id) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT * FROM competitions WHERE id=$1', [competition_id]);
+    return res.rows[0] || null;
+  } finally { client.release(); }
+}
+
+// get clan member by tgid (return clan_id and role)
+async function getClanMemberByTgid(tgid) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT clan_id, role, joined_at FROM clan_members WHERE tgid=$1', [tgid]);
+    return res.rows || [];
+  } finally { client.release(); }
+}
+
+// get competition buildings list with current owner info
+async function getCompetitionBuildings(competition_id) {
+  const client = await pool.connect();
+  try {
+    const rows = await client.query(`
+      SELECT cb.id, bt.name, bt.base_price_scube, bt.coin_yield_per_30min,
+        (SELECT owner_clan_id FROM competition_building_history h WHERE h.competition_building_id = cb.id ORDER BY h.start_at DESC LIMIT 1) as owner_clan_id
+      FROM competition_buildings cb
+      JOIN building_types bt ON bt.id = cb.building_type_id
+      WHERE cb.competition_id = $1
+      ORDER BY cb.id
+    `, [competition_id]);
+    return rows.rows;
+  } finally { client.release(); }
+}
+
+// get available clan coins (sum contributions minus spent) - exported helper
+async function getClanAvailableCoins(competition_id, clan_id) {
+  const client = await pool.connect();
+  try {
+    const contribs = await client.query('SELECT COALESCE(SUM(coins_amount),0) as coins FROM competition_contributions WHERE competition_id=$1 AND tgid IN (SELECT tgid FROM clan_members WHERE clan_id=$2)', [competition_id, clan_id]);
+    const spent = await client.query('SELECT COALESCE(SUM(price_paid_scube)*10,0) as spent_coins FROM building_purchases bp JOIN competition_buildings cb ON bp.competition_building_id = cb.id WHERE cb.competition_id=$1 AND bp.clan_id=$2', [competition_id, clan_id]);
+    const coins = Number(contribs.rows[0].coins || 0) - Number(spent.rows[0].spent_coins || 0);
+    return coins;
+  } finally { client.release(); }
+}
+
 async function finishCompetition(competition_id) {
   const client = await pool.connect();
   try {
@@ -861,4 +906,4 @@ async function finishCompetition(competition_id) {
   } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
-module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube, ensureAllSchemas, createClan, addMemberToClan, removeMemberFromClan, startCompetitionSearch, joinCompetitionSearch, contributeToCompetition, purchaseBuilding, computeCompetitionCoins, finishCompetition };
+module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube, ensureAllSchemas, createClan, addMemberToClan, removeMemberFromClan, startCompetitionSearch, joinCompetitionSearch, contributeToCompetition, purchaseBuilding, computeCompetitionCoins, finishCompetition, getCompetition, getClanMemberByTgid, getClanAvailableCoins };

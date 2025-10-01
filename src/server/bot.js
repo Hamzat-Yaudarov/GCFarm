@@ -350,7 +350,7 @@ app.post('/api/games/rooms/:id/join', async (req, res)=>{
     const room = gameRooms.get(id);
     if (!room) return res.status(404).json({ ok:false, message:'Room not found' });
     if (room.status!=='waiting') return res.json({ ok:false, message:'Комната уже занята' });
-    if (String(room.creator) === String(tgid)) return res.json({ ok:false, message:'Нельзя присоединиться к своей комнате' });
+    if (String(room.creator) === String(tgid)) return res.json({ ok:false, message:'Нельзя прис��единиться к своей комнате' });
     if (userActiveRoom.get(String(tgid))) return res.json({ ok:false, message:'У вас уже есть активная комната' });
     const reserve = await db.tryReserveScube(tgid, room.bet);
     if (!reserve.ok) return res.json(reserve);
@@ -687,6 +687,22 @@ app.post('/api/competitions/:id/contribute', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
 });
 
+// Get competition status and score
+app.get('/api/competitions/:id/status', async (req, res) => {
+  const competitionId = parseInt(req.params.id, 10);
+  if (!competitionId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const comp = await db.getCompetition(competitionId);
+    if (!comp) return res.status(404).json({ ok:false, message:'Not found' });
+    const coinsMap = await db.computeCompetitionCoins(competitionId);
+    // get available coins for each clan
+    const clanA = comp.clan_a; const clanB = comp.clan_b;
+    const availA = await db.getClanAvailableCoins(competitionId, clanA);
+    const availB = await db.getClanAvailableCoins(competitionId, clanB);
+    res.json({ ok:true, competition: comp, coins: { [clanA]: coinsMap[clanA]||0, [clanB]: coinsMap[clanB]||0 }, available: { [clanA]: availA, [clanB]: availB } });
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
 // Purchase building (leader/co_leader)
 app.post('/api/competitions/:id/buildings/:buildingId/purchase', async (req, res) => {
   const authTgid = getAuthTgid(req);
@@ -707,6 +723,16 @@ app.post('/api/competitions/:id/buildings/:buildingId/purchase', async (req, res
     if (!clan_id) return res.status(400).json({ ok:false, message:'clan_id required in body' });
     const result = await db.purchaseBuilding(competitionId, buildingId, clan_id, tgid);
     res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// List competition buildings
+app.get('/api/competitions/:id/buildings', async (req, res) => {
+  const competitionId = parseInt(req.params.id, 10);
+  if (!competitionId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const rows = await db.getCompetitionBuildings(competitionId);
+    res.json({ ok:true, buildings: rows });
   } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
 });
 

@@ -228,6 +228,14 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .store-fab .store-icon{display:block;font-size:16px;margin-bottom:4px}
 .store-fab .store-label{display:block;font-size:12px}
 
+/* Clan floating button placed below store-fab */
+.clan-fab{position:fixed;top:156px;right:14px;z-index:950;padding:10px;border-radius:8px;background:#133a2e;color:#fff;border:1px solid rgba(255,255,255,0.06);font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,0.35);transition:transform .12s ease,opacity .2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;width:76px;text-align:center;line-height:1.1}
+.clan-fab:hover{transform:translateY(-1px)}
+.clan-fab .clan-icon{display:block;font-size:16px;margin-bottom:4px}
+.clan-fab .clan-label{display:block;font-size:12px}
+
+@media (max-width:480px){.store-fab{top:96px}.clan-fab{top:168px}}
+
 /* Games */
 .games-container{width:100%;max-width:480px;background:linear-gradient(180deg,#071b2a,#05202b);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
 .game-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
