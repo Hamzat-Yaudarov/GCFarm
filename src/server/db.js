@@ -808,6 +808,67 @@ async function computeCompetitionCoins(competition_id) {
   } finally { client.release(); }
 }
 
+// get competition basic
+async function getCompetition(competition_id) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT * FROM competitions WHERE id=$1', [competition_id]);
+    return res.rows[0] || null;
+  } finally { client.release(); }
+}
+
+// get clan memberships for a tgid
+async function getClanMemberByTgid(tgid) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT clan_id, role, joined_at FROM clan_members WHERE tgid=$1', [tgid]);
+    return res.rows;
+  } finally { client.release(); }
+}
+
+// get competition map: buildings + current owner
+async function getCompetitionMap(competition_id) {
+  const client = await pool.connect();
+  try {
+    const rows = await client.query(`
+      SELECT cb.id as id, bt.id as type_id, bt.name as type_name, bt.base_price_scube, bt.coin_yield_per_30min,
+        (SELECT owner_clan_id FROM competition_building_history h WHERE h.competition_building_id = cb.id ORDER BY h.start_at DESC LIMIT 1) as owner_clan_id
+      FROM competition_buildings cb
+      JOIN building_types bt ON bt.id = cb.building_type_id
+      WHERE cb.competition_id = $1
+      ORDER BY cb.id ASC
+    `, [competition_id]);
+    return rows.rows;
+  } finally { client.release(); }
+}
+
+// Run payout tick: for each active competition, for each building, credit a payout record for current owner
+async function runPayoutTick() {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const now = new Date();
+    const comps = await client.query("SELECT * FROM competitions WHERE status='active' AND start_at <= $1 AND end_at >= $1", [now]);
+    for (const comp of comps.rows) {
+      const bres = await client.query(`
+        SELECT cb.id as cbid, bt.coin_yield_per_30min,
+          (SELECT owner_clan_id FROM competition_building_history h WHERE h.competition_building_id = cb.id ORDER BY h.start_at DESC LIMIT 1) as owner_clan_id
+        FROM competition_buildings cb JOIN building_types bt ON bt.id = cb.building_type_id
+        WHERE cb.competition_id = $1
+      `, [comp.id]);
+      for (const b of bres.rows) {
+        const owner = b.owner_clan_id;
+        if (!owner) continue;
+        const coins = Number(b.coin_yield_per_30min || 0);
+        await client.query('INSERT INTO building_payouts (competition_building_id, paid_to_clan, payout_time, coins_paid) VALUES ($1,$2,$3,$4)', [b.cbid, owner, now, coins]);
+        await client.query('INSERT INTO competition_logs (competition_id, event_type, data) VALUES ($1,$2,$3)', [comp.id, 'building_payout', JSON.stringify({ building_id: b.cbid, clan_id: owner, coins })]);
+      }
+    }
+    await client.query('COMMIT');
+    return { ok:true, processed: comps.rows.length };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
 async function finishCompetition(competition_id) {
   const client = await pool.connect();
   try {
@@ -861,4 +922,4 @@ async function finishCompetition(competition_id) {
   } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
-module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube, ensureAllSchemas, createClan, addMemberToClan, removeMemberFromClan, startCompetitionSearch, joinCompetitionSearch, contributeToCompetition, purchaseBuilding, computeCompetitionCoins, finishCompetition };
+module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube, ensureAllSchemas, createClan, addMemberToClan, removeMemberFromClan, startCompetitionSearch, joinCompetitionSearch, contributeToCompetition, purchaseBuilding, computeCompetitionCoins, finishCompetition, getCompetition, getClanMemberByTgid, getCompetitionMap, runPayoutTick };

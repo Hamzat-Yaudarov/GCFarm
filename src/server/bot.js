@@ -687,6 +687,26 @@ app.post('/api/competitions/:id/contribute', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
 });
 
+// Get clans of current user
+app.get('/api/clans/me', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const tgid = authTgid || (req.query && req.query.tgid);
+  if (!tgid) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    // fetch clan memberships
+    const client = await (async ()=>{ const pool = require('./db')._pool || null; return null; })().catch(()=>null);
+    // fallback: use db.getClanMemberByTgid
+    const rows = await db.getClanMemberByTgid(Number(tgid));
+    // fetch clan details for each
+    const clans = [];
+    for (const r of rows) {
+      const clan = await (async ()=>{ try { return await db.getClan(r.clan_id); } catch(e){ return null; } })();
+      if (clan) clans.push(Object.assign({}, clan, { role: r.role }));
+    }
+    res.json({ ok:true, clans });
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
 // Purchase building (leader/co_leader)
 app.post('/api/competitions/:id/buildings/:buildingId/purchase', async (req, res) => {
   const authTgid = getAuthTgid(req);
@@ -721,6 +741,48 @@ app.post('/api/competitions/:id/finish', async (req, res) => {
   try {
     const result = await db.finishCompetition(competitionId);
     res.json(result);
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Get competition map (buildings + owners)
+app.get('/api/competitions/:id/map', async (req, res) => {
+  const competitionId = parseInt(req.params.id, 10);
+  if (!competitionId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const map = await db.getCompetitionMap(competitionId);
+    res.json({ ok:true, map });
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// Get competition status (coins totals and contributions summary)
+app.get('/api/competitions/:id/status', async (req, res) => {
+  const competitionId = parseInt(req.params.id, 10);
+  if (!competitionId) return res.status(400).json({ ok:false, message:'Invalid params' });
+  try {
+    const comp = await db.getCompetition(competitionId);
+    if (!comp) return res.status(404).json({ ok:false, message:'Not found' });
+    const coinsMap = await db.computeCompetitionCoins(competitionId);
+    // also include payouts so far
+    const payouts = await (async ()=>{
+      const client = await db._getClient ? db._getClient() : null; // fallback: not exposed
+      try {
+        // reuse db query directly
+        const q = await (async ()=>{ const pg = require('pg'); return null; })();
+        return [];
+      } catch(e){ return []; }
+    })();
+    res.json({ ok:true, competition: comp, coins: coinsMap || {}, payouts: [] });
+  } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+// admin endpoint to trigger payout tick manually
+app.post('/api/admin/payout-tick', async (req, res) => {
+  const authTgid = getAuthTgid(req);
+  const adminId = process.env.ADMIN_ID;
+  if (!adminId || String(authTgid) !== String(adminId)) return res.status(403).json({ ok:false, message:'Forbidden' });
+  try {
+    const result = await db.runPayoutTick();
+    res.json({ ok:true, result });
   } catch (err) { console.error(err); res.status(500).json({ ok:false, message:'Internal error' }); }
 });
 
@@ -789,6 +851,19 @@ app.post('/adsgram/callback', async (req, res) => {
 
     app.listen(PORT, async () => {
       console.log(`Server listening on ${PORT}`);
+      // start payout tick scheduler (30 minutes)
+      try {
+        const intervalMs = 30 * 60 * 1000; // 30 minutes
+        if (!global.__payoutTickInterval) {
+          global.__payoutTickInterval = setInterval(async ()=>{
+            try {
+              console.log('Running scheduled payout tick');
+              await db.runPayoutTick();
+            } catch (e) { console.warn('Scheduled payout tick error', e); }
+          }, intervalMs);
+        }
+      } catch(e){ console.warn('Failed to start payout scheduler', e); }
+
       if (process.env.NODE_ENV === 'production') {
         try {
           await bot.telegram.setWebhook(`${BASE_URL}/telegram-webhook`);

@@ -237,7 +237,7 @@
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый кли�� приближает к топу!';
     }
   }
 
@@ -517,7 +517,7 @@
     if (!initialDataLoaded) showInitialLoading();
     if (!tgid) {
       if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
-      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы заг��узить данные.');
+      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить данные.');
       return;
     }
     try {
@@ -527,7 +527,7 @@
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не у��алось загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -895,7 +895,7 @@
     if (!from || !to || from === to || amountVal <= 0) return showStoreFeedback('Неверные параметры обмена');
     const confirmMsg = `Обменять ${amountVal} ${from.toUpperCase()} → ${to.toUpperCase()}?`;
     const ok = await showConfirm(confirmMsg);
-    if (!ok) return showStoreFeedback('Обмен отменён');
+    if (!ok) return showStoreFeedback('��бмен отменён');
     try {
       const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ from, to, amount: amountVal }) });
       const json = await res.json();
@@ -1168,6 +1168,81 @@
   // when entering games tab, load rooms
   const gamesTabBtn = Array.from(tabs).find(b=>b.dataset.tab==='games');
   if (gamesTabBtn){ gamesTabBtn.addEventListener('click', ()=>{ if (!currentRoomId) loadRooms(); }); }
+
+  // Competitions UI
+  const competitionsTabBtn = Array.from(tabs).find(b=>b.dataset.tab==='competitions');
+  const startSearchBtn = document.getElementById('start-search');
+  const joinSearchBtn = document.getElementById('join-search');
+  const competitionMapEl = document.getElementById('competition-map');
+  const competitionInfoEl = document.getElementById('competition-info');
+
+  async function fetchMyClans() {
+    try {
+      const res = await fetch('/api/clans/me');
+      if (!res.ok) return null;
+      const json = await res.json();
+      return json.clans || [];
+    } catch (e) { return null; }
+  }
+
+  async function startSearch() {
+    const clans = await fetchMyClans();
+    if (!clans || clans.length === 0) return showStoreFeedback('Вы не в клане');
+    const clan = clans[0];
+    const res = await fetch('/api/competitions/start-search', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ clan_id: clan.id, tgid }) });
+    const j = await res.json();
+    if (!j.ok) return showStoreFeedback(j.message || 'Не удалось начать поиск');
+    showStoreFeedback('Поиск начат');
+    competitionInfoEl.textContent = `Ожидаем оппонента (competition id: ${j.competition.id})`;
+  }
+  async function joinSearch() {
+    const clans = await fetchMyClans();
+    if (!clans || clans.length === 0) return showStoreFeedback('Вы не в клане');
+    const clan = clans[0];
+    const res = await fetch('/api/competitions/join-search', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ clan_id: clan.id, tgid }) });
+    const j = await res.json();
+    if (!j.ok) return showStoreFeedback(j.message || 'Не удалось присоединиться');
+    showStoreFeedback('Вы присоединились!');
+    // if competition created, load map
+    if (j.competition_id) loadCompetitionMap(j.competition_id);
+  }
+
+  async function loadCompetitionMap(competitionId) {
+    try {
+      const res = await fetch(`/api/competitions/${competitionId}/map`);
+      if (!res.ok) return;
+      const j = await res.json();
+      if (!j.ok) return;
+      renderCompetitionMap(competitionId, j.map || []);
+    } catch (e) { console.warn('loadCompetitionMap failed', e); }
+  }
+
+  function renderCompetitionMap(competitionId, tiles) {
+    if (!competitionMapEl) return;
+    competitionMapEl.innerHTML = '';
+    tiles.forEach(t=>{
+      const el = document.createElement('div'); el.className='competition-tile';
+      el.innerHTML = `<div class="tile-title">${t.type_name}</div><div class="tile-price">Цена: ${t.base_price_scube} SCube</div><div class="owner">Владелец: ${t.owner_clan_id || '—'}</div>`;
+      const buy = document.createElement('button'); buy.className='upgrade-btn'; buy.textContent = 'Купить/Захватить';
+      buy.addEventListener('click', async ()=>{
+        if (!confirm(`Купить ${t.type_name} за ${t.base_price_scube} SCube (если у соперника — цена x3)?`)) return;
+        const clans = await fetchMyClans(); if (!clans || clans.length===0) return showStoreFeedback('Вы не в клане');
+        const clan = clans[0];
+        const res = await fetch(`/api/competitions/${competitionId}/buildings/${t.id}/purchase`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ clan_id: clan.id, tgid }) });
+        const j = await res.json();
+        if (!j.ok) return showStoreFeedback(j.message || 'Ошибка покупки');
+        showStoreFeedback('Здание куплено');
+        // reload map
+        setTimeout(()=> loadCompetitionMap(competitionId), 800);
+      });
+      el.appendChild(buy);
+      competitionMapEl.appendChild(el);
+    });
+  }
+
+  if (competitionsTabBtn) competitionsTabBtn.addEventListener('click', ()=>{ /* nothing special yet */ });
+  if (startSearchBtn) startSearchBtn.addEventListener('click', startSearch);
+  if (joinSearchBtn) joinSearchBtn.addEventListener('click', joinSearch);
 
   // Periodically refresh user data
   setInterval(loadUser, 5000);
