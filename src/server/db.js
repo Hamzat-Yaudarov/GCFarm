@@ -314,7 +314,7 @@ async function buyUpgrade(tgid, type) {
     } else if (type === 'auto_energy') {
       const cost = 2000;
       if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
-      if (auto_energy) { await client.query('ROLLBACK'); return { ok:false, message: 'Уже куплено автоэнергия' }; }
+      if (auto_energy) { await client.query('ROLLBACK'); return { ok:false, message: 'Уже куплено ��втоэнергия' }; }
       scube -= cost;
       auto_energy = true;
       await client.query('UPDATE users SET scube=$1, auto_energy=$2 WHERE tgid=$3', [scube, auto_energy, tgid]);
@@ -906,4 +906,68 @@ async function finishCompetition(competition_id) {
   } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
-module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube, ensureAllSchemas, createClan, addMemberToClan, removeMemberFromClan, startCompetitionSearch, joinCompetitionSearch, contributeToCompetition, purchaseBuilding, computeCompetitionCoins, finishCompetition, getCompetition, getClanMemberByTgid, getClanAvailableCoins };
+async function processPeriodicPayouts() {
+  const client = await pool.connect();
+  try {
+    const now = new Date();
+    const comps = await client.query("SELECT id, start_at, end_at FROM competitions WHERE status = 'active'");
+    for (const compRow of comps.rows) {
+      const compId = compRow.id;
+      try {
+        await client.query('BEGIN');
+        const comp = (await client.query('SELECT start_at, end_at FROM competitions WHERE id=$1 FOR UPDATE', [compId])).rows[0];
+        const compStart = comp.start_at ? new Date(comp.start_at) : new Date(0);
+        const compEnd = comp.end_at ? new Date(comp.end_at) : null;
+        const buildings = (await client.query('SELECT cb.id, bt.coin_yield_per_30min FROM competition_buildings cb JOIN building_types bt ON bt.id=cb.building_type_id WHERE cb.competition_id=$1', [compId])).rows;
+        for (const b of buildings) {
+          const cbId = b.id;
+          const yieldPer = Number(b.coin_yield_per_30min || 0);
+          const lastRes = await client.query('SELECT MAX(payout_time) as last FROM building_payouts WHERE competition_building_id=$1', [cbId]);
+          const lastP = lastRes.rows[0].last;
+          const lastPayoutTime = lastP ? new Date(lastP) : compStart;
+
+          const histories = (await client.query('SELECT owner_clan_id, start_at, end_at FROM competition_building_history WHERE competition_building_id=$1 AND owner_clan_id IS NOT NULL ORDER BY start_at ASC', [cbId])).rows;
+          for (const h of histories) {
+            const owner = h.owner_clan_id;
+            const histStart = new Date(h.start_at);
+            const histEnd = h.end_at ? new Date(h.end_at) : (compEnd || now);
+            const start = histStart < compStart ? compStart : histStart;
+            const from = new Date(Math.max(start.getTime(), lastPayoutTime.getTime()));
+            const to = new Date(Math.min(histEnd.getTime(), (compEnd ? compEnd.getTime() : now.getTime())));
+            if (to <= from) continue;
+            const seconds = Math.floor((to.getTime() - from.getTime())/1000);
+            const intervals = Math.floor(seconds / (30*60));
+            if (intervals <= 0) continue;
+            const coins = intervals * yieldPer;
+            const paid_until = new Date(from.getTime() + intervals*(30*60*1000));
+            await client.query('INSERT INTO building_payouts (competition_building_id, paid_to_clan, payout_time, coins_paid) VALUES ($1,$2,$3,$4)', [cbId, owner, paid_until, coins]);
+            await client.query('INSERT INTO competition_logs (competition_id, event_type, data) VALUES ($1,$2,$3)', [compId, 'building_payout', JSON.stringify({ competition_building_id: cbId, paid_to_clan: owner, payout_time: paid_until, coins_paid: coins })]);
+            await client.query('INSERT INTO transactions (tgid, clan_id, type, amount_scube, meta) VALUES (NULL,$1,$2,NULL,$3)', [owner, 'building_payout', JSON.stringify({ competition_id: compId, competition_building_id: cbId, coins_paid: coins, payout_time: paid_until })]);
+          }
+        }
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        console.warn('Error processing payouts for competition', compId, e);
+      }
+    }
+  } finally { client.release(); }
+}
+
+async function processDueFinishes() {
+  try {
+    const now = new Date();
+    const res = await pool.query("SELECT id FROM competitions WHERE status = 'active' AND end_at IS NOT NULL AND end_at <= $1", [now]);
+    for (const r of res.rows) {
+      try {
+        await finishCompetition(r.id);
+      } catch (e) {
+        console.error('Error finishing competition', r.id, e);
+      }
+    }
+  } catch (e) {
+    console.error('processDueFinishes error', e);
+  }
+}
+
+module.exports = { init, ensureUser, getOrCreateUser, handleClick, exchange, buyUpgrade, claimReward, refillToFull, autoTick, setReferrer, getLeaderboard, tryReserveScube, creditScube, ensureAllSchemas, createClan, addMemberToClan, removeMemberFromClan, startCompetitionSearch, joinCompetitionSearch, contributeToCompetition, purchaseBuilding, computeCompetitionCoins, finishCompetition, getCompetition, getClanMemberByTgid, getClanAvailableCoins, processPeriodicPayouts, processDueFinishes };

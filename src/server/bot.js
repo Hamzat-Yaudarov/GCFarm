@@ -351,7 +351,7 @@ app.post('/api/games/rooms/:id/join', async (req, res)=>{
     if (!room) return res.status(404).json({ ok:false, message:'Room not found' });
     if (room.status!=='waiting') return res.json({ ok:false, message:'Комната уже занята' });
     if (String(room.creator) === String(tgid)) return res.json({ ok:false, message:'Нельзя прис��единиться к своей комнате' });
-    if (userActiveRoom.get(String(tgid))) return res.json({ ok:false, message:'У вас уже есть активная комната' });
+    if (userActiveRoom.get(String(tgid))) return res.json({ ok:false, message:'У вас уже есть ак��ивная комната' });
     const reserve = await db.tryReserveScube(tgid, room.bet);
     if (!reserve.ok) return res.json(reserve);
     room.opponent = tgid;
@@ -828,6 +828,20 @@ app.post('/adsgram/callback', async (req, res) => {
         // Local/dev - polling
         bot.launch();
       }
+
+      // Start periodic background tasks: building payouts and competition finishes
+      const PERIODIC_INTERVAL_MS = 60 * 1000; // 1 minute
+      async function runPeriodicTasks(){
+        try {
+          await db.processPeriodicPayouts();
+          await db.processDueFinishes();
+        } catch (e) {
+          console.error('Periodic tasks error', e);
+        }
+      }
+      // run immediately and then on interval
+      runPeriodicTasks().catch(e=>console.error('Initial periodic tasks error', e));
+      setInterval(runPeriodicTasks, PERIODIC_INTERVAL_MS);
     });
   } catch (err) {
     console.error('Failed to start server', err);
