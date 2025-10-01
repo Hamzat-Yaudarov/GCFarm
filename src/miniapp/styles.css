@@ -230,13 +230,6 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 
 /* Games */
 .games-container{width:100%;max-width:480px;background:linear-gradient(180deg,#071b2a,#05202b);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
-
-/* Competitions */
-.competitions-container{width:100%;max-width:520px;background:linear-gradient(180deg,#071b2a,#05202b);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);display:flex;flex-direction:column;gap:12px}
-.competition-map{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:8px;background:linear-gradient(180deg,#0f2a3b,#05202b);border-radius:10px}
-.competition-tile{padding:8px;border-radius:8px;background:linear-gradient(180deg,#092733,#05202b);border:1px solid rgba(255,255,255,0.03);text-align:center;color:#cfeaf9}
-.competition-tile .owner{font-size:12px;color:#9fb6c9;margin-top:6px}
-.competition-actions{display:flex;gap:8px;align-items:center}
 .game-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
 .game-card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:14px;border-radius:12px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.04);color:#fff;font-weight:800;cursor:pointer;transition:transform .12s ease,box-shadow .2s ease}
 .game-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.35)}
