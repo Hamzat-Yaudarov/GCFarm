@@ -69,23 +69,13 @@
           </div>
 
           <div class="ad-block">
-            <p class="ad-caption">🎬 Усиль прогресс, смотри рекламу и восполняй энергию мгновенно.</p>
+            <p class="ad-caption">🎬 Усиль прогресс, смот��и рекламу и восполняй энергию мгновенно.</p>
             <div class="ad-buttons">
               <button id="watch-ad" class="watch-ad">🎥 Смотреть рекламу (+5 SCube)</button>
               <button id="refill-btn" class="watch-ad secondary">⚡ Восполнить энергию полностью</button>
             </div>
           </div>
 
-          <div class="clan-hub">
-            <h3>👥 Клан</h3>
-            <div id="clan-controls">
-              <input id="clan-name-input" placeholder="Название клана" />
-              <button id="create-clan-btn" class="upgrade-btn">Создать клан</button>
-              <input id="clan-join-id" placeholder="ID клана для вступления" />
-              <button id="join-clan-btn" class="upgrade-btn">Вступить в клан</button>
-            </div>
-            <div id="clan-info"></div>
-          </div>
 
           <div class="competition-lobby">
             <h3>🏁 Соревнования кланов</h3>
@@ -109,6 +99,19 @@
 
       <!-- other sections unchanged... -->
 
+      <section class="tab-content" id="clan" style="display:none;">
+        <div class="clan-hub">
+          <h3>👥 Клан</h3>
+          <div id="clan-controls">
+            <input id="clan-name-input" placeholder="Название клана" />
+            <button id="create-clan-btn" class="upgrade-btn">Создать клан</button>
+            <input id="clan-join-id" placeholder="ID клана для вступления" />
+            <button id="join-clan-btn" class="upgrade-btn">Вступить в клан</button>
+          </div>
+          <div id="clan-info"></div>
+        </div>
+      </section>
+
     </main>
 
     <nav class="tabs-bottom">
@@ -117,6 +120,7 @@
       <button class="tab-button" data-tab="tasks">🧾 Задания</button>
       <button class="tab-button" data-tab="leaderboard">🏆 Рейтинг</button>
       <button class="tab-button" data-tab="referrals">🤝 Рефералы</button>
+      <button class="tab-button" data-tab="clan">👑 Клан</button>
     </nav>
 
     <button id="store-fab" class="store-fab"><span class="store-icon">🛒</span><span class="store-label">Магазин</span></button>

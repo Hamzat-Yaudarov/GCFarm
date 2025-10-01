@@ -30,7 +30,7 @@
     if(!id) return alert('Укажите ID клана');
     const res = await fetch(apiBase + '/clans/' + id + '/join', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({}) });
     const json = await res.json();
-    if(!json.ok) return alert(json.message || 'Ошибка вступления в клан');
+    if(!json.ok) return alert(json.message || 'О��ибка вступления в клан');
     clanInfo.textContent = `Вы вступили в клан ${id}`;
   }
 
@@ -99,16 +99,28 @@
   if (startSearchBtn) startSearchBtn.addEventListener('click', startSearch);
   if (joinSearchBtn) joinSearchBtn.addEventListener('click', joinSearch);
 
-  // clan floating button opens clan hub
+  // Tab switching logic
+  const tabButtons = Array.from(document.querySelectorAll('.tab-button'));
+  const tabContents = Array.from(document.querySelectorAll('.tab-content'));
+  function switchTab(tabName){
+    tabButtons.forEach(b=>{ if (b.dataset && b.dataset.tab===tabName) b.classList.add('active'); else b.classList.remove('active'); });
+    tabContents.forEach(c=>{ if (c.id===tabName) c.style.display = ''; else c.style.display = 'none'; });
+    // hide competition map when switching away
+    if (tabName !== 'home'){ if (compMap) compMap.style.display = 'none'; }
+    // small visual focus for clan hub
+    if (tabName === 'clan'){
+      const hub = document.querySelector('.clan-hub');
+      if (hub){ hub.style.boxShadow = '0 6px 24px rgba(0,0,0,0.35), 0 0 0 4px rgba(34,139,230,0.08)'; setTimeout(()=>{ hub.style.boxShadow = ''; },2200); }
+    }
+  }
+  // bind tab buttons
+  tabButtons.forEach(btn=> btn.addEventListener('click', ()=>{ const t = btn.dataset.tab; if (t) switchTab(t); }));
+
+  // clan floating button opens clan tab
   const clanFab = document.getElementById('clan-fab');
-  const clanHub = document.querySelector('.clan-hub');
   if (clanFab) {
     clanFab.addEventListener('click', ()=>{
-      if (clanHub) {
-        clanHub.scrollIntoView({behavior:'smooth', block:'center'});
-        clanHub.style.boxShadow = '0 6px 24px rgba(0,0,0,0.35), 0 0 0 4px rgba(34,139,230,0.08)';
-        setTimeout(()=>{ clanHub.style.boxShadow = ''; }, 2200);
-      }
+      switchTab('clan');
     });
   }
 
