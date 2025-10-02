@@ -236,7 +236,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   // throttle interstitials to avoid repeated errors/messages
   let lastInterstitialAt = 0;
   let interstitialShownCount = 0;
-  const INTERSTITIAL_INTERVAL = 5 * 60 * 1000;
+  const INTERSTITIAL_INTERVAL = 3 * 60 * 1000;
   const INTERSTITIAL_MAX_PER_SESSION = 3;
 
   tabs.forEach(btn=>{
@@ -310,7 +310,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и заб��рай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
     }
   }
 
@@ -635,7 +635,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
             } catch (e) { console.warn('poll error', e); }
           }
           if (!credited) {
-            if (taskFeedback) taskFeedback.textContent = `Награда не подтверждена — попробуйте позже (ожидали +${expectedReward} SCube).`;
+            if (taskFeedback) taskFeedback.textContent = `Наг��ада не подтверждена — попробуйте позже (ожидали +${expectedReward} SCube).`;
             console.warn('Task reward not confirmed within timeout');
           }
         } catch (e) { console.warn('Failed to process task reward event', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при подтверждении награды'; }
@@ -920,7 +920,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         // fallback: direct refill (only for testing) — in production prefer ad-based refill
         const res = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
         const json = await res.json();
-        if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
+        if (!json.ok) return showStoreFeedback(json.message || 'Ош��бка восполнения');
         energyEl.textContent = json.energy;
         showStoreFeedback('Энергия восполнена до максимума (��ез рекламы)');
       }
@@ -1206,7 +1206,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
     }
     const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отм��нить' : 'Сдаться');
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
     leave.addEventListener('click', leaveRoom);
 
     wrap.append(title, notice, timer, controls, result, leave);

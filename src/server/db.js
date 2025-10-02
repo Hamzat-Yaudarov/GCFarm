@@ -350,6 +350,11 @@ async function claimReward(tgid, amount, source, options = {}) {
       return { ok:false, message: 'Invalid reward amount', scube: previousScube };
     }
 
+    if (source === 'task' && !contextId && !force) {
+      await client.query('ROLLBACK');
+      return { ok:false, message: 'Отсутствует подтверждение задачи', scube: previousScube };
+    }
+
     if (!force && user.last_reward_at) {
       const diff = now - new Date(user.last_reward_at);
       if (diff < 10000) {
