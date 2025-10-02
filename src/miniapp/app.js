@@ -293,7 +293,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   function formatViewerValue(mode, value) {
     const safe = Number(value) || 0;
     if (mode === 'tasks') {
-      const label = pluralizeRu(safe, ['зада��а', 'задачи', 'задач']);
+      const label = pluralizeRu(safe, ['задача', 'задачи', 'задач']);
       return `${safe} ${label}`;
     }
     return `${safe} SCube`;
@@ -321,7 +321,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!viewer) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чт��бы добыть больше SCube.';
+      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -330,11 +330,11 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     leaderSelfRank.textContent = viewer.rank ? `#${viewer.rank}` : '—';
     leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
     if (viewer.rank <= 3) {
-      leaderSelfNote.textContent = 'Ты на ��ьедестале! Держи темп. 🌟';
+      leaderSelfNote.textContent = 'Ты на пьедестале! Держи темп. 🌟';
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и заб��рай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
     }
   }
 
@@ -365,7 +365,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'leader-name';
-      nameSpan.textContent = entry.name || `Иг��ок ${entry.tgid}`;
+      nameSpan.textContent = entry.name || `Игрок ${entry.tgid}`;
 
       const valueSpan = document.createElement('span');
       valueSpan.className = 'leader-value';
@@ -434,7 +434,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
     } catch (err) {
       if (leaderboardRequestId === requestId) {
-        showLeaderboardMessage('Не удалось загр��зить рейтинг');
+        showLeaderboardMessage('Не удалось загрузить рейтинг');
         updateLeaderboardInsights(null, mode);
       }
       console.warn('leaderboard fetch failed', err);
@@ -725,7 +725,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           }
         }
         if (!credited) {
-          setTaskFeedback(`Награда не подтвержд��на — попробуйте позже (ожидали +${expectedReward} SCube).`, 'warning');
+          setTaskFeedback(`Награда не подтверждена — попробуйте позже (ожидали +${expectedReward} SCube).`, 'warning');
           console.warn('Task reward not confirmed within timeout');
         }
       } catch (e) {
@@ -766,7 +766,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const hint = document.createElement('p');
     hint.className = 'adsgram-task-hint';
-    hint.textContent = 'Нажмите «GO», выполните шаги рекламодателя, зате�� заберите награду.';
+    hint.textContent = 'Нажмите «GO», выполните шаги рекламодателя, затем заберите награду.';
 
     const taskEl = document.createElement('adsgram-task');
     taskEl.className = 'adsgram-task-element';
@@ -876,7 +876,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не у��алось загрузить данные. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -961,7 +961,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       } catch (e) { console.warn('referral ui update failed', e); }
     } catch (err) {
       console.error('loadUser error', err);
-      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. По��робуйте позже.';
+      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
       if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повторяем…');
     }
   }
@@ -1026,7 +1026,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const result = await controller.show();
         console.log('reward show', result);
         if (result && result.done && !result.error) {
-          // Ad watched successfully ����� request server to credit reward.
+          // Ad watched successfully  request server to credit reward.
           // Try immediate claim; if server prefers callback-based crediting, poll until confirmed.
           const EXPECTED_REWARD = 5;
           try {
@@ -1117,7 +1117,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                 energyEl.textContent = jsonRefill.energy;
                 showStoreFeedback('Энергия восполнена');
               } else {
-                showStoreFeedback(jsonRefill.message || 'Ошибка восполнения эне��гии');
+                showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
               }
             } else {
               showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
@@ -1133,9 +1133,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         // fallback: direct refill (only for testing) — in production prefer ad-based refill
         const res = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
         const json = await res.json();
-        if (!json.ok) return showStoreFeedback(json.message || 'Ош��бка восполнения');
+        if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
         energyEl.textContent = json.energy;
-        showStoreFeedback('Энергия восполнена до максимума (��ез рекламы)');
+        showStoreFeedback('Энергия восполнена до максимума (без рекламы)');
       }
       } finally {
         refillBusy = false;
@@ -1186,7 +1186,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за р��ссчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
@@ -1683,7 +1683,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const result = document.createElement('div'); result.className='rps-result';
     if (!room.opponent) result.textContent = 'Ожидание соперника...';
     else if (!myMove) result.textContent = 'Сделайте ход';
-    else if (!oppMove) result.textContent = 'Ожидаем х��д соперника';
+    else if (!oppMove) result.textContent = 'Ожидаем ход соперника';
     if (finished){
       if (room.state && room.state.result){
         const r = room.state.result;
@@ -1713,7 +1713,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const wrap = document.createElement('div');
     const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
-    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение ��� поражение.';
+    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение - поражение.';
     const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
     if (room.deadlineAt && room.status === 'active') {
       const update = ()=>{

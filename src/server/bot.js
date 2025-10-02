@@ -12,6 +12,8 @@ const BOT_WEBAPP_PATH = process.env.BOT_WEBAPP_PATH || '';
 const PORT = process.env.PORT || 3000;
 const ADSGRAM_SECRET = process.env.ADSGRAM_SECRET || 'c6a7a8b7cd30418d9844aebc37b6aaf2';
 const ADSGRAM_INTERSTITIAL_ID = process.env.ADSGRAM_INTERSTITIAL_ID || 'int-15441';
+const WITHDRAW_ADMIN_CHAT = process.env.WITHDRAW_ADMIN_CHAT || '@zazarara2';
+const WITHDRAW_SUCCESS_CHAT = process.env.WITHDRAW_SUCCESS_CHAT || '@zazarara3';
 
 if (!TG_BOT_TOKEN) {
   console.error('TG_BOT_TOKEN is not set');
@@ -145,6 +147,10 @@ function verifyAdsgramSignature(signatureHeader, expectedHex){
   }
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 function resolveAdsgramReward(payload){
   const data = payload || {};
   const rawTags = Array.isArray(data.tags) ? data.tags.map(tag => String(tag).toLowerCase()) : [];
@@ -217,6 +223,80 @@ function extractAdsgramContextId(payload){
 }
 
 const bot = new Telegraf(TG_BOT_TOKEN);
+
+async function fetchTelegramProfile(tgid){
+  try {
+    if (!tgid) return null;
+    const chat = await bot.telegram.getChat(tgid);
+    if (!chat) return null;
+    const first = chat.first_name || '';
+    const last = chat.last_name || '';
+    const fullName = `${first} ${last}`.trim();
+    const displayName = fullName || chat.username || null;
+    return {
+      username: chat.username || null,
+      fullName: fullName || null,
+      displayName
+    };
+  } catch (err) {
+    console.warn('Failed to fetch Telegram profile', err);
+    return null;
+  }
+}
+
+async function notifyAdminWithdrawal(withdrawal, user, profileMeta){
+  if (!withdrawal) return;
+  try {
+    const methodConfig = db.WITHDRAWAL_METHODS && db.WITHDRAWAL_METHODS[withdrawal.method];
+    const fields = methodConfig && Array.isArray(methodConfig.fields) ? methodConfig.fields : [];
+    const fieldLabelMap = new Map(fields.map((field) => [field.id, field.label]));
+    const displayName = (profileMeta && profileMeta.displayName) || user.name || `Игрок ${withdrawal.tgid}`;
+    const usernamePart = profileMeta && profileMeta.username ? `, @${profileMeta.username}` : '';
+    const lines = [
+      `Заявка #${withdrawal.id} на вывод средств`,
+      '',
+      `Игрок: ${displayName} (ID: ${withdrawal.tgid}${usernamePart})`
+    ];
+    if (profileMeta && profileMeta.fullName && profileMeta.fullName !== displayName) {
+      lines.push(`Имя в Telegram: ${profileMeta.fullName}`);
+    }
+    lines.push(`Остаток после списания: ${user.scube} SCube`);
+    lines.push(`GCube: ${user.gcube} • Stars: ${user.stars}`);
+    lines.push('');
+    lines.push(`Способ: ${methodConfig ? methodConfig.label : withdrawal.method}`);
+    lines.push(`Вариант: ${withdrawal.payoutLabel}`);
+    lines.push(`Стоимость: ${withdrawal.baseCost} SCube`);
+    lines.push(`Комиссия: ${withdrawal.commission} SCube`);
+    lines.push(`Списано всего: ${withdrawal.totalCost} SCube`);
+    if (withdrawal.details && Object.keys(withdrawal.details).length) {
+      lines.push('');
+      lines.push('Детали:');
+      Object.entries(withdrawal.details).forEach(([key, value]) => {
+        const label = fieldLabelMap.get(key) || key;
+        lines.push(`• ${label}: ${value}`);
+      });
+    }
+    if (withdrawal.note) {
+      lines.push('');
+      lines.push('Дополнительно:');
+      lines.push(withdrawal.note);
+    }
+    const text = lines.join('\n').trim();
+    if (!text) return;
+    await bot.telegram.sendMessage(WITHDRAW_ADMIN_CHAT, text, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Выполнено', callback_data: `wd:done:${withdrawal.id}` },
+            { text: '🚫 Отклонено', callback_data: `wd:reject:${withdrawal.id}` }
+          ]
+        ]
+      }
+    });
+  } catch (err) {
+    console.error('Failed to notify admin about withdrawal', err);
+  }
+}
 
 bot.start(async (ctx) => {
   const user = ctx.from || {};
@@ -741,6 +821,61 @@ app.post('/api/user/:tgid/claim-reward', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+app.post('/api/withdrawals', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const methodRaw = body.method;
+    const optionRaw = body.optionId;
+    const noteRaw = typeof body.note === 'string' ? body.note : '';
+    const detailsRaw = isPlainObject(body.details) ? body.details : {};
+    const authTgid = getAuthTgid(req);
+    const bodyTgid = body && body.tgid !== undefined ? parseInt(body.tgid, 10) : null;
+    if (authTgid && bodyTgid && Number(authTgid)!==Number(bodyTgid)) {
+      return res.status(403).json({ ok:false, message:'Auth mismatch' });
+    }
+    const resolvedTgid = (authTgid !== null && authTgid !== undefined) ? Number(authTgid) : bodyTgid;
+    if (!resolvedTgid || !Number.isFinite(resolvedTgid)) {
+      return res.status(401).json({ ok:false, message:'Авторизуйтесь через Telegram MiniApp.' });
+    }
+    if (!methodRaw || !optionRaw) {
+      return res.status(400).json({ ok:false, message:'Укажите способ вывода' });
+    }
+    const methodKey = String(methodRaw).toLowerCase();
+    const optionId = String(optionRaw);
+    const option = db.getWithdrawalOption(methodKey, optionId);
+    if (!option) {
+      return res.status(400).json({ ok:false, message:'Неверный вариант вывода' });
+    }
+
+    const profile = await fetchTelegramProfile(resolvedTgid);
+    const metadata = {
+      username: profile && profile.username ? profile.username : null,
+      fullName: profile && profile.fullName ? profile.fullName : null,
+      displayName: profile && profile.displayName ? profile.displayName : null
+    };
+
+    const creation = await db.createWithdrawalRequest(resolvedTgid, methodKey, optionId, detailsRaw, noteRaw, metadata);
+    if (!creation.ok) {
+      return res.status(400).json(creation);
+    }
+
+    const withdrawal = creation.withdrawal;
+    const userSnapshot = await db.getOrCreateUser(resolvedTgid);
+
+    await notifyAdminWithdrawal(withdrawal, userSnapshot, metadata);
+
+    res.json({
+      ok:true,
+      message:'Заявка на вывод отправлена. Ожидайте ответа администратора.',
+      scube: creation.scube,
+      withdrawalId: withdrawal.id
+    });
+  } catch (err) {
+    console.error('Withdrawal creation failed', err);
+    res.status(500).json({ ok:false, message:'Не удалось отправить заявку. Попробуйте позже.' });
   }
 });
 
