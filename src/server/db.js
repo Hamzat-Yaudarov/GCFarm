@@ -343,17 +343,18 @@ async function claimReward(tgid, amount, source, options = {}) {
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const user = res.rows[0];
     const now = new Date();
+    const previousScube = Number(user.scube || 0);
     const credit = Math.max(0, Math.round(Number(amount) || 0));
     if (!credit) {
       await client.query('ROLLBACK');
-      return { ok:false, message: 'Invalid reward amount', scube: Number(user.scube || 0) };
+      return { ok:false, message: 'Invalid reward amount', scube: previousScube };
     }
 
     if (!force && user.last_reward_at) {
       const diff = now - new Date(user.last_reward_at);
       if (diff < 10000) {
         await client.query('ROLLBACK');
-        return { ok:false, message: 'Слишком частые запросы награды', scube: Number(user.scube || 0) };
+        return { ok:false, message: 'Слишком частые запросы награды', scube: previousScube };
       }
     }
 
@@ -366,12 +367,11 @@ async function claimReward(tgid, amount, source, options = {}) {
       );
       if (!inserted.rows.length) {
         await client.query('COMMIT');
-        return { ok:true, scube: Number(user.scube || 0), duplicate: true };
+        return { ok:true, scube: previousScube, duplicate: true, credited: 0, source: source || null };
       }
     }
 
-    let scube = Number(user.scube || 0);
-    scube += credit;
+    let scube = previousScube + credit;
 
     if (source === 'task') {
       await client.query('UPDATE users SET scube=$1, last_reward_at=$2, tasks_completed = tasks_completed + 1 WHERE tgid=$3', [scube, now, tgid]);
@@ -388,7 +388,7 @@ async function claimReward(tgid, amount, source, options = {}) {
     }
 
     await client.query('COMMIT');
-    return { ok:true, scube };
+    return { ok:true, scube, credited: credit, duplicate: false, source: source || null };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

@@ -728,11 +728,12 @@ app.post('/api/user/:tgid/claim-reward', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   const amount = parseInt(req.body.amount || 5, 10); // default 5 SCube
   const source = req.body.source || undefined; // 'task' | 'ad' | undefined
+  const contextId = req.body.contextId ? String(req.body.contextId).slice(0, 256) : null;
   const authTgid = getAuthTgid(req);
   if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid) return res.status(400).json({ error: 'Invalid params' });
   try {
-    const result = await db.claimReward(tgid, amount, source);
+    const result = await db.claimReward(tgid, amount, source, { contextId });
     if (!result.ok) {
       return res.status(429).json(result);
     }
@@ -803,7 +804,13 @@ app.post('/adsgram/callback', async (req, res) => {
       const status = result.message === 'Слишком частые запросы награды' ? 429 : 400;
       return res.status(status).json({ ok:false, message: result.message || 'Reward not credited' });
     }
-    return res.json({ ok:true, credited: rewardInfo.amount, scube: result.scube, source: rewardInfo.source, duplicate: Boolean(result.duplicate) });
+    return res.json({
+      ok:true,
+      credited: typeof result.credited === 'number' ? result.credited : rewardInfo.amount,
+      scube: result.scube,
+      source: result.source || rewardInfo.source,
+      duplicate: Boolean(result.duplicate)
+    });
   } catch (err) {
     console.error('Error processing AdsGram callback', err);
     return res.status(500).json({ ok:false, message: 'Server error' });

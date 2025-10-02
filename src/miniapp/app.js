@@ -44,6 +44,38 @@ function resolveAdsgramReward(detail, fallback = DEFAULT_AD_REWARD) {
   return { amount: Math.min(1000000, Math.max(1, Math.round(resolved))), isTask };
 }
 
+function extractAdsgramContextId(detail) {
+  const data = detail || {};
+  const candidates = [
+    data.eventId,
+    data.event_id,
+    data.transactionId,
+    data.transaction_id,
+    data.rewardId,
+    data.reward_id,
+    data.taskId,
+    data.task_id,
+    data.clickId,
+    data.click_id,
+    data.orderId,
+    data.order_id,
+    data.id,
+    data.requestId,
+    data.request_id
+  ];
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null) continue;
+    const trimmed = String(candidate).trim();
+    if (trimmed) return trimmed;
+  }
+  const user = data.userId || data.tgid || data.user_id;
+  const adUnit = data.adUnit || data.ad_unit;
+  const stamp = data.timestamp || data.time || data.createdAt || data.created_at || data.ts;
+  if (user && stamp) return `${user}:${stamp}`;
+  if (user && adUnit) return `${user}:${adUnit}`;
+  return null;
+}
+
 // If tgid not provided via query, try to get from Telegram WebApp init data
 if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
   tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
@@ -175,6 +207,13 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (window.Adsgram && cfg && cfg.interstitialBlockId) {
       AdController = window.Adsgram.init({ blockId: cfg.interstitialBlockId });
       console.log('AdsGram interstitial initialized with', cfg.interstitialBlockId);
+      try {
+        if (AdController && typeof AdController.load === 'function') {
+          AdController.load().catch((err)=>console.warn('AdsGram interstitial preload failed', err));
+        }
+      } catch (loadErr) {
+        console.warn('AdsGram interstitial load error', loadErr);
+      }
     }
     if (window.Adsgram && cfg && cfg.rewardBlockId) {
       RewardController = window.Adsgram.init({ blockId: cfg.rewardBlockId });
@@ -197,7 +236,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   // throttle interstitials to avoid repeated errors/messages
   let lastInterstitialAt = 0;
   let interstitialShownCount = 0;
-  const INTERSTITIAL_MIN_INTERVAL = 5 * 60 * 1000; // 5 minutes
+  const INTERSTITIAL_INTERVAL = 5 * 60 * 1000;
   const INTERSTITIAL_MAX_PER_SESSION = 3;
 
   tabs.forEach(btn=>{
@@ -258,7 +297,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!viewer) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
+      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чт��бы добыть больше SCube.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -413,6 +452,13 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       if (!isExpanded) return;
       const result = await AdController.show();
       console.log('Scheduled interstitial shown', result);
+      try {
+        if (AdController && typeof AdController.load === 'function') {
+          AdController.load().catch((err)=>console.warn('AdsGram interstitial reload failed', err));
+        }
+      } catch (reloadErr) {
+        console.warn('AdsGram interstitial reload error', reloadErr);
+      }
     } catch (e) { console.warn('Scheduled interstitial failed', e); }
   }
   function startInterstitialScheduler() {
@@ -420,8 +466,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     interstitialTicker = setInterval(()=>{
       if (!isExpanded) return;
       interstitialElapsed += 1000;
-      const TEN_MIN = 10 * 60 * 1000;
-      if (interstitialElapsed >= TEN_MIN) {
+      if (interstitialElapsed >= INTERSTITIAL_INTERVAL) {
         interstitialElapsed = 0;
         showInterstitialWithCountdownIfExpanded();
       }
@@ -489,31 +534,38 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const detail = event && event.detail;
         const rewardMeta = resolveAdsgramReward(detail, DEFAULT_TASK_REWARD);
         const expectedReward = rewardMeta.amount;
+        const contextId = extractAdsgramContextId(detail);
         try {
           if (!tgid) return console.warn('No tgid for reward confirmation');
           if (taskFeedback) taskFeedback.textContent = `Награда: ожидается подтверждение (+${expectedReward} SCube)`;
 
-          const applyRewardSuccess = (amountCredited, latestScube) => {
-            const rounded = Math.max(1, Math.round(amountCredited));
-            scubeEl.textContent = latestScube;
+          const applyRewardSuccess = (amountCredited, latestScube, duplicate = false) => {
+            const rounded = Math.max(0, Math.round(amountCredited));
+            if (Number.isFinite(latestScube)) scubeEl.textContent = latestScube;
             if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
               leaderboardCache.tasks = null;
               leaderboardCacheTime.tasks = 0;
               loadLeaderboard('tasks', true);
             }
             if (taskFeedback) {
-              if (rounded >= expectedReward) {
+              if (duplicate) {
+                taskFeedback.textContent = 'Награда за это задание уже была зачислена ранее.';
+              } else if (rounded >= expectedReward) {
                 taskFeedback.textContent = `Задание выполнено — вы получили +${rounded} SCube`;
-              } else {
+              } else if (rounded > 0) {
                 taskFeedback.textContent = `Награда зачислена (+${rounded} SCube). Сумма меньше ожидаемой.`;
+              } else {
+                taskFeedback.textContent = 'Задание подтверждено.';
               }
             }
-            const banner = document.createElement('div');
-            banner.className = 'task-reward-banner success';
-            banner.textContent = `+${rounded} SCube — награда за задание!`;
-            document.body.appendChild(banner);
-            setTimeout(()=>{ if (banner && banner.parentNode) banner.parentNode.removeChild(banner); }, 3500);
-            setTimeout(()=> animateScube(), 200);
+            if (!duplicate && rounded > 0) {
+              const banner = document.createElement('div');
+              banner.className = 'task-reward-banner success';
+              banner.textContent = `+${rounded} SCube — награда за задание!`;
+              document.body.appendChild(banner);
+              setTimeout(()=>{ if (banner && banner.parentNode) banner.parentNode.removeChild(banner); }, 3500);
+              setTimeout(()=> animateScube(), 200);
+            }
           };
 
           let beforeScube = null;
@@ -526,6 +578,30 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           } catch (fetchErr) {
             console.warn('Failed to fetch baseline before reward', fetchErr);
           }
+
+          let claimSucceeded = false;
+          try {
+            const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amount: expectedReward, source: 'task', contextId })
+            });
+            if (claimRes.ok) {
+              const claimJson = await claimRes.json();
+              if (claimJson && claimJson.ok) {
+                claimSucceeded = true;
+                applyRewardSuccess(Number(claimJson.credited || expectedReward), Number(claimJson.scube), Boolean(claimJson.duplicate));
+              } else {
+                console.warn('Task reward claim returned error payload', claimJson);
+              }
+            } else {
+              console.warn('Task reward claim failed with status', claimRes.status);
+            }
+          } catch (claimErr) {
+            console.warn('Task reward claim request failed', claimErr);
+          }
+
+          if (claimSucceeded) return;
 
           const timeout = 20000;
           const interval = 2000;
@@ -745,8 +821,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
             const claimJson = await claimRes.json();
             if (claimJson && claimJson.ok) {
               scubeEl.textContent = claimJson.scube;
-              animateScube();
-              showStoreFeedback('Награда зачислена');
+              if (!claimJson.duplicate && Number(claimJson.credited || 0) > 0) animateScube();
+              const rewardText = Number(claimJson.credited || 0) > 0 ? `Награда зачислена (+${claimJson.credited} SCube)` : 'Награда уже была зачислена ранее';
+              showStoreFeedback(rewardText);
             } else {
               // fallback: poll server for up to 15s to detect server-side callback credit
               let beforeScubeVal = beforeScube || 0;
@@ -896,7 +973,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за р��ссчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
@@ -1129,7 +1206,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
     }
     const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отм��нить' : 'Сдаться');
     leave.addEventListener('click', leaveRoom);
 
     wrap.append(title, notice, timer, controls, result, leave);
