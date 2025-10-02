@@ -31,6 +31,7 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auto_energy BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS energy_capacity INTEGER DEFAULT 50`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reward_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_energy_refill_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
     // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
@@ -116,8 +117,9 @@ function mapUser(row) {
   };
 }
 
-const DAILY_BASE = 250;
+const DAILY_BASE = 400;
 const DAILY_INCREMENT = 50;
+const ENERGY_REFILL_COOLDOWN_MS = 60 * 1000;
 
 async function getOrCreateUser(tgid) {
   const client = await pool.connect();
@@ -299,7 +301,7 @@ async function buyUpgrade(tgid, type) {
       const cost = 100;
       if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
       scube -= cost;
-      energy_capacity += 50;
+      energy_capacity += 25;
       await client.query('UPDATE users SET scube=$1, energy_capacity=$2 WHERE tgid=$3', [scube, energy_capacity, tgid]);
       await client.query('COMMIT');
       return { ok:true, scube, energy_capacity };
@@ -407,10 +409,18 @@ async function refillToFull(tgid) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT energy_capacity, energy FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT energy_capacity, energy, last_energy_refill_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const capacity = Number(res.rows[0].energy_capacity);
-    await client.query('UPDATE users SET energy=$1 WHERE tgid=$2', [capacity, tgid]);
+    const lastEnergyRefillAt = res.rows[0].last_energy_refill_at ? new Date(res.rows[0].last_energy_refill_at) : null;
+    const now = new Date();
+    if (lastEnergyRefillAt && (now - lastEnergyRefillAt) < ENERGY_REFILL_COOLDOWN_MS) {
+      const waitMs = ENERGY_REFILL_COOLDOWN_MS - (now - lastEnergyRefillAt);
+      const waitSeconds = Math.max(1, Math.ceil(waitMs / 1000));
+      await client.query('ROLLBACK');
+      return { ok:false, message: `Энергию можно восполнить через ${waitSeconds} сек.` };
+    }
+    await client.query('UPDATE users SET energy=$1, last_energy_refill_at=$2 WHERE tgid=$3', [capacity, now, tgid]);
     await client.query('COMMIT');
     return { ok:true, energy: capacity };
   } catch (err) {

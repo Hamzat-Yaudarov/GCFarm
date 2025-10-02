@@ -191,6 +191,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       if (b.dataset.tab === tab) b.classList.add('active'); else b.classList.remove('active');
     });
     if (tab === 'leaderboard') loadLeaderboard(leaderboardMode);
+    if (tab === 'tasks') setupAdsgramTask(0);
     setStoreFabVisibility(tab);
     setMainCompact(tab);
   }
@@ -565,6 +566,28 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     }
   }
 
+  function getTasksWrapper() {
+    return document.getElementById('ads-task-wrap');
+  }
+
+  function renderTaskEmptyState(message) {
+    const wrapper = getTasksWrapper();
+    if (!wrapper) return;
+    wrapper.innerHTML = '';
+    const text = message && message.trim() ? message : 'Пока заданий нет, приходите позже';
+    const empty = document.createElement('div');
+    empty.className = 'tasks-empty-message';
+    empty.textContent = text;
+    wrapper.appendChild(empty);
+    wrapper.dataset.taskReady = 'empty';
+  }
+
+  function scheduleTaskReload(delay = 1200) {
+    const wrapper = getTasksWrapper();
+    if (wrapper) delete wrapper.dataset.taskReady;
+    setTimeout(() => setupAdsgramTask(0, true), delay);
+  }
+
   function attachTaskEventHandlers(taskEl, cardRef) {
     if (!taskEl) return;
     const markState = (state) => {
@@ -577,16 +600,19 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const handleUnavailable = () => {
       markState('empty');
       setTaskFeedback('Пока заданий нет. Загляните позже.', 'warning');
+      renderTaskEmptyState('Пока заданий нет, приходите позже');
     };
 
     const handleError = () => {
       markState('error');
       setTaskFeedback('Не удалось загрузить рекламное задание. Повторите попытку позже.', 'error');
+      scheduleTaskReload(1400);
     };
 
     const handleTooLong = () => {
       markState('error');
       setTaskFeedback('Сессия рекламы длится слишком долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning');
+      scheduleTaskReload(1400);
     };
 
     const handleReward = async (event) => {
@@ -740,7 +766,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const hint = document.createElement('p');
     hint.className = 'adsgram-task-hint';
-    hint.textContent = 'Нажмите «GO», выполните шаги рекламодателя, затем заберите награду.';
+    hint.textContent = 'Нажмите «GO», выполните шаги рекламодателя, зате�� заберите награду.';
 
     const taskEl = document.createElement('adsgram-task');
     taskEl.className = 'adsgram-task-element';
@@ -797,24 +823,25 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     return card;
   }
 
-  function setupAdsgramTask(attempt = 0) {
+  function setupAdsgramTask(attempt = 0, force = false) {
     const cfg = window.ADSGRAM_CONFIG || {};
     const wrapper = document.getElementById('ads-task-wrap');
     if (!wrapper) return;
-    if (wrapper.dataset.taskReady === 'true') return;
+    if (!force && wrapper.dataset.taskReady === 'true') return;
 
     const taskId = cfg.taskBlockId;
     if (!taskId) {
-      wrapper.textContent = 'Пока заданий нет';
+      renderTaskEmptyState('Пока заданий нет, приходите позже');
       return;
     }
 
     if (!window.Adsgram) {
       if (attempt >= 20) {
         console.warn('AdsGram SDK was not ready for tasks');
+        renderTaskEmptyState('Не удалось загрузить задания. Попробуйте позже.');
         return;
       }
-      setTimeout(()=> setupAdsgramTask(attempt + 1), 250);
+      setTimeout(()=> setupAdsgramTask(attempt + 1, force), 250);
       return;
     }
 
@@ -829,6 +856,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       })
       .catch((err) => {
         console.warn('Failed to init AdsGram task element', err);
+        renderTaskEmptyState('Не удалось загрузить задания. Попробуйте позже.');
       });
   }
 
@@ -860,7 +888,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       energyCapEl.textContent = user.energy_capacity;
       dailyEl.textContent = user.daily_count;
       dailyLevelEl.textContent = user.daily_limit_level;
-      dailyLimitEl.textContent = (250 + user.daily_limit_level * 50);
+      dailyLimitEl.textContent = (400 + user.daily_limit_level * 50);
       dailyCostEl.textContent = (90 + user.daily_limit_level * 10);
       // attempt to use Telegram avatar if available
       try {
@@ -1069,7 +1097,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       try {
         if (!tgid) { refillBusy = false; return alert('tgid is required'); }
         // add cooldown to avoid rapid ad openings
-        addAdCooldown(refillBtn, 10000);
+        addAdCooldown(refillBtn, 60000);
       const cfg = window.ADSGRAM_CONFIG || {};
       const energyBlock = cfg.energyAdBlockId || cfg.rewardBlockId || cfg.interstitialBlockId;
       if (window.Adsgram && cfg.energyAdBlockId) {
@@ -1158,7 +1186,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     btn.addEventListener('click', async ()=>{
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+50) за 100 SCube' : 'Увеличение дневного лимита (+50) за р��ссчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за р��ссчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
@@ -1379,7 +1407,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const result = document.createElement('div'); result.className='rps-result';
     if (!room.opponent) result.textContent = 'Ожидание соперника...';
     else if (!myMove) result.textContent = 'Сделайте ход';
-    else if (!oppMove) result.textContent = 'Ожидаем ход соперника';
+    else if (!oppMove) result.textContent = 'Ожидаем х��д соперника';
     if (finished){
       if (room.state && room.state.result){
         const r = room.state.result;
