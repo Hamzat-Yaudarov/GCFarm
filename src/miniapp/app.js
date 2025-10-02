@@ -207,13 +207,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (window.Adsgram && cfg && cfg.interstitialBlockId) {
       AdController = window.Adsgram.init({ blockId: cfg.interstitialBlockId });
       console.log('AdsGram interstitial initialized with', cfg.interstitialBlockId);
-      try {
-        if (AdController && typeof AdController.load === 'function') {
-          AdController.load().catch((err)=>console.warn('AdsGram interstitial preload failed', err));
-        }
-      } catch (loadErr) {
-        console.warn('AdsGram interstitial load error', loadErr);
-      }
+      preloadInterstitial().catch((err)=>console.warn('AdsGram interstitial initial load failed', err));
     }
     if (window.Adsgram && cfg && cfg.rewardBlockId) {
       RewardController = window.Adsgram.init({ blockId: cfg.rewardBlockId });
@@ -228,14 +222,22 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   }
   isExpanded = computeExpanded();
   try {
-    if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.onEvent === 'function') {
-      window.Telegram.WebApp.onEvent('viewportChanged', ()=>{ isExpanded = computeExpanded(); });
+    if (window.Telegram && window.Telegram.WebApp) {
+      if (typeof window.Telegram.WebApp.onEvent === 'function') {
+        window.Telegram.WebApp.onEvent('viewportChanged', ()=>{ isExpanded = computeExpanded(); });
+      }
+      if (typeof window.Telegram.WebApp.expand === 'function') {
+        window.Telegram.WebApp.expand();
+        isExpanded = computeExpanded();
+      }
     }
   } catch(e) {}
 
   // throttle interstitials to avoid repeated errors/messages
   let lastInterstitialAt = 0;
   let interstitialShownCount = 0;
+  let interstitialReady = false;
+  let interstitialLoadingPromise = null;
   const INTERSTITIAL_INTERVAL = 3 * 60 * 1000;
   const INTERSTITIAL_MAX_PER_SESSION = 3;
 
@@ -245,6 +247,27 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       showTab(tab);
     });
   });
+
+  async function preloadInterstitial(force = false) {
+    if (!AdController || typeof AdController.load !== 'function') return false;
+    if (interstitialReady && !force) return true;
+    if (interstitialLoadingPromise && !force) return interstitialLoadingPromise;
+    interstitialLoadingPromise = AdController.load()
+      .then(() => {
+        interstitialReady = true;
+        console.log('AdsGram interstitial ready');
+        return true;
+      })
+      .catch((err) => {
+        interstitialReady = false;
+        console.warn('AdsGram interstitial load failed', err);
+        return false;
+      })
+      .finally(() => {
+        interstitialLoadingPromise = null;
+      });
+    return interstitialLoadingPromise;
+  }
 
   function showLeaderboardMessage(message) {
     if (!leaderEmpty) return;
@@ -437,6 +460,11 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try {
       if (!isExpanded) return;
       if (!AdController || typeof AdController.show !== 'function') return;
+      if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return;
+      const now = Date.now();
+      if (lastInterstitialAt && now - lastInterstitialAt < INTERSTITIAL_INTERVAL) return;
+      const ready = await preloadInterstitial();
+      if (!ready) return;
       const overlay = document.getElementById('ad-countdown-overlay');
       if (overlay) {
         overlay.classList.remove('hidden');
@@ -451,20 +479,18 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
       if (!isExpanded) return;
       const result = await AdController.show();
+      interstitialReady = false;
+      lastInterstitialAt = Date.now();
+      interstitialShownCount += 1;
       console.log('Scheduled interstitial shown', result);
-      try {
-        if (AdController && typeof AdController.load === 'function') {
-          AdController.load().catch((err)=>console.warn('AdsGram interstitial reload failed', err));
-        }
-      } catch (reloadErr) {
-        console.warn('AdsGram interstitial reload error', reloadErr);
-      }
+      preloadInterstitial().catch((err)=>console.warn('AdsGram interstitial reload failed', err));
     } catch (e) { console.warn('Scheduled interstitial failed', e); }
   }
   function startInterstitialScheduler() {
     if (interstitialTicker) return;
     interstitialTicker = setInterval(()=>{
       if (!isExpanded) return;
+      if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return;
       interstitialElapsed += 1000;
       if (interstitialElapsed >= INTERSTITIAL_INTERVAL) {
         interstitialElapsed = 0;
@@ -748,7 +774,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       } catch (e) { console.warn('referral ui update failed', e); }
     } catch (err) {
       console.error('loadUser error', err);
-      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
+      if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. По��робуйте позже.';
       if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повторяем…');
     }
   }
