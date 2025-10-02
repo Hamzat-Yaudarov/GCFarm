@@ -79,51 +79,20 @@
 
       <section class="tab-content hidden" id="store">
         <div class="store-container">
-          <h3>💱 Космический обмен валют</h3>
-          <p class="section-hint">📦 Прокачивай ресурсы, чтобы добывать ещё быстрее.</p>
-          <div class="exchange">
-            <button id="open-exchange" class="exchange-btn">🔁 Обменник</button>
+          <h3>💸 Центр вывода</h3>
+          <p class="section-hint">💎 Выводи награды или прокачивай базу для ещё большей добычи.</p>
+          <div class="store-actions">
+            <button id="open-withdrawals" class="withdraw-trigger-btn" type="button">💸 Вывести средства</button>
           </div>
 
-          <!-- Exchange modal -->
-          <div id="exchange-modal" class="confirm-modal hidden" aria-hidden="true">
-            <div class="confirm-box">
-              <h3>Обменник валют</h3>
-              <div class="exchange-form">
-                <label style="display:block;margin-bottom:8px">От:
-                  <select id="exchange-from">
-                    <option value="scube">SCube</option>
-                    <option value="gcube">GCube</option>
-                    <option value="stars">Stars</option>
-                  </select>
-                </label>
-                <label style="display:block;margin-bottom:8px">Кому:
-                  <select id="exchange-to">
-                    <option value="gcube">GCube</option>
-                    <option value="scube">SCube</option>
-                    <option value="stars">Stars</option>
-                  </select>
-                </label>
-                <label style="display:block;margin-bottom:8px">Сумма (исходная валюта):
-                  <input id="exchange-amount" type="number" min="1" value="1" />
-                </label>
-                <div id="exchange-preview" style="margin:8px 0;color:#cfeaf9">—</div>
-                <div class="confirm-actions">
-                  <button id="exchange-close" class="confirm-btn">Отмена</button>
-                  <button id="exchange-confirm" class="confirm-btn primary">Обменять</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <h3>🚀 Лаборотория улучшений</h3>
+          <h3>🚀 Лаборатория улучшений</h3>
           <p class="section-hint">🧠 Собирай апгрейды и расширяй мощности базы.</p>
           <div class="upgrades">
             <div class="upgrade-card">
               <div class="card-header">
                 <span class="card-icon">🧪</span>
                 <div class="card-text">
-                  <div class="upgrade-title">Увеличение вместимости энергии +25</div>
+                  <div class="upgrade-title">Увеличение вместимо��ти энергии +25</div>
                   <div class="upgrade-subtitle">Создай запас для долгих сессий</div>
                 </div>
               </div>
@@ -161,6 +130,45 @@
           </div>
 
           <div class="store-feedback" id="store-feedback"></div>
+        </div>
+      </section>
+
+      <section class="tab-content hidden" id="withdrawals">
+        <div class="withdrawals-container">
+          <div class="withdrawals-header">
+            <div class="withdrawals-legend">
+              <h3>💸 Вывод средств</h3>
+              <p class="section-hint">Выбирай удобный способ вывода и отправляй заявку напрямую из MiniApp.</p>
+            </div>
+            <button id="withdraw-back-to-store" class="withdraw-back-btn" type="button">← Назад в магазин</button>
+          </div>
+          <div id="withdraw-feedback" class="withdraw-feedback"></div>
+          <div class="withdraw-methods" id="withdraw-methods">
+            <article class="withdraw-method-card">
+              <div class="withdraw-method-icon" aria-hidden="true">⭐</div>
+              <div class="withdraw-method-content">
+                <h4 class="withdraw-method-title">Telegram-звёзды</h4>
+                <p class="withdraw-method-description">Выводи звёзды партиями от 15 до 100. Комиссия — 5 SCube на каждые 100 SCube.</p>
+              </div>
+              <button class="withdraw-method-button" data-method="stars" type="button">Вывести как Stars</button>
+            </article>
+            <article class="withdraw-method-card">
+              <div class="withdraw-method-icon" aria-hidden="true">🟨</div>
+              <div class="withdraw-method-content">
+                <h4 class="withdraw-method-title">GCubes</h4>
+                <p class="withdraw-method-description">Получай GCubes в Blockman Go. Фиксированная комиссия — 50 SCube за заявку.</p>
+              </div>
+              <button class="withdraw-method-button" data-method="gcubes" type="button">Вывести как GCubes</button>
+            </article>
+            <article class="withdraw-method-card">
+              <div class="withdraw-method-icon" aria-hidden="true">💸</div>
+              <div class="withdraw-method-content">
+                <h4 class="withdraw-method-title">Перевод ₽</h4>
+                <p class="withdraw-method-description">Перевод на номер телефона. Комиссия — 50 SCube за каждые 100 ₽.</p>
+              </div>
+              <button class="withdraw-method-button" data-method="rub" type="button">Вывести как ₽</button>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -268,6 +276,26 @@
           <button id="confirm-cancel" class="confirm-btn">Отмена</button>
           <button id="confirm-ok" class="confirm-btn primary">Подтвердить</button>
         </div>
+      </div>
+    </div>
+
+    <div id="withdraw-modal" class="withdraw-modal hidden" aria-hidden="true">
+      <div class="withdraw-dialog" role="dialog" aria-modal="true" aria-labelledby="withdraw-modal-title">
+        <div class="withdraw-dialog-header">
+          <h3 id="withdraw-modal-title" class="withdraw-dialog-title"></h3>
+          <button id="withdraw-modal-close" class="withdraw-close-btn" type="button" aria-label="Закрыть">✕</button>
+        </div>
+        <p id="withdraw-modal-hint" class="withdraw-dialog-hint"></p>
+        <div id="withdraw-options" class="withdraw-options"></div>
+        <form id="withdraw-form" class="withdraw-form">
+          <div id="withdraw-inputs" class="withdraw-inputs"></div>
+          <label class="withdraw-input-group">
+            <span class="withdraw-input-label">Дополнительная информация</span>
+            <textarea id="withdraw-notes" class="withdraw-textarea" placeholder="Напишите детали, если нужно"></textarea>
+          </label>
+          <div id="withdraw-modal-feedback" class="withdraw-modal-feedback"></div>
+          <button type="submit" class="withdraw-submit-btn">Отправить заявку</button>
+        </form>
       </div>
     </div>
 

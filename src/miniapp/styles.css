@@ -81,10 +81,28 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 /* Store */
 .store-container{display:flex;flex-direction:column;gap:14px;width:100%}
 .section-hint{margin:0 0 8px;color:#9fb6c9;font-size:13px}
-.exchange{display:flex;flex-direction:column;gap:10px}
-.exchange-btn{padding:12px;border-radius:10px;border:none;background:#1a4b6a;color:#fff;cursor:pointer;transition:transform .12s ease}
-.exchange-btn:hover{transform:translateY(-1px)}
+.store-actions{display:flex;justify-content:center;margin:10px 0 18px}
+.withdraw-trigger-btn{padding:12px 18px;border-radius:12px;border:none;background:linear-gradient(180deg,#2b6d91,#1a4b6a);color:#fff;font-weight:800;cursor:pointer;transition:transform .12s ease,box-shadow .18s ease}
+.withdraw-trigger-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(0,0,0,0.35)}
 .upgrades{display:flex;flex-direction:column;gap:12px}
+.withdrawals-container{width:100%;max-width:480px;background:linear-gradient(180deg,#071b2a,#05202b);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);display:flex;flex-direction:column;gap:16px}
+.withdrawals-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.withdrawals-legend{display:flex;flex-direction:column;gap:6px}
+.withdraw-back-btn{padding:10px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:#0f2536;color:#cfeaf9;font-weight:700;cursor:pointer;transition:transform .12s ease,opacity .2s ease}
+.withdraw-back-btn:hover{transform:translateY(-1px);opacity:.95}
+.withdraw-feedback{min-height:18px;font-size:13px;color:#9fb6c9;font-weight:600}
+.withdraw-feedback--success{color:#9fe3a7}
+.withdraw-feedback--error{color:#ffb0b0}
+.withdraw-feedback--warning{color:#ffd7a6}
+.withdraw-methods{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.withdraw-method-card{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:14px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.04);box-shadow:0 12px 30px rgba(0,0,0,0.32);transition:transform .15s ease,box-shadow .2s ease}
+.withdraw-method-card:hover{transform:translateY(-2px);box-shadow:0 18px 40px rgba(0,0,0,0.36)}
+.withdraw-method-icon{width:48px;height:48px;border-radius:12px;background:linear-gradient(180deg,rgba(159,227,249,0.2),rgba(16,61,85,0.6));display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 12px 24px rgba(0,0,0,0.35)}
+.withdraw-method-content{display:flex;flex-direction:column;gap:6px}
+.withdraw-method-title{margin:0;font-size:16px;font-weight:800;color:#e6f0f8}
+.withdraw-method-description{margin:0;color:#9fb6c9;font-size:13px}
+.withdraw-method-button{margin-top:auto;padding:12px;border-radius:10px;border:none;background:linear-gradient(180deg,#2b6d91,#1a4b6a);color:#fff;font-weight:800;cursor:pointer;transition:transform .12s ease,box-shadow .2s ease}
+.withdraw-method-button:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(0,0,0,0.34)}
 .upgrade-card{padding:14px;border-radius:12px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.03);transition:transform .15s ease, box-shadow .2s ease;position:relative;overflow:hidden}
 .upgrade-card:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(0,0,0,0.35)}
 .card-header{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px}
@@ -193,6 +211,10 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
   .golden-cube{width:220px;height:220px;font-size:96px;transform:translateY(8px)}
   .leader-personal-cards{flex-direction:column}
   .store-fab{top:96px}
+  .withdrawals-header{flex-direction:column;gap:10px}
+  .withdraw-back-btn{align-self:flex-end}
+  .withdraw-methods{grid-template-columns:1fr}
+  .withdraw-dialog{padding:16px}
 }
 
 @media (max-width:420px){
@@ -211,6 +233,39 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .confirm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
 .confirm-btn{padding:8px 12px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
 .confirm-btn.primary{background:#3a8f5a}
+
+.withdraw-modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1200;padding:16px}
+.withdraw-modal.hidden{display:none}
+.withdraw-dialog{width:100%;max-width:420px;background:#071429;padding:18px;border-radius:14px;border:1px solid rgba(255,255,255,0.05);box-shadow:0 18px 40px rgba(0,0,0,0.45);display:flex;flex-direction:column;gap:16px}
+.withdraw-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.withdraw-dialog-title{margin:0;font-size:18px;font-weight:800;color:#e6f0f8}
+.withdraw-close-btn{width:36px;height:36px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.06);color:#fff;font-weight:800;cursor:pointer;transition:transform .12s ease,opacity .2s ease}
+.withdraw-close-btn:hover{transform:translateY(-1px);opacity:.85}
+.withdraw-dialog-hint{margin:0;color:#9fb6c9;font-size:13px}
+.withdraw-options{display:flex;flex-direction:column;gap:12px}
+.withdraw-option-card{display:flex;gap:12px;padding:14px;border-radius:14px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.04);box-shadow:0 10px 28px rgba(0,0,0,0.32);cursor:pointer;position:relative;overflow:hidden;transition:transform .12s ease,box-shadow .18s ease,border-color .18s ease}
+.withdraw-option-card:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(0,0,0,0.36)}
+.withdraw-option-card.selected{border-color:rgba(159,227,249,0.35);box-shadow:0 16px 34px rgba(0,0,0,0.42)}
+.withdraw-option-input{position:absolute;opacity:0;pointer-events:none}
+.withdraw-option-body{display:flex;flex-direction:column;gap:6px;width:100%}
+.withdraw-option-header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.withdraw-option-title{font-size:15px;font-weight:800;color:#e6f0f8}
+.withdraw-option-total{font-size:15px;font-weight:800;color:#ffd54b}
+.withdraw-option-note{margin:0;color:#9fb6c9;font-size:13px}
+.withdraw-option-footnote{margin:0;color:#cfeaf9;font-size:12px}
+.withdraw-form{display:flex;flex-direction:column;gap:12px}
+.withdraw-inputs{display:flex;flex-direction:column;gap:12px}
+.withdraw-input-group{display:flex;flex-direction:column;gap:6px}
+.withdraw-input-label{font-size:13px;color:#9fb6c9;font-weight:600}
+.withdraw-input,.withdraw-textarea{padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.05);color:#fff;font-size:14px}
+.withdraw-input:focus,.withdraw-textarea:focus{outline:none;border-color:rgba(159,227,249,0.35);box-shadow:0 0 0 2px rgba(159,227,249,0.18)}
+.withdraw-textarea{min-height:80px;resize:vertical}
+.withdraw-modal-feedback{min-height:18px;font-size:13px;color:#ffb0b0;font-weight:600}
+.withdraw-modal-feedback--success{color:#9fe3a7}
+.withdraw-modal-feedback--warning{color:#ffd7a6}
+.withdraw-submit-btn{padding:12px;border-radius:12px;border:none;background:linear-gradient(180deg,#2dbb6a,#1d8a4a);color:#fff;font-weight:800;cursor:pointer;transition:transform .12s ease,box-shadow .18s ease,opacity .18s ease}
+.withdraw-submit-btn:hover{transform:translateY(-1px);box-shadow:0 14px 30px rgba(0,0,0,0.32)}
+.withdraw-submit-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none}
 
 /* Ad countdown overlay */
 .ad-countdown-overlay{position:fixed;top:14px;right:14px;z-index:1200}

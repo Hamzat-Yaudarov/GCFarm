@@ -293,7 +293,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   function formatViewerValue(mode, value) {
     const safe = Number(value) || 0;
     if (mode === 'tasks') {
-      const label = pluralizeRu(safe, ['задача', 'задачи', 'задач']);
+      const label = pluralizeRu(safe, ['зада��а', 'задачи', 'задач']);
       return `${safe} ${label}`;
     }
     return `${safe} SCube`;
@@ -1026,7 +1026,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const result = await controller.show();
         console.log('reward show', result);
         if (result && result.done && !result.error) {
-          // Ad watched successfully ��� request server to credit reward.
+          // Ad watched successfully ����� request server to credit reward.
           // Try immediate claim; if server prefers callback-based crediting, poll until confirmed.
           const EXPECTED_REWARD = 5;
           try {
@@ -1197,70 +1197,346 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     });
   });
 
-  // Exchange modal UI and logic
-  const openExchangeBtn = document.getElementById('open-exchange');
-  const exchangeModal = document.getElementById('exchange-modal');
-  const exchangeFrom = document.getElementById('exchange-from');
-  const exchangeTo = document.getElementById('exchange-to');
-  const exchangeAmount = document.getElementById('exchange-amount');
-  const exchangePreview = document.getElementById('exchange-preview');
-  const exchangeConfirm = document.getElementById('exchange-confirm');
-  const exchangeClose = document.getElementById('exchange-close');
+  // Withdrawals UI and logic
+  const openWithdrawalsBtn = document.getElementById('open-withdrawals');
+  const withdrawBackBtn = document.getElementById('withdraw-back-to-store');
+  const withdrawMethodsContainer = document.getElementById('withdraw-methods');
+  const withdrawFeedbackEl = document.getElementById('withdraw-feedback');
+  const withdrawModal = document.getElementById('withdraw-modal');
+  const withdrawModalTitle = document.getElementById('withdraw-modal-title');
+  const withdrawModalHint = document.getElementById('withdraw-modal-hint');
+  const withdrawOptionsEl = document.getElementById('withdraw-options');
+  const withdrawInputsEl = document.getElementById('withdraw-inputs');
+  const withdrawNotesEl = document.getElementById('withdraw-notes');
+  const withdrawModalFeedback = document.getElementById('withdraw-modal-feedback');
+  const withdrawModalClose = document.getElementById('withdraw-modal-close');
+  const withdrawForm = document.getElementById('withdraw-form');
 
-  const RATES = { scube:1, gcube:50, stars:60 };
-
-  function formatCurrencyLabel(cur, v){
-    if (cur === 'scube') return `${v} SCube`;
-    if (cur === 'gcube') return `${v} GCube`;
-    return `${v} Stars`;
-  }
-
-  function updateExchangePreview(){
-    if (!exchangeFrom || !exchangeTo || !exchangeAmount || !exchangePreview) return;
-    const from = String(exchangeFrom.value || 'scube').toLowerCase();
-    const to = String(exchangeTo.value || 'gcube').toLowerCase();
-    let amt = parseInt(exchangeAmount.value || '0', 10) || 0;
-    if (from === to){ exchangePreview.textContent = 'Нельзя обменять одну и ту же валюту'; return; }
-    if (amt <= 0){ exchangePreview.textContent = 'Введите сумму для обмена'; return; }
-    const scubeValue = amt * (RATES[from] || 1);
-    const targetUnits = Math.floor(scubeValue / (RATES[to] || 1));
-    if (targetUnits < 1) { exchangePreview.textContent = 'Сумма слишком мала для обмена'; return; }
-    exchangePreview.textContent = `Вы отдадите ${formatCurrencyLabel(from, amt)} и получите ≈ ${formatCurrencyLabel(to, targetUnits)}`;
-  }
-
-  if (openExchangeBtn) openExchangeBtn.addEventListener('click', ()=>{
-    if (!exchangeModal) return;
-    exchangeModal.classList.remove('hidden');
-    exchangeModal.setAttribute('aria-hidden','false');
-    updateExchangePreview();
+  const buildWithdrawOption = (id, payoutLabel, baseCost, commission, extraNote) => ({
+    id,
+    payoutLabel,
+    baseCost,
+    commission,
+    totalCost: baseCost + commission,
+    extraNote: extraNote || null
   });
-  if (exchangeClose) exchangeClose.addEventListener('click', ()=>{ if (exchangeModal) { exchangeModal.classList.add('hidden'); exchangeModal.setAttribute('aria-hidden','true'); } });
-  [exchangeFrom, exchangeTo, exchangeAmount].forEach(el=>{ if (el) el.addEventListener('input', updateExchangePreview); });
 
-  if (exchangeConfirm) exchangeConfirm.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const from = String(exchangeFrom.value || '').toLowerCase();
-    const to = String(exchangeTo.value || '').toLowerCase();
-    const amountVal = Math.max(0, parseInt(exchangeAmount.value || '0', 10));
-    if (!from || !to || from === to || amountVal <= 0) return showStoreFeedback('Неверные параметры обмена');
-    const confirmMsg = `Обменять ${amountVal} ${from.toUpperCase()} → ${to.toUpperCase()}?`;
-    const ok = await showConfirm(confirmMsg);
-    if (!ok) return showStoreFeedback('Обмен отменён');
-    try {
-      const res = await fetch(`${apiBase}/user/${tgid}/exchange`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ from, to, amount: amountVal }) });
-      const json = await res.json();
-      if (!json.ok) return showStoreFeedback(json.error || json.message || 'Ошибка обмена');
-      // update balances
-      if (json.scube !== undefined) scubeEl.textContent = json.scube;
-      if (json.gcube !== undefined) gcubeEl.textContent = json.gcube;
-      if (json.stars !== undefined && starsEl) starsEl.textContent = json.stars;
-      showStoreFeedback('Обмен выполнен');
-      if (exchangeModal) { exchangeModal.classList.add('hidden'); exchangeModal.setAttribute('aria-hidden','true'); }
-    } catch (e) {
-      console.warn('exchange error', e);
-      showStoreFeedback('Ошибка обмена, попробуйте позже');
+  const WITHDRAW_METHODS = {
+    stars: {
+      key: 'stars',
+      title: 'Вывод как Telegram-звёзды',
+      hint: 'Выберите нужный набор звёзд. Комиссия — 5 SCube на каждые 100 SCube.',
+      options: [
+        buildWithdrawOption('stars-15', '15 Stars', 900, 45, 'Выплата: 15 Stars'),
+        buildWithdrawOption('stars-25', '25 Stars', 1500, 75, 'Выплата: 25 Stars'),
+        buildWithdrawOption('stars-50', '50 Stars', 3000, 150, 'Выплата: 50 Stars'),
+        buildWithdrawOption('stars-100', '100 Stars', 6000, 300, 'Выплата: 100 Stars')
+      ],
+      fields: []
+    },
+    gcubes: {
+      key: 'gcubes',
+      title: 'Вывод как GCubes',
+      hint: 'Укажите ID и ник из Blockman Go. Комиссия фиксированная — 50 SCube.',
+      options: [
+        buildWithdrawOption('gcubes-60', '60 GCubes', 3000, 50, 'Выплата: 60 GCubes'),
+        buildWithdrawOption('gcubes-300', '300 GCubes', 15000, 50, 'Выплата: 300 GCubes'),
+        buildWithdrawOption('gcubes-600', '600 GCubes', 30000, 50, 'Выплата: 600 GCubes')
+      ],
+      fields: [
+        { id: 'blockmanId', label: 'ID в Blockman Go', type: 'text', placeholder: 'Например, 123456789', required: true, minLength: 3 },
+        { id: 'blockmanNickname', label: 'Ник в Blockman Go', type: 'text', placeholder: 'Введите ник', required: true, minLength: 3 }
+      ]
+    },
+    rub: {
+      key: 'rub',
+      title: 'Вывод в рублях',
+      hint: 'Перевод на номер телефона. Комиссия — 50 SCube на каждые 100 ₽.',
+      options: [
+        buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
+        buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
+        buildWithdrawOption('rub-750', '750 ₽', 28500, 375, 'Перевод: 750 ₽'),
+        buildWithdrawOption('rub-1000', '1000 ₽', 38000, 500, 'Перевод: 1000 ₽'),
+        buildWithdrawOption('rub-1500', '1500 ₽', 57000, 750, 'Перевод: 1500 ₽'),
+        buildWithdrawOption('rub-2000', '2000 ₽', 76000, 1000, 'Перевод: 2000 ₽')
+      ],
+      fields: [
+        { id: 'payoutPhone', label: 'Номер для перевода', type: 'tel', placeholder: '+7XXXXXXXXXX', required: true, minLength: 7 }
+      ]
+    }
+  };
+
+  let currentWithdrawMethod = null;
+  let withdrawFeedbackTimer = null;
+  let withdrawSubmitting = false;
+
+  function setWithdrawFeedback(message, tone = 'info') {
+    if (!withdrawFeedbackEl) return;
+    ['success', 'error', 'warning'].forEach(t => withdrawFeedbackEl.classList.remove(`withdraw-feedback--${t}`));
+    withdrawFeedbackEl.textContent = message || '';
+    if (message && tone && tone !== 'info') {
+      withdrawFeedbackEl.classList.add(`withdraw-feedback--${tone}`);
+    }
+    if (withdrawFeedbackTimer) clearTimeout(withdrawFeedbackTimer);
+    if (message) {
+      withdrawFeedbackTimer = setTimeout(() => {
+        ['success', 'error', 'warning'].forEach(t => withdrawFeedbackEl.classList.remove(`withdraw-feedback--${t}`));
+        withdrawFeedbackEl.textContent = '';
+        withdrawFeedbackTimer = null;
+      }, 4000);
+    }
+  }
+
+  function setWithdrawModalFeedback(message, tone = 'error') {
+    if (!withdrawModalFeedback) return;
+    ['success', 'warning'].forEach(t => withdrawModalFeedback.classList.remove(`withdraw-modal-feedback--${t}`));
+    withdrawModalFeedback.textContent = message || '';
+    if (message && tone === 'success') withdrawModalFeedback.classList.add('withdraw-modal-feedback--success');
+    if (message && tone === 'warning') withdrawModalFeedback.classList.add('withdraw-modal-feedback--warning');
+  }
+
+  function highlightWithdrawOption(selectedId) {
+    if (!withdrawOptionsEl) return;
+    const cards = withdrawOptionsEl.querySelectorAll('.withdraw-option-card');
+    cards.forEach(card => {
+      const input = card.querySelector('.withdraw-option-input');
+      if (input && input.value === selectedId && input.checked) card.classList.add('selected');
+      else card.classList.remove('selected');
+    });
+  }
+
+  function renderWithdrawOptions(method) {
+    if (!withdrawOptionsEl) return null;
+    withdrawOptionsEl.innerHTML = '';
+    let defaultId = null;
+    method.options.forEach((option, index) => {
+      const label = document.createElement('label');
+      label.className = 'withdraw-option-card';
+
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'withdraw-option';
+      input.value = option.id;
+      input.className = 'withdraw-option-input';
+      if (index === 0) {
+        input.checked = true;
+        defaultId = option.id;
+      }
+
+      const body = document.createElement('div');
+      body.className = 'withdraw-option-body';
+
+      const header = document.createElement('div');
+      header.className = 'withdraw-option-header';
+
+      const title = document.createElement('span');
+      title.className = 'withdraw-option-title';
+      title.textContent = option.payoutLabel;
+
+      const total = document.createElement('span');
+      total.className = 'withdraw-option-total';
+      total.textContent = `Списываем: ${option.totalCost} SCube`;
+
+      header.append(title, total);
+
+      const breakdown = document.createElement('p');
+      breakdown.className = 'withdraw-option-note';
+      breakdown.textContent = `Стоимость: ${option.baseCost} SCube • Комиссия: ${option.commission} SCube`;
+
+      body.append(header, breakdown);
+
+      if (option.extraNote) {
+        const extra = document.createElement('p');
+        extra.className = 'withdraw-option-footnote';
+        extra.textContent = option.extraNote;
+        body.appendChild(extra);
+      }
+
+      label.append(input, body);
+      withdrawOptionsEl.appendChild(label);
+    });
+    highlightWithdrawOption(defaultId);
+    return defaultId;
+  }
+
+  function renderWithdrawInputs(method) {
+    if (!withdrawInputsEl) return;
+    withdrawInputsEl.innerHTML = '';
+    (method.fields || []).forEach(field => {
+      const group = document.createElement('label');
+      group.className = 'withdraw-input-group';
+
+      const caption = document.createElement('span');
+      caption.className = 'withdraw-input-label';
+      caption.textContent = field.label;
+
+      const input = field.type === 'textarea' ? document.createElement('textarea') : document.createElement('input');
+      input.className = field.type === 'textarea' ? 'withdraw-textarea' : 'withdraw-input';
+      if (field.type && field.type !== 'textarea') input.type = field.type;
+      input.name = field.id;
+      if (field.placeholder) input.placeholder = field.placeholder;
+      if (field.maxLength) input.maxLength = field.maxLength;
+
+      group.append(caption, input);
+      withdrawInputsEl.appendChild(group);
+    });
+  }
+
+  function openWithdrawModal(methodKey) {
+    if (!withdrawModal || !WITHDRAW_METHODS[methodKey]) return;
+    const method = WITHDRAW_METHODS[methodKey];
+    currentWithdrawMethod = methodKey;
+    if (withdrawForm) withdrawForm.reset();
+    renderWithdrawOptions(method);
+    renderWithdrawInputs(method);
+    if (withdrawNotesEl) withdrawNotesEl.value = '';
+    if (withdrawModalTitle) withdrawModalTitle.textContent = method.title;
+    if (withdrawModalHint) withdrawModalHint.textContent = method.hint;
+    if (withdrawForm) withdrawForm.dataset.method = methodKey;
+    setWithdrawModalFeedback('');
+    withdrawModal.classList.remove('hidden');
+    withdrawModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeWithdrawModal() {
+    if (!withdrawModal) return;
+    withdrawModal.classList.add('hidden');
+    withdrawModal.setAttribute('aria-hidden', 'true');
+    if (withdrawForm) {
+      withdrawForm.dataset.method = '';
+      withdrawForm.reset();
+    }
+    if (withdrawOptionsEl) withdrawOptionsEl.innerHTML = '';
+    if (withdrawInputsEl) withdrawInputsEl.innerHTML = '';
+    if (withdrawNotesEl) withdrawNotesEl.value = '';
+    setWithdrawModalFeedback('');
+    currentWithdrawMethod = null;
+  }
+
+  if (openWithdrawalsBtn) {
+    openWithdrawalsBtn.addEventListener('click', () => {
+      showTab('withdrawals');
+      setWithdrawFeedback('', 'info');
+    });
+  }
+
+  if (withdrawBackBtn) {
+    withdrawBackBtn.addEventListener('click', () => {
+      showTab('store');
+    });
+  }
+
+  if (withdrawModalClose) {
+    withdrawModalClose.addEventListener('click', closeWithdrawModal);
+  }
+
+  if (withdrawModal) {
+    withdrawModal.addEventListener('click', (event) => {
+      if (event.target === withdrawModal) closeWithdrawModal();
+    });
+  }
+
+  if (withdrawMethodsContainer) {
+    withdrawMethodsContainer.addEventListener('click', (event) => {
+      const trigger = event.target.closest('.withdraw-method-button');
+      if (!trigger) return;
+      const methodKey = trigger.dataset.method;
+      if (!WITHDRAW_METHODS[methodKey]) return;
+      openWithdrawModal(methodKey);
+    });
+  }
+
+  if (withdrawOptionsEl) {
+    withdrawOptionsEl.addEventListener('change', (event) => {
+      if (event.target && event.target.classList.contains('withdraw-option-input')) {
+        highlightWithdrawOption(event.target.value);
+      }
+    });
+  }
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && withdrawModal && !withdrawModal.classList.contains('hidden')) {
+      event.preventDefault();
+      closeWithdrawModal();
     }
   });
+
+  if (withdrawForm) {
+    withdrawForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (withdrawSubmitting) return;
+      if (!tgid) {
+        setWithdrawModalFeedback('Перезапустите игру через бота, чтобы авторизоваться.', 'error');
+        return;
+      }
+      const methodKey = withdrawForm.dataset.method;
+      const method = WITHDRAW_METHODS[methodKey];
+      if (!method) {
+        setWithdrawModalFeedback('Выберите способ вывода.', 'error');
+        return;
+      }
+      const selected = withdrawOptionsEl ? withdrawOptionsEl.querySelector('.withdraw-option-input:checked') : null;
+      if (!selected) {
+        setWithdrawModalFeedback('Выберите вариант вывода.', 'error');
+        return;
+      }
+      const optionId = selected.value;
+      const details = {};
+      let validationFailed = false;
+      if (Array.isArray(method.fields)) {
+        method.fields.forEach(field => {
+          if (validationFailed) return;
+          const input = withdrawInputsEl ? withdrawInputsEl.querySelector(`[name="${field.id}"]`) : null;
+          const value = (input && input.value ? String(input.value) : '').trim();
+          if (field.required && !value) {
+            setWithdrawModalFeedback(`Заполните поле «${field.label}».`, 'error');
+            if (input) input.focus();
+            validationFailed = true;
+            return;
+          }
+          if (field.minLength && value.length < field.minLength) {
+            setWithdrawModalFeedback(`Поле «${field.label}» должно содержать не менее ${field.minLength} символов.`, 'error');
+            if (input) input.focus();
+            validationFailed = true;
+            return;
+          }
+          details[field.id] = value;
+        });
+      }
+      if (validationFailed) return;
+      const note = withdrawNotesEl ? withdrawNotesEl.value.trim() : '';
+
+      withdrawSubmitting = true;
+      setWithdrawModalFeedback('Отправляем заявку...', 'warning');
+      const submitBtn = withdrawForm.querySelector('.withdraw-submit-btn');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        const res = await fetch(`${apiBase}/withdrawals`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: methodKey, optionId, note, details })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || (json && json.ok === false)) {
+          const message = (json && (json.message || json.error)) || 'Не удалось отправить заявку. Попробуйте позже.';
+          setWithdrawModalFeedback(message, 'error');
+        } else {
+          closeWithdrawModal();
+          if (json && json.scube !== undefined) scubeEl.textContent = json.scube;
+          const message = (json && json.message) || 'Заявка на вывод отправлена. Ожидайте подтверждения.';
+          setWithdrawFeedback(message, 'success');
+          await loadUser();
+        }
+      } catch (err) {
+        console.warn('withdraw submit failed', err);
+        setWithdrawModalFeedback('Ошибка соединения. Попробуйте позже.', 'error');
+      } finally {
+        withdrawSubmitting = false;
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
 
   function showStoreFeedback(msg){
     if (!storeFeedback) return;
