@@ -364,7 +364,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'leader-name';
-      nameSpan.textContent = entry.name || `Игрок ${entry.tgid}`;
+      nameSpan.textContent = entry.name || `Иг��ок ${entry.tgid}`;
 
       const valueSpan = document.createElement('span');
       valueSpan.className = 'leader-value';
@@ -433,7 +433,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
     } catch (err) {
       if (leaderboardRequestId === requestId) {
-        showLeaderboardMessage('Не удалось загрузить рейтинг');
+        showLeaderboardMessage('Не удалось загр��зить рейтинг');
         updateLeaderboardInsights(null, mode);
       }
       console.warn('leaderboard fetch failed', err);
@@ -539,141 +539,300 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     setTimeout(()=> golden.classList.remove('shake'), 450);
   }
 
-  // Insert task block if available
-  try {
-    const cfg = window.ADSGRAM_CONFIG || {};
-    const taskId = cfg.taskBlockId;
-    const wrapper = document.getElementById('ads-task-wrap');
+  function ensureCustomElementReady(name) {
+    if (!window.customElements || typeof window.customElements.whenDefined !== 'function') {
+      return Promise.resolve();
+    }
+    if (window.customElements.get(name)) return Promise.resolve();
+    try {
+      return window.customElements.whenDefined(name);
+    } catch (err) {
+      console.warn(`Failed to observe custom element ${name}`, err);
+      return Promise.resolve();
+    }
+  }
+
+  function setTaskFeedback(message, tone = 'info') {
     const taskFeedback = document.getElementById('task-feedback');
-    if (wrapper) wrapper.textContent = '';
-    if (taskFeedback) taskFeedback.textContent = '';
-    if (taskId && window.Adsgram) {
-      const taskEl = document.createElement('adsgram-task');
-      taskEl.setAttribute('data-block-id', taskId);
-      const onNotFound = () => {
-        if (wrapper) wrapper.textContent = 'Пока заданий нет';
-        if (taskFeedback) taskFeedback.textContent = '';
-      };
-      taskEl.addEventListener('onBannerNotFound', onNotFound);
-      taskEl.addEventListener('onError', onNotFound);
-      taskEl.addEventListener('reward', async (event) => {
-        const detail = event && event.detail;
-        const rewardMeta = resolveAdsgramReward(detail, DEFAULT_TASK_REWARD);
-        const expectedReward = rewardMeta.amount;
-        const contextId = extractAdsgramContextId(detail);
+    if (!taskFeedback) return;
+    const tones = ['info', 'success', 'warning', 'error'];
+    tones.forEach((t)=> taskFeedback.classList.remove(`task-feedback--${t}`));
+    if (message) {
+      taskFeedback.textContent = message;
+      taskFeedback.classList.add(`task-feedback--${tone}`);
+    } else {
+      taskFeedback.textContent = '';
+    }
+  }
+
+  function attachTaskEventHandlers(taskEl, cardRef) {
+    if (!taskEl) return;
+    const markState = (state) => {
+      if (!cardRef) return;
+      const states = ['idle', 'empty', 'error', 'reward'];
+      states.forEach((s)=> cardRef.classList.remove(`adsgram-task-card--${s}`));
+      if (state) cardRef.classList.add(`adsgram-task-card--${state}`);
+    };
+
+    const handleUnavailable = () => {
+      markState('empty');
+      setTaskFeedback('Пока заданий нет. Загляните позже.', 'warning');
+    };
+
+    const handleError = () => {
+      markState('error');
+      setTaskFeedback('Не удалось загрузить рекламное задание. Повторите попытку позже.', 'error');
+    };
+
+    const handleTooLong = () => {
+      markState('error');
+      setTaskFeedback('Сессия рекламы длится слишком долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning');
+    };
+
+    const handleReward = async (event) => {
+      const detail = event && event.detail;
+      const rewardMeta = resolveAdsgramReward(detail, DEFAULT_TASK_REWARD);
+      const expectedReward = rewardMeta.amount;
+      const contextId = extractAdsgramContextId(detail);
+      try {
+        if (!tgid) {
+          console.warn('No tgid for reward confirmation');
+          setTaskFeedback('Невозможно подтвердить награду без идентификатора пользователя.', 'error');
+          return;
+        }
+        markState('reward');
+        setTaskFeedback(`Награда подтверждается (+${expectedReward} SCube)…`, 'info');
+
+        const applyRewardSuccess = (amountCredited, latestScube, duplicate = false) => {
+          const rounded = Math.max(0, Math.round(amountCredited));
+          if (Number.isFinite(latestScube)) scubeEl.textContent = latestScube;
+          if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
+            leaderboardCache.tasks = null;
+            leaderboardCacheTime.tasks = 0;
+            loadLeaderboard('tasks', true);
+          }
+          if (duplicate) {
+            setTaskFeedback('Награда за это задание уже была зачислена ранее.', 'warning');
+          } else if (rounded >= expectedReward) {
+            setTaskFeedback(`Задание выполнено — вы получили +${rounded} SCube`, 'success');
+          } else if (rounded > 0) {
+            setTaskFeedback(`Награда зачислена (+${rounded} SCube). Сумма меньше ожидаемой.`, 'warning');
+          } else {
+            setTaskFeedback('Задание подтверждено.', 'info');
+          }
+          if (!duplicate && rounded > 0) {
+            const banner = document.createElement('div');
+            banner.className = 'task-reward-banner success';
+            banner.textContent = `+${rounded} SCube — награда за задание!`;
+            document.body.appendChild(banner);
+            setTimeout(()=>{ if (banner && banner.parentNode) banner.parentNode.removeChild(banner); }, 3500);
+            setTimeout(()=> animateScube(), 200);
+          }
+        };
+
+        let beforeScube = null;
         try {
-          if (!tgid) return console.warn('No tgid for reward confirmation');
-          if (taskFeedback) taskFeedback.textContent = `Награда: ожидается подтверждение (+${expectedReward} SCube)`;
-
-          const applyRewardSuccess = (amountCredited, latestScube, duplicate = false) => {
-            const rounded = Math.max(0, Math.round(amountCredited));
-            if (Number.isFinite(latestScube)) scubeEl.textContent = latestScube;
-            if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'tasks') {
-              leaderboardCache.tasks = null;
-              leaderboardCacheTime.tasks = 0;
-              loadLeaderboard('tasks', true);
-            }
-            if (taskFeedback) {
-              if (duplicate) {
-                taskFeedback.textContent = 'Награда за это задание уже была зачислена ранее.';
-              } else if (rounded >= expectedReward) {
-                taskFeedback.textContent = `Задание выполнено — вы получили +${rounded} SCube`;
-              } else if (rounded > 0) {
-                taskFeedback.textContent = `Награда зачислена (+${rounded} SCube). Сумма меньше ожидаемой.`;
-              } else {
-                taskFeedback.textContent = 'Задание подтверждено.';
-              }
-            }
-            if (!duplicate && rounded > 0) {
-              const banner = document.createElement('div');
-              banner.className = 'task-reward-banner success';
-              banner.textContent = `+${rounded} SCube — награда за задание!`;
-              document.body.appendChild(banner);
-              setTimeout(()=>{ if (banner && banner.parentNode) banner.parentNode.removeChild(banner); }, 3500);
-              setTimeout(()=> animateScube(), 200);
-            }
-          };
-
-          let beforeScube = null;
-          try {
-            const beforeRes = await fetch(`${apiBase}/user/${tgid}`);
-            if (beforeRes.ok) {
-              const beforeJson = await beforeRes.json();
-              beforeScube = Number(beforeJson.scube || 0);
-            }
-          } catch (fetchErr) {
-            console.warn('Failed to fetch baseline before reward', fetchErr);
+          const beforeRes = await fetch(`${apiBase}/user/${tgid}`);
+          if (beforeRes.ok) {
+            const beforeJson = await beforeRes.json();
+            beforeScube = Number(beforeJson.scube || 0);
           }
+        } catch (fetchErr) {
+          console.warn('Failed to fetch baseline before reward', fetchErr);
+        }
 
-          let claimSucceeded = false;
-          try {
-            const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ amount: expectedReward, source: 'task', contextId })
-            });
-            if (claimRes.ok) {
-              const claimJson = await claimRes.json();
-              if (claimJson && claimJson.ok) {
-                claimSucceeded = true;
-                applyRewardSuccess(Number(claimJson.credited || expectedReward), Number(claimJson.scube), Boolean(claimJson.duplicate));
-              } else {
-                console.warn('Task reward claim returned error payload', claimJson);
-              }
+        let claimSucceeded = false;
+        try {
+          const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: expectedReward, source: 'task', contextId })
+          });
+          if (claimRes.ok) {
+            const claimJson = await claimRes.json();
+            if (claimJson && claimJson.ok) {
+              claimSucceeded = true;
+              applyRewardSuccess(Number(claimJson.credited || expectedReward), Number(claimJson.scube), Boolean(claimJson.duplicate));
             } else {
-              console.warn('Task reward claim failed with status', claimRes.status);
+              console.warn('Task reward claim returned error payload', claimJson);
             }
-          } catch (claimErr) {
-            console.warn('Task reward claim request failed', claimErr);
+          } else {
+            console.warn('Task reward claim failed with status', claimRes.status);
           }
+        } catch (claimErr) {
+          console.warn('Task reward claim request failed', claimErr);
+        }
 
-          if (claimSucceeded) return;
+        if (claimSucceeded) return;
 
-          const timeout = 20000;
-          const interval = 2000;
-          const start = Date.now();
-          let credited = false;
+        const timeout = 20000;
+        const interval = 2000;
+        const start = Date.now();
+        let credited = false;
 
-          while (Date.now() - start < timeout) {
-            await new Promise(r=>setTimeout(r, interval));
-            try {
-              const check = await fetch(`${apiBase}/user/${tgid}`);
-              if (!check.ok) continue;
-              const js = await check.json();
-              const nowScube = Number(js.scube || 0);
-              if (beforeScube !== null) {
-                const delta = nowScube - beforeScube;
-                if (delta >= expectedReward) {
-                  applyRewardSuccess(delta, nowScube);
-                  credited = true;
-                  break;
-                }
-                if (delta > 0) {
-                  applyRewardSuccess(delta, nowScube);
-                  credited = true;
-                  break;
-                }
-              } else {
-                applyRewardSuccess(expectedReward, nowScube);
+        while (Date.now() - start < timeout) {
+          await new Promise(r=>setTimeout(r, interval));
+          try {
+            const check = await fetch(`${apiBase}/user/${tgid}`);
+            if (!check.ok) continue;
+            const js = await check.json();
+            const nowScube = Number(js.scube || 0);
+            if (beforeScube !== null) {
+              const delta = nowScube - beforeScube;
+              if (delta >= expectedReward) {
+                applyRewardSuccess(delta, nowScube);
                 credited = true;
                 break;
               }
-            } catch (e) { console.warn('poll error', e); }
+              if (delta > 0) {
+                applyRewardSuccess(delta, nowScube);
+                credited = true;
+                break;
+              }
+            } else {
+              applyRewardSuccess(expectedReward, nowScube);
+              credited = true;
+              break;
+            }
+          } catch (e) {
+            console.warn('poll error', e);
           }
-          if (!credited) {
-            if (taskFeedback) taskFeedback.textContent = `Наг��ада не подтверждена — попробуйте позже (ожидали +${expectedReward} SCube).`;
-            console.warn('Task reward not confirmed within timeout');
-          }
-        } catch (e) { console.warn('Failed to process task reward event', e); if (taskFeedback) taskFeedback.textContent = 'Ошибка при подтверждении награды'; }
-      });
-      if (wrapper) {
-        wrapper.innerHTML = '';
-        wrapper.appendChild(taskEl);
+        }
+        if (!credited) {
+          setTaskFeedback(`Награда не подтвержд��на — попробуйте позже (ожидали +${expectedReward} SCube).`, 'warning');
+          console.warn('Task reward not confirmed within timeout');
+        }
+      } catch (e) {
+        console.warn('Failed to process task reward event', e);
+        setTaskFeedback('Ошибка при подтверждении награды', 'error');
       }
-    } else {
-      if (wrapper) wrapper.textContent = 'Пока заданий нет';
+    };
+
+    const register = (names, handler) => names.forEach((name)=> taskEl.addEventListener(name, handler));
+    register(['reward'], handleReward);
+    register(['onError', 'error'], handleError);
+    register(['onBannerNotFound', 'bannerNotFound'], handleUnavailable);
+    register(['onTooLongSession', 'tooLongSession'], handleTooLong);
+    markState('idle');
+  }
+
+  function createAdsgramTaskCard(cfg) {
+    const wrapper = document.getElementById('ads-task-wrap');
+    if (!wrapper) return null;
+    const card = document.createElement('div');
+    card.className = 'adsgram-task-card adsgram-task-card--idle';
+
+    const header = document.createElement('div');
+    header.className = 'adsgram-task-header';
+    const icon = document.createElement('div');
+    icon.className = 'adsgram-task-icon';
+    icon.textContent = '🎯';
+    const text = document.createElement('div');
+    text.className = 'adsgram-task-text';
+    const title = document.createElement('h4');
+    title.className = 'adsgram-task-title';
+    title.textContent = 'Задание AdsGram';
+    const subtitle = document.createElement('p');
+    subtitle.className = 'adsgram-task-subtitle';
+    subtitle.textContent = 'Выполните условия предложения и заберите награду.';
+    text.append(title, subtitle);
+    header.append(icon, text);
+
+    const hint = document.createElement('p');
+    hint.className = 'adsgram-task-hint';
+    hint.textContent = 'Нажмите «GO», выполните шаги рекламодателя, затем заберите награду.';
+
+    const taskEl = document.createElement('adsgram-task');
+    taskEl.className = 'adsgram-task-element';
+    taskEl.setAttribute('data-block-id', cfg.taskBlockId);
+
+    if (cfg.taskDebug === true) {
+      taskEl.setAttribute('data-debug', 'true');
+    } else if (cfg.taskDebug === false) {
+      taskEl.setAttribute('data-debug', 'false');
     }
-  } catch (e) { console.warn('Failed to setup task block', e); }
+    if (cfg.taskDebugConsole === true || cfg.taskDebugConsole === false) {
+      taskEl.setAttribute('data-debug-console', String(cfg.taskDebugConsole));
+    }
+
+    const rewardSource = document.getElementById('task-reward-amount');
+    let rewardLabel = rewardSource ? rewardSource.textContent.trim() : `${DEFAULT_TASK_REWARD} SCube`;
+    if (!rewardLabel) rewardLabel = `${DEFAULT_TASK_REWARD} SCube`;
+    if (!/^\+/.test(rewardLabel)) {
+      rewardLabel = `+${rewardLabel}`;
+    }
+
+    const rewardSlot = document.createElement('div');
+    rewardSlot.className = 'task-slot-reward';
+    rewardSlot.setAttribute('slot', 'reward');
+    const rewardAmount = document.createElement('span');
+    rewardAmount.className = 'task-slot-reward-amount';
+    rewardAmount.textContent = rewardLabel;
+    const rewardHint = document.createElement('span');
+    rewardHint.className = 'task-slot-reward-hint';
+    rewardHint.textContent = 'за выполнение';
+    rewardSlot.append(rewardAmount, rewardHint);
+
+    const startButton = document.createElement('button');
+    startButton.type = 'button';
+    startButton.className = 'task-slot-button task-slot-button--start';
+    startButton.setAttribute('slot', 'button');
+    startButton.textContent = 'GO';
+
+    const claimButton = document.createElement('button');
+    claimButton.type = 'button';
+    claimButton.className = 'task-slot-button task-slot-button--claim';
+    claimButton.setAttribute('slot', 'claim');
+    claimButton.textContent = 'CLAIM';
+
+    const doneState = document.createElement('div');
+    doneState.className = 'task-slot-done';
+    doneState.setAttribute('slot', 'done');
+    doneState.textContent = 'DONE';
+
+    taskEl.append(rewardSlot, startButton, claimButton, doneState);
+
+    card.append(header, hint, taskEl);
+    attachTaskEventHandlers(taskEl, card);
+    return card;
+  }
+
+  function setupAdsgramTask(attempt = 0) {
+    const cfg = window.ADSGRAM_CONFIG || {};
+    const wrapper = document.getElementById('ads-task-wrap');
+    if (!wrapper) return;
+    if (wrapper.dataset.taskReady === 'true') return;
+
+    const taskId = cfg.taskBlockId;
+    if (!taskId) {
+      wrapper.textContent = 'Пока заданий нет';
+      return;
+    }
+
+    if (!window.Adsgram) {
+      if (attempt >= 20) {
+        console.warn('AdsGram SDK was not ready for tasks');
+        return;
+      }
+      setTimeout(()=> setupAdsgramTask(attempt + 1), 250);
+      return;
+    }
+
+    ensureCustomElementReady('adsgram-task')
+      .then(() => {
+        const card = createAdsgramTaskCard(cfg);
+        if (!card) return;
+        wrapper.innerHTML = '';
+        wrapper.appendChild(card);
+        wrapper.dataset.taskReady = 'true';
+        setTaskFeedback('', 'info');
+      })
+      .catch((err) => {
+        console.warn('Failed to init AdsGram task element', err);
+      });
+  }
+
+  setupAdsgramTask();
 
   async function loadUser(){
     if (!initialDataLoaded) showInitialLoading();
@@ -930,7 +1089,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                 energyEl.textContent = jsonRefill.energy;
                 showStoreFeedback('Энергия восполнена');
               } else {
-                showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
+                showStoreFeedback(jsonRefill.message || 'Ошибка восполнения эне��гии');
               }
             } else {
               showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
