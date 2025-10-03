@@ -124,7 +124,7 @@
                 </div>
               </div>
               <div class="upgrade-cost">Стоимость: 2000 SCube</div>
-              <button class="upgrade-btn" data-type="auto_energy">Купить автоэнергию</button>
+              <button class="upgrade-btn" data-type="auto_energy">Купить ав��оэнергию</button>
               <div class="card-glow" aria-hidden="true"></div>
             </div>
           </div>
@@ -296,6 +296,47 @@
           <div id="withdraw-modal-feedback" class="withdraw-modal-feedback"></div>
           <button type="submit" class="withdraw-submit-btn">Отправить заявку</button>
         </form>
+      </div>
+    </div>
+
+    <!-- Onboarding overlay (first‑run slider) -->
+    <div id="onboarding" class="onboarding-overlay hidden" aria-hidden="true">
+      <div class="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onb-title">
+        <button id="onb-skip" class="onboarding-skip" type="button" aria-label="Пропустить обучение">Пропустить</button>
+        <div class="onboarding-slides" id="onb-slides">
+          <article class="onboarding-slide" data-index="0">
+            <h2 id="onb-title" class="onboarding-title"><strong>ДОБРО ПОЖАЛОВАТЬ В BGGCube!</strong></h2>
+            <p class="onboarding-text">Здесь ты добываешь SCube и обмениваешь их на GCube.</p>
+            <p class="onboarding-text">Начисление GCube идёт по твоему игровому ID — без паролей.</p>
+          </article>
+          <article class="onboarding-slide" data-index="1">
+            <h3 class="onboarding-subtitle">Как добывать SCube?</h3>
+            <ul class="onboarding-list">
+              <li>Кликай по золотому кубу на вкладке «Главная»</li>
+              <li>Выполняй задания AdsGram</li>
+              <li>Приглашай друзей и получай процент от их дохода</li>
+            </ul>
+          </article>
+          <article class="onboarding-slide" data-index="2">
+            <h3 class="onboarding-subtitle">Как вывести SCube?</h3>
+            <p class="onboarding-text">Вывод доступен в Магазине. Доступные варианты:</p>
+            <ul class="onboarding-list">
+              <li>Обмен SCube на GCube</li>
+              <li>Вывод в Telegram Stars</li>
+              <li>Вывод в ₽ по номеру телефона</li>
+            </ul>
+          </article>
+        </div>
+        <div class="onboarding-dots" id="onb-dots" role="tablist" aria-label="Шаги обучения">
+          <button class="onboarding-dot" data-to="0" aria-label="Шаг 1"></button>
+          <button class="onboarding-dot" data-to="1" aria-label="Шаг 2"></button>
+          <button class="onboarding-dot" data-to="2" aria-label="Шаг 3"></button>
+        </div>
+        <div class="onboarding-actions">
+          <button id="onb-prev" class="onboarding-btn secondary" type="button">Назад</button>
+          <button id="onb-next" class="onboarding-btn primary" type="button">Далее</button>
+          <button id="onb-start" class="onboarding-btn primary hidden" type="button">Начать</button>
+        </div>
       </div>
     </div>
 

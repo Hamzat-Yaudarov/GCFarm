@@ -725,7 +725,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           }
         }
         if (!credited) {
-          setTaskFeedback(`Награда не подтверждена — попробуйте позже (ожидали +${expectedReward} SCube).`, 'warning');
+          setTaskFeedback(`Награда не подтверждена — попробуйте поз��е (ожидали +${expectedReward} SCube).`, 'warning');
           console.warn('Task reward not confirmed within timeout');
         }
       } catch (e) {
@@ -856,7 +856,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       })
       .catch((err) => {
         console.warn('Failed to init AdsGram task element', err);
-        renderTaskEmptyState('Не удалось загрузить задания. Попробуйте позже.');
+        renderTaskEmptyState('Не удалось загрузить задания. Поп��обуйте позже.');
       });
   }
 
@@ -1802,4 +1802,59 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   const activeBtn = document.querySelector('.tab-button.active');
   setStoreFabVisibility(activeBtn ? activeBtn.dataset.tab : 'home');
   setMainCompact(activeBtn ? activeBtn.dataset.tab : 'home');
+
+  // Onboarding slider (first run)
+  const onboardingOverlay = document.getElementById('onboarding');
+  const onbSlidesWrap = document.getElementById('onb-slides');
+  const onbSlides = onbSlidesWrap ? Array.from(onbSlidesWrap.querySelectorAll('.onboarding-slide')) : [];
+  const onbDotsWrap = document.getElementById('onb-dots');
+  const onbDots = onbDotsWrap ? Array.from(onbDotsWrap.querySelectorAll('.onboarding-dot')) : [];
+  const onbPrev = document.getElementById('onb-prev');
+  const onbNext = document.getElementById('onb-next');
+  const onbStart = document.getElementById('onb-start');
+  const onbSkip = document.getElementById('onb-skip');
+  let onbIndex = 0;
+  let onbTouched = false;
+
+  function onbKey(){ return tgid ? `onb_seen_v1_${tgid}` : 'onb_seen_v1'; }
+  function onbSeen(){ try { localStorage.setItem(onbKey(), '1'); } catch(e){} }
+  function onbIsSeen(){ try { return !!localStorage.getItem(onbKey()); } catch(e){ return true; } }
+
+  function setOnbIndex(i){
+    if (!onbSlides.length) return;
+    onbIndex = Math.max(0, Math.min(onbSlides.length - 1, i));
+    onbSlides.forEach((el, idx)=>{ if (idx===onbIndex) el.classList.add('active'); else el.classList.remove('active'); });
+    onbDots.forEach((el, idx)=>{ if (idx===onbIndex) el.classList.add('active'); else el.classList.remove('active'); });
+    if (onbPrev) onbPrev.disabled = (onbIndex === 0);
+    if (onbNext) onbNext.classList.toggle('hidden', onbIndex === onbSlides.length - 1);
+    if (onbStart) onbStart.classList.toggle('hidden', onbIndex !== onbSlides.length - 1);
+  }
+  function hideOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.add('hidden'); onboardingOverlay.setAttribute('aria-hidden','true'); onbSeen(); }
+  function showOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.remove('hidden'); onboardingOverlay.setAttribute('aria-hidden','false'); setOnbIndex(0); }
+  function maybeShowOnboarding(){ if (onbIsSeen()) return; showOnboarding(); }
+
+  if (onbPrev) onbPrev.addEventListener('click', ()=> setOnbIndex(onbIndex - 1));
+  if (onbNext) onbNext.addEventListener('click', ()=> setOnbIndex(onbIndex + 1));
+  if (onbStart) onbStart.addEventListener('click', hideOnboarding);
+  if (onbSkip) onbSkip.addEventListener('click', hideOnboarding);
+  if (onbDotsWrap) onbDotsWrap.addEventListener('click', (e)=>{ const b = e.target.closest('.onboarding-dot'); if (!b) return; const to = parseInt(b.dataset.to, 10); if (Number.isFinite(to)) setOnbIndex(to); });
+
+  // touch swipe
+  if (onbSlidesWrap){
+    let startX = 0; let dx = 0; let touching = false;
+    onbSlidesWrap.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; touching = true; startX = t.clientX; dx = 0; });
+    onbSlidesWrap.addEventListener('touchmove', (e)=>{ if (!touching) return; const t = e.touches[0]; dx = t.clientX - startX; });
+    onbSlidesWrap.addEventListener('touchend', ()=>{ if (!touching) return; touching = false; if (Math.abs(dx) > 50){ if (dx < 0) setOnbIndex(onbIndex + 1); else setOnbIndex(onbIndex - 1); } dx = 0; });
+  }
+
+  // show onboarding after initial loading finishes
+  if (loadingOverlay) {
+    const obs = new MutationObserver(()=>{
+      const hidden = loadingOverlay.classList.contains('loading-overlay--hidden');
+      if (hidden) { obs.disconnect(); setTimeout(maybeShowOnboarding, 250); }
+    });
+    obs.observe(loadingOverlay, { attributes: true, attributeFilter: ['class'] });
+  } else {
+    setTimeout(maybeShowOnboarding, 1000);
+  }
 })();
