@@ -876,7 +876,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данны��. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не ��далось загрузить данны��. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -1224,7 +1224,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   const WITHDRAW_METHODS = {
     stars: {
       key: 'stars',
-      title: 'Вывод как Telegram-звёзды',
+      title: 'Вывод ка�� Telegram-звёзды',
       hint: 'Выберите нужный набор звёзд. Комиссия — 5 SCube на каждые 100 SCube.',
       options: [
         buildWithdrawOption('stars-15', '15 Stars', 900, 45, 'Выплата: 15 Stars'),
@@ -1820,31 +1820,77 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   function onbSeen(){ try { localStorage.setItem(onbKey(), '1'); } catch(e){} }
   function onbIsSeen(){ try { return !!localStorage.getItem(onbKey()); } catch(e){ return true; } }
 
-  function setOnbIndex(i){
+  const onbProgressWrap = document.getElementById('onb-progress');
+  const ONB_DURATION = 4000; // ms per slide
+  let onbProgress = onbSlides.length ? new Array(onbSlides.length).fill(0) : [];
+  let onbPaused = false;
+  let onbRaf = 0;
+  let onbLastTs = 0;
+
+  function updateOnbBars(){
+    if (!onbProgressWrap) return;
+    const bars = Array.from(onbProgressWrap.querySelectorAll('.onb-bar'));
+    bars.forEach((bar, idx)=>{
+      const p = onbProgress[idx] || 0;
+      bar.style.width = `${Math.max(0, Math.min(100, p*100))}%`;
+    });
+  }
+
+  function setOnbIndex(i, forward){
     if (!onbSlides.length) return;
     onbIndex = Math.max(0, Math.min(onbSlides.length - 1, i));
     onbSlides.forEach((el, idx)=>{ if (idx===onbIndex) el.classList.add('active'); else el.classList.remove('active'); });
-    onbDots.forEach((el, idx)=>{ if (idx===onbIndex) el.classList.add('active'); else el.classList.remove('active'); });
-    if (onbPrev) onbPrev.disabled = (onbIndex === 0);
-    if (onbNext) onbNext.classList.toggle('hidden', onbIndex === onbSlides.length - 1);
-    if (onbStart) onbStart.classList.toggle('hidden', onbIndex !== onbSlides.length - 1);
+    for (let k=0;k<onbSlides.length;k++){
+      if (k < onbIndex) onbProgress[k] = 1;
+      else if (k > onbIndex) onbProgress[k] = 0;
+    }
+    if (onbProgress[onbIndex] >= 1 || forward === undefined) onbProgress[onbIndex] = 0;
+    updateOnbBars();
   }
-  function hideOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.add('hidden'); onboardingOverlay.setAttribute('aria-hidden','true'); onbSeen(); }
-  function showOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.remove('hidden'); onboardingOverlay.setAttribute('aria-hidden','false'); setOnbIndex(0); }
+  function hideOnboarding(){ if (!onboardingOverlay) return; cancelAnimationFrame(onbRaf); onboardingOverlay.classList.add('hidden'); onboardingOverlay.setAttribute('aria-hidden','true'); onbSeen(); }
+  function showOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.remove('hidden'); onboardingOverlay.setAttribute('aria-hidden','false'); onbProgress = onbSlides.length ? new Array(onbSlides.length).fill(0) : []; setOnbIndex(0); startOnbLoop(); }
   function maybeShowOnboarding(){ if (onbIsSeen()) return; showOnboarding(); }
 
-  if (onbPrev) onbPrev.addEventListener('click', ()=> setOnbIndex(onbIndex - 1));
-  if (onbNext) onbNext.addEventListener('click', ()=> setOnbIndex(onbIndex + 1));
-  if (onbStart) onbStart.addEventListener('click', hideOnboarding);
-  if (onbSkip) onbSkip.addEventListener('click', hideOnboarding);
-  if (onbDotsWrap) onbDotsWrap.addEventListener('click', (e)=>{ const b = e.target.closest('.onboarding-dot'); if (!b) return; const to = parseInt(b.dataset.to, 10); if (Number.isFinite(to)) setOnbIndex(to); });
+  function onbStep(ts){
+    if (!onboardingOverlay || onboardingOverlay.classList.contains('hidden')) return;
+    const dt = onbLastTs ? (ts - onbLastTs) : 16;
+    onbLastTs = ts;
+    if (!onbPaused && onbSlides.length){
+      onbProgress[onbIndex] += dt / ONB_DURATION;
+      if (onbProgress[onbIndex] >= 1){
+        if (onbIndex < onbSlides.length - 1) { setOnbIndex(onbIndex + 1, true); }
+        else { updateOnbBars(); return hideOnboarding(); }
+      }
+      updateOnbBars();
+    }
+    onbRaf = requestAnimationFrame(onbStep);
+  }
+  function startOnbLoop(){ cancelAnimationFrame(onbRaf); onbLastTs = 0; onbRaf = requestAnimationFrame(onbStep); }
 
-  // touch swipe
-  if (onbSlidesWrap){
-    let startX = 0; let dx = 0; let touching = false;
-    onbSlidesWrap.addEventListener('touchstart', (e)=>{ const t = e.touches[0]; touching = true; startX = t.clientX; dx = 0; });
-    onbSlidesWrap.addEventListener('touchmove', (e)=>{ if (!touching) return; const t = e.touches[0]; dx = t.clientX - startX; });
-    onbSlidesWrap.addEventListener('touchend', ()=>{ if (!touching) return; touching = false; if (Math.abs(dx) > 50){ if (dx < 0) setOnbIndex(onbIndex + 1); else setOnbIndex(onbIndex - 1); } dx = 0; });
+  if (onbSkip) onbSkip.addEventListener('click', hideOnboarding);
+
+  // Tap/hold navigation on overlay
+  if (onboardingOverlay){
+    let downAt = 0; let downX = 0;
+    onboardingOverlay.addEventListener('pointerdown', (e)=>{
+      if (e.target && e.target.closest('#onb-skip')) return;
+      downAt = Date.now();
+      downX = e.clientX;
+      onbPaused = true;
+    });
+    onboardingOverlay.addEventListener('pointerup', (e)=>{
+      if (e.target && e.target.closest('#onb-skip')) return;
+      const wasTap = Date.now() - downAt < 250;
+      const rect = onboardingOverlay.getBoundingClientRect();
+      if (wasTap){
+        const isRight = e.clientX > rect.left + rect.width/2;
+        if (isRight) { if (onbIndex < onbSlides.length - 1) setOnbIndex(onbIndex + 1, true); else hideOnboarding(); }
+        else { if (onbIndex > 0) setOnbIndex(onbIndex - 1, false); }
+      }
+      onbPaused = false;
+    });
+    // touch cancel
+    onboardingOverlay.addEventListener('pointercancel', ()=>{ onbPaused = false; });
   }
 
   // show onboarding after initial loading finishes, plus a time-based fallback

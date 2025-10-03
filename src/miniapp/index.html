@@ -60,7 +60,7 @@
               <div class="resource-card-header">
                 <div class="resource-card-icon" aria-hidden="true">📅</div>
                 <div class="resource-card-info">
-                  <span class="resource-card-label">Прогресс дня</span>
+                  <span class="resource-card-label">Прогресс дн��</span>
                   <span class="resource-card-value"><span id="daily">0</span> / <span id="daily-limit">400</span></span>
                 </div>
               </div>
@@ -82,7 +82,7 @@
           <h3>💸 Центр вывода</h3>
           <p class="section-hint">💎 Выводи награды или прокачивай базу для ещё большей добычи.</p>
           <div class="store-actions">
-            <button id="open-withdrawals" class="withdraw-trigger-btn" type="button">💸 Вывести средства</button>
+            <button id="open-withdrawals" class="withdraw-trigger-btn" type="button">💸 Вывести ��редства</button>
           </div>
 
           <h3>🚀 Лаборатория улучшений</h3>
@@ -304,6 +304,11 @@
       <div class="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onb-title">
         <button id="onb-skip" class="onboarding-skip" type="button" aria-label="Пропустить обучение">Пропустить</button>
         <div class="onboarding-hero" aria-hidden="true">🔶</div>
+        <div class="onboarding-progress" id="onb-progress" aria-label="Прогресс обучения">
+          <div class="onb-segment"><span class="onb-bar"></span></div>
+          <div class="onb-segment"><span class="onb-bar"></span></div>
+          <div class="onb-segment"><span class="onb-bar"></span></div>
+        </div>
         <div class="onboarding-slides" id="onb-slides">
           <article class="onboarding-slide" data-index="0">
             <h2 id="onb-title" class="onboarding-title"><strong>ДОБРО ПОЖАЛОВАТЬ В BGGCube!</strong></h2>
@@ -328,16 +333,7 @@
             </ul>
           </article>
         </div>
-        <div class="onboarding-dots" id="onb-dots" role="tablist" aria-label="Шаги обучения">
-          <button class="onboarding-dot" data-to="0" aria-label="Шаг 1"></button>
-          <button class="onboarding-dot" data-to="1" aria-label="Шаг 2"></button>
-          <button class="onboarding-dot" data-to="2" aria-label="Шаг 3"></button>
-        </div>
-        <div class="onboarding-actions">
-          <button id="onb-prev" class="onboarding-btn secondary" type="button">Назад</button>
-          <button id="onb-next" class="onboarding-btn primary" type="button">Далее</button>
-          <button id="onb-start" class="onboarding-btn primary hidden" type="button">Начать</button>
-        </div>
+        <!-- dots/actions removed: progress lines and tap navigation used instead -->
       </div>
     </div>
 
