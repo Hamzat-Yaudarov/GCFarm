@@ -1,5 +1,6 @@
 const express = require('express');
 const { Telegraf } = require('telegraf');
+const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
 const crypto = require('crypto');
@@ -14,6 +15,11 @@ const ADSGRAM_SECRET = process.env.ADSGRAM_SECRET || 'c6a7a8b7cd30418d9844aebc37
 const ADSGRAM_INTERSTITIAL_ID = process.env.ADSGRAM_INTERSTITIAL_ID || 'int-15441';
 const WITHDRAW_ADMIN_CHAT = process.env.WITHDRAW_ADMIN_CHAT || '@zazarara2';
 const WITHDRAW_SUCCESS_CHAT = process.env.WITHDRAW_SUCCESS_CHAT || '@zazarara3';
+const ADMIN_IDS = String(process.env.ADMIN_ID || '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
 
 if (!TG_BOT_TOKEN) {
   console.error('TG_BOT_TOKEN is not set');
@@ -298,6 +304,188 @@ async function notifyAdminWithdrawal(withdrawal, user, profileMeta){
   }
 }
 
+function isAuthorizedAdmin(tgid){
+  if (!tgid) return false;
+  if (!ADMIN_IDS.length) return true;
+  return ADMIN_IDS.includes(String(tgid));
+}
+function resolveAdminLabel(adminData){
+  if (!adminData) return 'Администратор';
+  if (adminData.fullName) return adminData.fullName;
+  if (adminData.username) return `@${adminData.username}`;
+  if (adminData.tgid) return `ID ${adminData.tgid}`;
+  return 'Администратор';
+}
+function resolveMethodLabel(methodKey){
+  const method = db.WITHDRAWAL_METHODS && db.WITHDRAWAL_METHODS[methodKey];
+  if (method && method.label) return method.label;
+  return methodKey;
+}
+async function clearWithdrawalKeyboard(ctx){
+  const cq = ctx.callbackQuery;
+  if (!cq) return;
+  try {
+    if (cq.inline_message_id) {
+      await ctx.telegram.editMessageReplyMarkup(undefined, undefined, cq.inline_message_id, null);
+      return;
+    }
+    const message = cq.message;
+    if (message && message.chat && message.message_id) {
+      await ctx.telegram.editMessageReplyMarkup(message.chat.id, message.message_id, undefined, null);
+    }
+  } catch (err) {
+    console.warn('Failed to clear withdrawal keyboard', err);
+  }
+}
+async function updateAdminWithdrawalMessage(ctx, statusLine){
+  const cq = ctx.callbackQuery;
+  if (!cq) return;
+  const message = cq.message;
+  const base = message && (message.text || message.caption);
+  if (!base) {
+    await clearWithdrawalKeyboard(ctx);
+    return;
+  }
+  const appended = base.includes(statusLine) ? base : `${base}\n\n${statusLine}`;
+  try {
+    if (message.text) {
+      await ctx.telegram.editMessageText(message.chat.id, message.message_id, undefined, appended, {
+        disable_web_page_preview: true,
+        reply_markup: null
+      });
+    } else {
+      await ctx.telegram.editMessageCaption(message.chat.id, message.message_id, undefined, appended, {
+        reply_markup: null
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to update withdrawal message', err);
+    await clearWithdrawalKeyboard(ctx);
+    const targetChat = ctx.chat && ctx.chat.id ? ctx.chat.id : WITHDRAW_ADMIN_CHAT;
+    try {
+      await ctx.telegram.sendMessage(targetChat, statusLine, {
+        reply_to_message_id: message && message.message_id ? message.message_id : undefined
+      });
+    } catch (sendErr) {
+      console.warn('Failed to send withdrawal status fallback', sendErr);
+    }
+  }
+}
+async function notifyWithdrawalUser(withdrawal, status, meta){
+  if (!withdrawal || !withdrawal.tgid) return;
+  const methodLabel = resolveMethodLabel(withdrawal.method);
+  const lines = [];
+  if (status === 'completed') {
+    lines.push(`Ваша заявка #${withdrawal.id} выполнена.`);
+  } else if (status === 'declined') {
+    lines.push(`Заявка #${withdrawal.id} отклонена.`);
+  } else {
+    return;
+  }
+  lines.push(`Способ: ${methodLabel}`);
+  lines.push(`Вариант: ${withdrawal.payoutLabel}`);
+  if (status === 'declined' && meta && meta.scube !== undefined) {
+    lines.push(`SCube после возврата: ${meta.scube}`);
+  }
+  try {
+    await bot.telegram.sendMessage(withdrawal.tgid, lines.join('\n'));
+  } catch (err) {
+    console.warn('Failed to notify user about withdrawal status', err);
+  }
+}
+
+bot.on('callback_query', async (ctx) => {
+  const data = ctx.callbackQuery && ctx.callbackQuery.data;
+  if (!data || !data.startsWith('wd:')) {
+    try {
+      await ctx.answerCbQuery();
+    } catch (err) {}
+    return;
+  }
+  const parts = data.split(':');
+  const action = parts[1];
+  const idRaw = parts[2];
+  const withdrawalId = Number(idRaw);
+  if (!withdrawalId) {
+    try {
+      await ctx.answerCbQuery('Некорректная заявка', { show_alert: true });
+    } catch (err) {}
+    return;
+  }
+  const actorId = ctx.from && ctx.from.id;
+  if (!isAuthorizedAdmin(actorId)) {
+    try {
+      await ctx.answerCbQuery('У вас нет прав для этого действия', { show_alert: true });
+    } catch (err) {}
+    return;
+  }
+  const adminData = {
+    tgid: actorId || null,
+    username: ctx.from && ctx.from.username ? ctx.from.username : null,
+    fullName: [ctx.from && ctx.from.first_name, ctx.from && ctx.from.last_name].filter(Boolean).join(' ') || null
+  };
+  try {
+    if (action === 'done') {
+      const result = await db.completeWithdrawal(withdrawalId, adminData);
+      if (!result || !result.ok) {
+        if (result && result.reason === 'already_processed') {
+          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
+          await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
+          return;
+        }
+        await ctx.answerCbQuery('Не удалось завершить заявку', { show_alert: true });
+        return;
+      }
+      const withdrawal = result.withdrawal;
+      const adminLabel = resolveAdminLabel(adminData);
+      const statusBanner = `✅ Заявка #${withdrawal.id} выполнена администратором ${adminLabel}`;
+      await updateAdminWithdrawalMessage(ctx, statusBanner);
+      await ctx.answerCbQuery('Заявка выполнена');
+      await notifyWithdrawalUser(withdrawal, 'completed');
+      if (WITHDRAW_SUCCESS_CHAT) {
+        try {
+          const successLines = [
+            '🎉 Выплата подтверждена!',
+            `Заявка #${withdrawal.id}`,
+            `Получатель: ${withdrawal.tgid}`,
+            `Способ: ${resolveMethodLabel(withdrawal.method)} • ${withdrawal.payoutLabel}`
+          ];
+          await bot.telegram.sendMessage(WITHDRAW_SUCCESS_CHAT, successLines.join('\n'));
+        } catch (err) {
+          console.warn('Failed to notify success chat about withdrawal', err);
+        }
+      }
+      return;
+    }
+    if (action === 'reject') {
+      const result = await db.declineWithdrawal(withdrawalId, adminData);
+      if (!result || !result.ok) {
+        if (result && result.reason === 'already_processed') {
+          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
+          await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
+          return;
+        }
+        await ctx.answerCbQuery('Не удалось отклонить заявку', { show_alert: true });
+        return;
+      }
+      const withdrawal = result.withdrawal;
+      const adminLabel = resolveAdminLabel(adminData);
+      const statusBanner = `🚫 Заявка #${withdrawal.id} отклонена администратором ${adminLabel}`;
+      await updateAdminWithdrawalMessage(ctx, statusBanner);
+      await ctx.answerCbQuery('Заявка отклонена');
+      const scubeMeta = result.scube !== undefined ? { scube: result.scube } : undefined;
+      await notifyWithdrawalUser(withdrawal, 'declined', scubeMeta);
+      return;
+    }
+    await ctx.answerCbQuery('Неизвестное действие', { show_alert: true });
+  } catch (err) {
+    console.error('Failed to process withdrawal callback', err);
+    try {
+      await ctx.answerCbQuery('Ошибка обработки', { show_alert: true });
+    } catch (answerErr) {}
+  }
+});
+
 bot.start(async (ctx) => {
   const user = ctx.from || {};
   const first = user.first_name || '';
@@ -337,7 +525,7 @@ bot.start(async (ctx) => {
   try {
     await ctx.reply(`Привет, ${firstName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
       reply_markup: {
-        inline_keyboard: [[{ text: 'Открыть игру', web_app: { url: webAppUrl } }]]
+        inline_keyboard: [[{ text: 'Открыт�� игру', web_app: { url: webAppUrl } }]]
       }
     });
   } catch (err) {

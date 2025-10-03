@@ -563,7 +563,7 @@ async function refillToFull(tgid) {
       const waitMs = ENERGY_REFILL_COOLDOWN_MS - (now - lastEnergyRefillAt);
       const waitSeconds = Math.max(1, Math.ceil(waitMs / 1000));
       await client.query('ROLLBACK');
-      return { ok:false, message: `Э��ергию можно восполнить через ${waitSeconds} сек.` };
+      return { ok:false, message: `Энергию можно восполнить через ${waitSeconds} сек.` };
     }
     await client.query('UPDATE users SET energy=$1, last_energy_refill_at=$2 WHERE tgid=$3', [capacity, now, tgid]);
     await client.query('COMMIT');
