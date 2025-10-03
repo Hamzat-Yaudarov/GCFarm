@@ -14,7 +14,7 @@ const ADSGRAM_SECRET = process.env.ADSGRAM_SECRET || 'c6a7a8b7cd30418d9844aebc37
 const ADSGRAM_INTERSTITIAL_ID = process.env.ADSGRAM_INTERSTITIAL_ID || 'int-15441';
 const WITHDRAW_ADMIN_CHAT = process.env.WITHDRAW_ADMIN_CHAT || '@zazarara2';
 const WITHDRAW_SUCCESS_CHAT = process.env.WITHDRAW_SUCCESS_CHAT || '@zazarara3';
-const ADMIN_IDS = String(process.env.ADMIN_ID || '')
+const ADMIN_IDS = String(process.env.ADMIN_ID || '7910097562')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
