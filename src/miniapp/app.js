@@ -876,7 +876,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не ��далось загрузить данны��. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данны��. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -1091,7 +1091,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       // require full expansion before proceeding
       if (!isExpanded) {
         try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-        return showStoreFeedback('Разверните MiniApp полностью и повторите');
+        return showStoreFeedback('Разверните MiniApp полностью и п��вторите');
       }
       refillBusy = true;
       try {
@@ -1224,7 +1224,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   const WITHDRAW_METHODS = {
     stars: {
       key: 'stars',
-      title: 'Вывод ка�� Telegram-звёзды',
+      title: 'Вывод как Telegram-звёзды',
       hint: 'Выберите нужный набор звёзд. Комиссия — 5 SCube на каждые 100 SCube.',
       options: [
         buildWithdrawOption('stars-15', '15 Stars', 900, 45, 'Выплата: 15 Stars'),
@@ -1748,7 +1748,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       wrap.appendChild(banner);
     } else if (String(turn)===me) status.textContent = 'Ваш ход'; else status.textContent = 'Ход соперника';
     const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'О��менить' : 'Сдаться');
     leave.addEventListener('click', leaveRoom);
 
     wrap.append(title, notice, timer, grid, status, leave);
@@ -1822,7 +1822,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
   const onbProgressWrap = document.getElementById('onb-progress');
   const ONB_DURATION = 4000; // ms per slide
-  let onbProgress = onbSlides.length ? new Array(onbSlides.length).fill(0) : [];
+  let onbElapsed = 0;
   let onbPaused = false;
   let onbRaf = 0;
   let onbLastTs = 0;
@@ -1831,24 +1831,24 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!onbProgressWrap) return;
     const bars = Array.from(onbProgressWrap.querySelectorAll('.onb-bar'));
     bars.forEach((bar, idx)=>{
-      const p = onbProgress[idx] || 0;
-      bar.style.width = `${Math.max(0, Math.min(100, p*100))}%`;
+      let pct = 0;
+      if (idx < onbIndex) pct = 100;
+      else if (idx === onbIndex) pct = Math.max(0, Math.min(100, (onbElapsed/ONB_DURATION)*100));
+      else pct = 0;
+      bar.style.width = pct + '%';
     });
   }
 
-  function setOnbIndex(i, forward){
+  function setOnbIndex(i){
     if (!onbSlides.length) return;
     onbIndex = Math.max(0, Math.min(onbSlides.length - 1, i));
+    onbElapsed = 0;
     onbSlides.forEach((el, idx)=>{ if (idx===onbIndex) el.classList.add('active'); else el.classList.remove('active'); });
-    for (let k=0;k<onbSlides.length;k++){
-      if (k < onbIndex) onbProgress[k] = 1;
-      else if (k > onbIndex) onbProgress[k] = 0;
-    }
-    if (onbProgress[onbIndex] >= 1 || forward === undefined) onbProgress[onbIndex] = 0;
     updateOnbBars();
+    startOnbLoop();
   }
   function hideOnboarding(){ if (!onboardingOverlay) return; cancelAnimationFrame(onbRaf); onboardingOverlay.classList.add('hidden'); onboardingOverlay.setAttribute('aria-hidden','true'); onbSeen(); }
-  function showOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.remove('hidden'); onboardingOverlay.setAttribute('aria-hidden','false'); onbProgress = onbSlides.length ? new Array(onbSlides.length).fill(0) : []; setOnbIndex(0); startOnbLoop(); }
+  function showOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.remove('hidden'); onboardingOverlay.setAttribute('aria-hidden','false'); onbElapsed = 0; setOnbIndex(0); }
   function maybeShowOnboarding(){ if (onbIsSeen()) return; showOnboarding(); }
 
   function onbStep(ts){
@@ -1856,9 +1856,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const dt = onbLastTs ? (ts - onbLastTs) : 16;
     onbLastTs = ts;
     if (!onbPaused && onbSlides.length){
-      onbProgress[onbIndex] += dt / ONB_DURATION;
-      if (onbProgress[onbIndex] >= 1){
-        if (onbIndex < onbSlides.length - 1) { setOnbIndex(onbIndex + 1, true); }
+      onbElapsed += dt;
+      if (onbElapsed >= ONB_DURATION){
+        if (onbIndex < onbSlides.length - 1) { setOnbIndex(onbIndex + 1); return; }
         else { updateOnbBars(); return hideOnboarding(); }
       }
       updateOnbBars();
@@ -1867,30 +1867,27 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   }
   function startOnbLoop(){ cancelAnimationFrame(onbRaf); onbLastTs = 0; onbRaf = requestAnimationFrame(onbStep); }
 
-  if (onbSkip) onbSkip.addEventListener('click', hideOnboarding);
-
   // Tap/hold navigation on overlay
   if (onboardingOverlay){
-    let downAt = 0; let downX = 0;
+    let downAt = 0; let downId = null;
     onboardingOverlay.addEventListener('pointerdown', (e)=>{
-      if (e.target && e.target.closest('#onb-skip')) return;
       downAt = Date.now();
-      downX = e.clientX;
       onbPaused = true;
+      try { onboardingOverlay.setPointerCapture(e.pointerId); downId = e.pointerId; } catch(_) {}
     });
     onboardingOverlay.addEventListener('pointerup', (e)=>{
-      if (e.target && e.target.closest('#onb-skip')) return;
       const wasTap = Date.now() - downAt < 250;
       const rect = onboardingOverlay.getBoundingClientRect();
       if (wasTap){
         const isRight = e.clientX > rect.left + rect.width/2;
-        if (isRight) { if (onbIndex < onbSlides.length - 1) setOnbIndex(onbIndex + 1, true); else hideOnboarding(); }
-        else { if (onbIndex > 0) setOnbIndex(onbIndex - 1, false); }
+        if (isRight) { if (onbIndex < onbSlides.length - 1) setOnbIndex(onbIndex + 1); else hideOnboarding(); }
+        else { if (onbIndex > 0) setOnbIndex(onbIndex - 1); }
       }
       onbPaused = false;
+      try { if (downId!=null) onboardingOverlay.releasePointerCapture(downId); } catch(_) {}
     });
-    // touch cancel
-    onboardingOverlay.addEventListener('pointercancel', ()=>{ onbPaused = false; });
+    onboardingOverlay.addEventListener('pointercancel', ()=>{ onbPaused = false; startOnbLoop(); });
+    onboardingOverlay.addEventListener('pointerleave', ()=>{ onbPaused = false; startOnbLoop(); });
   }
 
   // show onboarding after initial loading finishes, plus a time-based fallback
