@@ -321,7 +321,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!viewer) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
+      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешь��я!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -599,7 +599,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const handleUnavailable = () => {
       markState('empty');
-      setTaskFeedback('Пока заданий нет. Загляните позже.', 'warning');
+      setTaskFeedback('Пока задани�� нет. Загляните позже.', 'warning');
       renderTaskEmptyState('Пока заданий нет, приходите позже');
     };
 
@@ -627,7 +627,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           return;
         }
         markState('reward');
-        setTaskFeedback(`Награда подтверждается (+${expectedReward} SCube)…`, 'info');
+        setTaskFeedback(`Награда подтверждае��ся (+${expectedReward} SCube)…`, 'info');
 
         const applyRewardSuccess = (amountCredited, latestScube, duplicate = false) => {
           const rounded = Math.max(0, Math.round(amountCredited));
@@ -725,7 +725,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           }
         }
         if (!credited) {
-          setTaskFeedback(`Награда не подтверждена — попробуйте поз��е (ожидали +${expectedReward} SCube).`, 'warning');
+          setTaskFeedback(`Награда не подтверждена — попробуйте позже (ожидали +${expectedReward} SCube).`, 'warning');
           console.warn('Task reward not confirmed within timeout');
         }
       } catch (e) {
@@ -856,7 +856,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       })
       .catch((err) => {
         console.warn('Failed to init AdsGram task element', err);
-        renderTaskEmptyState('Не удалось загрузить задания. Поп��обуйте позже.');
+        renderTaskEmptyState('Не удалось загрузить задания. Попробуйте позже.');
       });
   }
 
@@ -876,7 +876,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данны��. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -1847,14 +1847,16 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     onbSlidesWrap.addEventListener('touchend', ()=>{ if (!touching) return; touching = false; if (Math.abs(dx) > 50){ if (dx < 0) setOnbIndex(onbIndex + 1); else setOnbIndex(onbIndex - 1); } dx = 0; });
   }
 
-  // show onboarding after initial loading finishes
+  // show onboarding after initial loading finishes, plus a time-based fallback
   if (loadingOverlay) {
     const obs = new MutationObserver(()=>{
       const hidden = loadingOverlay.classList.contains('loading-overlay--hidden');
       if (hidden) { obs.disconnect(); setTimeout(maybeShowOnboarding, 250); }
     });
     obs.observe(loadingOverlay, { attributes: true, attributeFilter: ['class'] });
+    // fallback: if loading overlay does not hide quickly (network/first-run), still show onboarding above it
+    setTimeout(maybeShowOnboarding, 1200);
   } else {
-    setTimeout(maybeShowOnboarding, 1000);
+    setTimeout(maybeShowOnboarding, 600);
   }
 })();
