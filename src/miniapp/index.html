@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GC Farm - MiniApp</title>
   <link rel="stylesheet" href="/miniapp/static/styles.css" />
-  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15539', rewardBlockId: '15541', taskBlockId: 'task-15542', energyAdBlockId: '15540' };</script>
+  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15539', rewardBlockId: '15541', taskBlockId: 'task-15542', energyAdBlockId: '15540', dailyRewardBlockId: '15734' };</script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <script src="/miniapp/config.js"></script>
@@ -70,7 +70,7 @@
           <div class="ad-block">
             <p class="ad-caption">🎬 Усиль прогресс, смотри рекламу и восполняй энергию мгновенно.</p>
             <div class="ad-buttons">
-              <button id="watch-ad" class="watch-ad">🎥 Смотреть рекламу (+5 SCube)</button>
+              <button id="watch-ad" class="watch-ad">🎥 Смотреть рекламу (+20 SCube)</button>
               <button id="refill-btn" class="watch-ad secondary">⚡ Восполнить энергию полностью</button>
             </div>
           </div>
@@ -138,7 +138,7 @@
           <div class="withdrawals-header">
             <div class="withdrawals-legend">
               <h3>💸 Вывод средств</h3>
-              <p class="section-hint">Выбирай удобный способ вывода и отправляй заявку напрям��ю из MiniApp.</p>
+              <p class="section-hint">Выбирай удобный способ вывода и отправляй заявку напрямую из MiniApp.</p>
             </div>
             <button id="withdraw-back-to-store" class="withdraw-back-btn" type="button">← Назад в магазин</button>
           </div>
@@ -176,6 +176,20 @@
         <div class="tasks-container">
           <h3>📝 Командные задания</h3>
           <p class="section-hint">✅ Выполняй задания от AdsGram и забирай космические бонусы.</p>
+          <div class="daily-streak-card" id="daily-streak-card" aria-live="polite">
+            <div class="daily-streak-header">
+              <div class="daily-streak-icon">📅</div>
+              <div class="daily-streak-text">
+                <h4 class="daily-streak-title">Ежедневный вход</h4>
+                <p class="daily-streak-sub">Собирай награду каждый день. Для получения смотри короткую рекламу.</p>
+              </div>
+            </div>
+            <div class="daily-streak-progress" id="daily-streak-progress"></div>
+            <div class="daily-streak-actions">
+              <button id="daily-claim-btn" class="daily-claim-btn">🎁 Забрать награду</button>
+              <span id="daily-note" class="daily-note"></span>
+            </div>
+          </div>
           <div class="tasks-illustration" aria-hidden="true"></div>
           <div class="task-reward-info">Награда за задание: <span id="task-reward-amount">15 SCube</span></div>
           <div id="ads-task-wrap" class="ads-task-wrap"></div>
@@ -279,6 +293,36 @@
       </div>
     </div>
 
+    <div id="onboarding" class="onboarding-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="onb-title">
+      <div class="onboarding-content">
+        <div class="onboarding-slides" id="onb-slides">
+          <section class="onb-slide onb-slide-active">
+            <h2 id="onb-title" class="onb-title"><strong>ДОБРО ПОЖАЛОВАТЬ В BGGCube!</strong></h2>
+            <p class="onb-text">Здесь ты добываешь SCube и обмениваешь их на GCube.</p>
+            <p class="onb-text">Начисление GCube идёт по твоему игровому ID — без паролей.</p>
+          </section>
+          <section class="onb-slide">
+            <h2 class="onb-title">Как добывать SCube?</h2>
+            <p class="onb-text">1 — Нажимай на золотой куб на вкладке «Главная».</p>
+            <p class="onb-text">2 — Выполняй задания AdsGram.</p>
+            <p class="onb-text">3 — Приглашай друзей и получай процент от их дохода.</p>
+          </section>
+          <section class="onb-slide">
+            <h2 class="onb-title">Как вывести SCube?</h2>
+            <p class="onb-text">Вывод доступен в Магазине. Есть три варианта:</p>
+            <p class="onb-text">1 — В GCube.</p>
+            <p class="onb-text">2 — В Telegram Stars.</p>
+            <p class="onb-text">3 — В ₽ по номеру.</p>
+          </section>
+        </div>
+        <div class="onb-dots" id="onb-dots"></div>
+        <div class="onb-actions">
+          <button id="onb-skip" class="onb-btn">Пропустить</button>
+          <button id="onb-next" class="onb-btn primary">Далее</button>
+        </div>
+      </div>
+    </div>
+
     <div id="withdraw-modal" class="withdraw-modal hidden" aria-hidden="true">
       <div class="withdraw-dialog" role="dialog" aria-modal="true" aria-labelledby="withdraw-modal-title">
         <div class="withdraw-dialog-header">
@@ -296,43 +340,6 @@
           <div id="withdraw-modal-feedback" class="withdraw-modal-feedback"></div>
           <button type="submit" class="withdraw-submit-btn">Отправить заявку</button>
         </form>
-      </div>
-    </div>
-
-    <!-- Onboarding overlay (first‑run slider) -->
-    <div id="onboarding" class="onboarding-overlay hidden" aria-hidden="true">
-      <div class="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onb-title">
-        <div class="onboarding-hero" aria-hidden="true">🔶</div>
-        <div class="onboarding-progress" id="onb-progress" aria-label="Прогресс обучения">
-          <div class="onb-segment"><span class="onb-bar"></span></div>
-          <div class="onb-segment"><span class="onb-bar"></span></div>
-          <div class="onb-segment"><span class="onb-bar"></span></div>
-        </div>
-        <div class="onboarding-slides" id="onb-slides">
-          <article class="onboarding-slide" data-index="0">
-            <h2 id="onb-title" class="onboarding-title"><strong>ДОБРО ПОЖАЛОВАТЬ В BGGCube!</strong></h2>
-            <p class="onboarding-text">Здесь ты добываешь SCube и обмениваешь их на GCube.</p>
-            <p class="onboarding-text">Начисление GCube идёт по твоему игровому ID — без паролей.</p>
-          </article>
-          <article class="onboarding-slide" data-index="1">
-            <h3 class="onboarding-subtitle">Как добывать SCube?</h3>
-            <ul class="onboarding-list">
-              <li>Кликай по золотому кубу на вкладке «Главная»</li>
-              <li>Выполняй задания AdsGram</li>
-              <li>Приглашай друзей и получай процент от их дохода</li>
-            </ul>
-          </article>
-          <article class="onboarding-slide" data-index="2">
-            <h3 class="onboarding-subtitle">Как вывести SCube?</h3>
-            <p class="onboarding-text">Вывод доступен в Магазине. Доступные варианты:</p>
-            <ul class="onboarding-list">
-              <li>Обмен SCube на GCube</li>
-              <li>Вывод в Telegram Stars</li>
-              <li>Вывод в ₽ по номеру телефона</li>
-            </ul>
-          </article>
-        </div>
-        <!-- dots/actions removed: progress lines and tap navigation used instead -->
       </div>
     </div>
 

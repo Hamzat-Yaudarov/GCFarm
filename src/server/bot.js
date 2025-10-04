@@ -11,7 +11,7 @@ const BOT_USERNAME = process.env.BOT_USERNAME || '';
 const BOT_WEBAPP_PATH = process.env.BOT_WEBAPP_PATH || '';
 const PORT = process.env.PORT || 3000;
 const ADSGRAM_SECRET = process.env.ADSGRAM_SECRET || 'c6a7a8b7cd30418d9844aebc37b6aaf2';
-const ADSGRAM_INTERSTITIAL_ID = process.env.ADSGRAM_INTERSTITIAL_ID || 'int-15441';
+const ADSGRAM_INTERSTITIAL_ID = process.env.ADSGRAM_INTERSTITIAL_ID || 'int-15539';
 const WITHDRAW_ADMIN_CHAT = process.env.WITHDRAW_ADMIN_CHAT || '@zazarara2';
 const WITHDRAW_SUCCESS_CHAT = process.env.WITHDRAW_SUCCESS_CHAT || '@zazarara3';
 const ADMIN_IDS = String(process.env.ADMIN_ID || '7910097562')
@@ -942,6 +942,27 @@ app.post('/api/user/:tgid/buy-upgrade', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Internal error' });
   }
+});
+
+// Daily streak endpoints
+app.get('/api/user/:tgid/daily-streak', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  if (!tgid) return res.status(400).json({ ok:false, message:'Invalid tgid' });
+  try {
+    const info = await db.getDailyStreak(tgid);
+    res.json(info);
+  } catch (err){ console.error('daily-streak error', err); res.status(500).json({ ok:false, message:'Internal error' }); }
+});
+
+app.post('/api/user/:tgid/claim-daily', async (req, res) => {
+  const tgid = parseInt(req.params.tgid, 10);
+  const authTgid = getAuthTgid(req);
+  if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ ok:false, message:'Auth mismatch' });
+  if (!tgid) return res.status(400).json({ ok:false, message:'Invalid tgid' });
+  try {
+    const result = await db.claimDailyReward(tgid);
+    res.json(result);
+  } catch (err){ console.error('claim-daily error', err); res.status(500).json({ ok:false, message:'Internal error' }); }
 });
 
 // Refill endpoint

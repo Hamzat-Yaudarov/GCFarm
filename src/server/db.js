@@ -148,6 +148,9 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auto_energy BOOLEAN DEFAULT false`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS energy_capacity INTEGER DEFAULT 50`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reward_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_reward_ad_at TIMESTAMPTZ`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_streak INTEGER DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_reward DATE`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_energy_refill_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
     // Add "stars" currency
@@ -491,6 +494,7 @@ async function claimReward(tgid, amount, source, options = {}) {
     const user = res.rows[0];
     const now = new Date();
     const previousScube = Number(user.scube || 0);
+    const lastAdAt = user.last_reward_ad_at ? new Date(user.last_reward_ad_at) : null;
     const credit = Math.max(0, Math.round(Number(amount) || 0));
     if (!credit) {
       await client.query('ROLLBACK');
@@ -500,6 +504,17 @@ async function claimReward(tgid, amount, source, options = {}) {
     if (source === 'task' && !contextId && !force) {
       await client.query('ROLLBACK');
       return { ok:false, message: 'Отсутствует подтверждение задачи', scube: previousScube };
+    }
+
+    if (!force && source === 'ad' && lastAdAt) {
+      const diff = now - lastAdAt;
+      const COOLDOWN = 90 * 1000;
+      if (diff < COOLDOWN) {
+        const waitMs = COOLDOWN - diff;
+        const waitSec = Math.max(1, Math.ceil(waitMs / 1000));
+        await client.query('ROLLBACK');
+        return { ok:false, message: `Смотреть рекламу можно через ${waitSec} сек.`, scube: previousScube };
+      }
     }
 
     if (!force && user.last_reward_at) {
@@ -527,6 +542,8 @@ async function claimReward(tgid, amount, source, options = {}) {
 
     if (source === 'task') {
       await client.query('UPDATE users SET scube=$1, last_reward_at=$2, tasks_completed = tasks_completed + 1 WHERE tgid=$3', [scube, now, tgid]);
+    } else if (source === 'ad') {
+      await client.query('UPDATE users SET scube=$1, last_reward_at=$2, last_reward_ad_at=$2 WHERE tgid=$3', [scube, now, tgid]);
     } else {
       await client.query('UPDATE users SET scube=$1, last_reward_at=$2 WHERE tgid=$3', [scube, now, tgid]);
     }
@@ -872,6 +889,59 @@ async function creditScube(tgid, amount) {
   }
 }
 
+// Daily streak helpers
+function isSameDate(a, b){ return a && b && a.toISOString().slice(0,10) === b.toISOString().slice(0,10); }
+function isYesterday(date){ if (!date) return false; const d = new Date(); d.setDate(d.getDate()-1); return date && date.toISOString().slice(0,10) === d.toISOString().slice(0,10); }
+
+async function getDailyStreak(tgid){
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT login_streak, last_login_reward FROM users WHERE tgid = $1', [tgid]);
+    if (!res.rows.length) return { dayIndex: 0, claimedToday: false };
+    const row = res.rows[0];
+    const streak = Number(row.login_streak || 0);
+    const last = row.last_login_reward ? new Date(row.last_login_reward) : null;
+    const today = new Date();
+    const claimedToday = last && isSameDate(last, today);
+    let dayIndex;
+    if (claimedToday) {
+      dayIndex = ((streak - 1) % 7 + 7) % 7;
+    } else if (isYesterday(last)) {
+      dayIndex = (streak % 7);
+    } else {
+      dayIndex = 0;
+    }
+    return { dayIndex, claimedToday };
+  } finally { client.release(); }
+}
+
+async function claimDailyReward(tgid){
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const res = await client.query('SELECT scube, login_streak, last_login_reward FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
+    let scube = Number(res.rows[0].scube || 0);
+    const last = res.rows[0].last_login_reward ? new Date(res.rows[0].last_login_reward) : null;
+    let streak = Number(res.rows[0].login_streak || 0);
+    const today = new Date();
+    if (last && isSameDate(last, today)) {
+      await client.query('ROLLBACK');
+      return { ok:false, message:'Награда за сегодня уже получена', scube };
+    }
+    if (!isYesterday(last)) {
+      streak = 0;
+    }
+    streak += 1;
+    const rewards = [10,50,100,125,150,175,200];
+    const credited = rewards[((streak - 1) % 7 + 7) % 7];
+    scube += credited;
+    await client.query('UPDATE users SET scube=$1, login_streak=$2, last_login_reward=current_date WHERE tgid=$3', [scube, streak, tgid]);
+    await client.query('COMMIT');
+    return { ok:true, scube, credited, streak };
+  } catch (err){ await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
 module.exports = {
   init,
   ensureUser,
@@ -891,5 +961,7 @@ module.exports = {
   createWithdrawalRequest,
   getWithdrawalById,
   completeWithdrawal,
-  declineWithdrawal
+  declineWithdrawal,
+  getDailyStreak,
+  claimDailyReward
 };

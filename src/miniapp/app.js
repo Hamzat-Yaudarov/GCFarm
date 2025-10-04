@@ -105,6 +105,41 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   let initialDataLoaded = false;
   const INITIAL_LOADING_TEXT = 'Загружаем вашу базу…';
 
+  // Onboarding controls
+  const ONB_KEY = 'onboarding_shown_v1';
+  const onbEl = document.getElementById('onboarding');
+  const onbSlides = document.getElementById('onb-slides');
+  const onbDots = document.getElementById('onb-dots');
+  const onbSkip = document.getElementById('onb-skip');
+  const onbNext = document.getElementById('onb-next');
+  let onbIndex = 0;
+  function initOnboarding(){
+    if (!onbEl || !onbSlides || !onbDots) return;
+    const total = onbSlides.querySelectorAll('.onb-slide').length;
+    onbDots.innerHTML = '';
+    for (let i=0; i<total; i++){
+      const dot = document.createElement('span');
+      dot.className = 'onb-dot' + (i===0 ? ' active' : '');
+      onbDots.appendChild(dot);
+    }
+    function render(){
+      const slides = onbSlides.querySelectorAll('.onb-slide');
+      slides.forEach((s, idx)=>{ if (idx===onbIndex){ s.classList.add('onb-slide-active'); } else { s.classList.remove('onb-slide-active'); } });
+      const dots = onbDots.querySelectorAll('.onb-dot');
+      dots.forEach((d, idx)=>{ if (idx===onbIndex){ d.classList.add('active'); } else { d.classList.remove('active'); } });
+      onbNext.textContent = (onbIndex === total - 1) ? 'Начать' : 'Далее';
+    }
+    if (onbSkip) onbSkip.addEventListener('click', ()=>{ try{ localStorage.setItem(ONB_KEY, '1'); }catch(e){} onbEl.classList.add('hidden'); });
+    if (onbNext) onbNext.addEventListener('click', ()=>{ if (onbIndex < total - 1){ onbIndex += 1; render(); } else { try{ localStorage.setItem(ONB_KEY, '1'); }catch(e){} onbEl.classList.add('hidden'); } });
+    render();
+  }
+  function maybeShowOnboarding(){
+    try {
+      if (localStorage.getItem(ONB_KEY) === '1') return;
+      if (onbEl) onbEl.classList.remove('hidden');
+    } catch(e){}
+  }
+
   function showInitialLoading(message = INITIAL_LOADING_TEXT) {
     if (!loadingOverlay) return;
     if (loadingMessageEl && message) loadingMessageEl.textContent = message;
@@ -246,6 +281,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     btn.addEventListener('click', async ()=>{
       const tab = btn.dataset.tab;
       showTab(tab);
+      if (tab === 'tasks') { try { await loadDailyStreak(); } catch(e){} }
     });
   });
 
@@ -313,7 +349,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!tgid) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = 'Открой игру через бота, чтобы участвовать в рейтинге.';
+      leaderSelfNote.textContent = 'Открой игру через бота, чтобы участ��овать в рейтинге.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -321,7 +357,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!viewer) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешь��я!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
+      leaderSelfNote.textContent = isTasks ? 'Закрывай задания AdsGram, и ты быстро поднимешься!' : 'Нажимай на золотой куб, чтобы добыть больше SCube.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -334,7 +370,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'Выполня�� задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
     }
   }
 
@@ -457,6 +493,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   // Interstitial scheduler: count only while MiniApp is fully expanded
   let interstitialTicker = null;
   let interstitialElapsed = 0; // ms accumulated only when expanded
+  let interstitialInitialShown = false;
   async function showInterstitialWithCountdownIfExpanded() {
     try {
       if (!isExpanded) return;
@@ -503,6 +540,67 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
   // start scheduler if AdsGram initialized
   if (AdController) startInterstitialScheduler();
+
+  // Daily streak UI
+  const dailyStreakCard = document.getElementById('daily-streak-card');
+  const dailyStreakProgress = document.getElementById('daily-streak-progress');
+  const dailyClaimBtn = document.getElementById('daily-claim-btn');
+  const dailyNote = document.getElementById('daily-note');
+  const DAILY_REWARDS = [10,50,100,125,150,175,200];
+
+  function renderDailyProgress(activeIndex = 0, claimedToday = false){
+    if (!dailyStreakProgress) return;
+    dailyStreakProgress.innerHTML = '';
+    DAILY_REWARDS.forEach((val, idx)=>{
+      const cell = document.createElement('div');
+      cell.className = 'streak-cell' + (idx === activeIndex ? ' active' : '') + (claimedToday ? ' completed' : '');
+      const d = document.createElement('span'); d.className='streak-day'; d.textContent = `${idx+1} день`;
+      const r = document.createElement('span'); r.className='streak-reward'; r.textContent = `+${val} SCube`;
+      cell.append(d,r);
+      dailyStreakProgress.appendChild(cell);
+    });
+  }
+
+  async function loadDailyStreak(){
+    if (!dailyStreakCard || !tgid) return;
+    try {
+      const res = await fetch(`${apiBase}/user/${tgid}/daily-streak`);
+      if (!res.ok) throw new Error('daily fetch failed');
+      const js = await res.json();
+      const idx = Math.max(0, Math.min(6, Number(js.dayIndex || 0)));
+      const claimed = Boolean(js.claimedToday);
+      renderDailyProgress(idx, claimed);
+      if (dailyClaimBtn) dailyClaimBtn.disabled = claimed;
+      if (dailyNote) dailyNote.textContent = claimed ? 'Награда за сегодня получена' : `Сегодняшняя награда: +${DAILY_REWARDS[idx]} SCube`;
+    } catch(e){ console.warn('daily streak load failed', e); }
+  }
+
+  if (dailyClaimBtn) {
+    dailyClaimBtn.addEventListener('click', async ()=>{
+      if (!tgid) return alert('tgid is required');
+      const cfg = window.ADSGRAM_CONFIG || {};
+      const blockId = cfg.dailyRewardBlockId;
+      try {
+        if (window.Adsgram && blockId){
+          const controller = window.Adsgram.init({ blockId });
+          const result = await controller.show();
+          if (!result || result.error) { showStoreFeedback('Реклама не была просмотрена полностью'); return; }
+        }
+      } catch (e) { console.warn('daily ad error', e); }
+      try {
+        const res = await fetch(`${apiBase}/user/${tgid}/claim-daily`, { method:'POST' });
+        const js = await res.json();
+        if (js && js.ok){
+          scubeEl.textContent = js.scube;
+          animateScube();
+          showStoreFeedback(`Ежедневная награда получена (+${js.credited} SCube)`);
+          await loadDailyStreak();
+        } else {
+          showStoreFeedback(js && js.message ? js.message : 'Не удалось получить награду');
+        }
+      } catch (err){ console.warn('daily claim failed', err); }
+    });
+  }
 
   // Helpers: cooldowns and animations for better UX
   function addAdCooldown(button, duration = 10000) {
@@ -599,7 +697,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const handleUnavailable = () => {
       markState('empty');
-      setTaskFeedback('Пока задани�� нет. Загляните позже.', 'warning');
+      setTaskFeedback('Пока заданий нет. Загляните позже.', 'warning');
       renderTaskEmptyState('Пока заданий нет, приходите позже');
     };
 
@@ -611,7 +709,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const handleTooLong = () => {
       markState('error');
-      setTaskFeedback('Сессия рекламы длится слишком долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning');
+      setTaskFeedback('Сессия рек��амы длится слишком долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning');
       scheduleTaskReload(1400);
     };
 
@@ -627,7 +725,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           return;
         }
         markState('reward');
-        setTaskFeedback(`Награда подтверждае��ся (+${expectedReward} SCube)…`, 'info');
+        setTaskFeedback(`Награда подтверждается (+${expectedReward} SCube)…`, 'info');
 
         const applyRewardSuccess = (amountCredited, latestScube, duplicate = false) => {
           const rounded = Math.max(0, Math.round(amountCredited));
@@ -861,6 +959,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   }
 
   setupAdsgramTask();
+  try { loadDailyStreak(); } catch(e){}
 
   async function loadUser(){
     if (!initialDataLoaded) showInitialLoading();
@@ -876,7 +975,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данны��. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -911,6 +1010,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       if (!initialDataLoaded) {
         initialDataLoaded = true;
         hideInitialLoading();
+        initOnboarding();
+        maybeShowOnboarding();
+        setTimeout(()=>{ if (typeof showInterstitialWithCountdownIfExpanded === 'function' && !interstitialInitialShown) { interstitialInitialShown = true; showInterstitialWithCountdownIfExpanded(); } }, 4000);
       }
 
       // start auto-tick if enabled
@@ -1012,8 +1114,8 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     adBusy = true;
     try {
       if (!tgid) { adBusy = false; return alert('tgid is required'); }
-      // prevent rapid re-click by adding a 10s cooldown
-      addAdCooldown(watchAdBtn, 10000);
+      // Enforce 90s cooldown between reward ads
+      addAdCooldown(watchAdBtn, 90000);
     const cfg = window.ADSGRAM_CONFIG || {};
     const rewardBlock = cfg.rewardBlockId || cfg.interstitialBlockId;
     if (window.Adsgram && rewardBlock) {
@@ -1028,7 +1130,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         if (result && result.done && !result.error) {
           // Ad watched successfully  request server to credit reward.
           // Try immediate claim; if server prefers callback-based crediting, poll until confirmed.
-          const EXPECTED_REWARD = 5;
+          const EXPECTED_REWARD = 20;
           try {
             const claimRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: EXPECTED_REWARD, source: 'ad' }) });
             const claimJson = await claimRes.json();
@@ -1091,7 +1193,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       // require full expansion before proceeding
       if (!isExpanded) {
         try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-        return showStoreFeedback('Разверните MiniApp полностью и п��вторите');
+        return showStoreFeedback('Разверните MiniApp полностью и повторите');
       }
       refillBusy = true;
       try {
@@ -1748,7 +1850,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       wrap.appendChild(banner);
     } else if (String(turn)===me) status.textContent = 'Ваш ход'; else status.textContent = 'Ход соперника';
     const isCreatorWaiting = !finished && !room.opponent && String(room.creator)===me;
-    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'О��менить' : 'Сдаться');
+    const leave = document.createElement('button'); leave.className='join-btn'; leave.textContent = finished ? 'Выйти' : (isCreatorWaiting ? 'Отменить' : 'Сдаться');
     leave.addEventListener('click', leaveRoom);
 
     wrap.append(title, notice, timer, grid, status, leave);
@@ -1802,104 +1904,4 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   const activeBtn = document.querySelector('.tab-button.active');
   setStoreFabVisibility(activeBtn ? activeBtn.dataset.tab : 'home');
   setMainCompact(activeBtn ? activeBtn.dataset.tab : 'home');
-
-  // Onboarding slider (first run)
-  const onboardingOverlay = document.getElementById('onboarding');
-  const onbSlidesWrap = document.getElementById('onb-slides');
-  const onbSlides = onbSlidesWrap ? Array.from(onbSlidesWrap.querySelectorAll('.onboarding-slide')) : [];
-  const onbDotsWrap = document.getElementById('onb-dots');
-  const onbDots = onbDotsWrap ? Array.from(onbDotsWrap.querySelectorAll('.onboarding-dot')) : [];
-  const onbPrev = document.getElementById('onb-prev');
-  const onbNext = document.getElementById('onb-next');
-  const onbStart = document.getElementById('onb-start');
-  const onbSkip = document.getElementById('onb-skip');
-  let onbIndex = 0;
-  let onbTouched = false;
-
-  function onbKey(){ return tgid ? `onb_seen_v1_${tgid}` : 'onb_seen_v1'; }
-  function onbSeen(){ try { localStorage.setItem(onbKey(), '1'); } catch(e){} }
-  function onbIsSeen(){ try { return !!localStorage.getItem(onbKey()); } catch(e){ return true; } }
-
-  const onbProgressWrap = document.getElementById('onb-progress');
-  const ONB_DURATION = 4000; // ms per slide
-  let onbElapsed = 0;
-  let onbPaused = false;
-  let onbRaf = 0;
-  let onbLastTs = 0;
-
-  function updateOnbBars(){
-    if (!onbProgressWrap) return;
-    const bars = Array.from(onbProgressWrap.querySelectorAll('.onb-bar'));
-    bars.forEach((bar, idx)=>{
-      let pct = 0;
-      if (idx < onbIndex) pct = 100;
-      else if (idx === onbIndex) pct = Math.max(0, Math.min(100, (onbElapsed/ONB_DURATION)*100));
-      else pct = 0;
-      bar.style.width = pct + '%';
-    });
-  }
-
-  function setOnbIndex(i){
-    if (!onbSlides.length) return;
-    onbIndex = Math.max(0, Math.min(onbSlides.length - 1, i));
-    onbElapsed = 0;
-    onbSlides.forEach((el, idx)=>{ if (idx===onbIndex) el.classList.add('active'); else el.classList.remove('active'); });
-    updateOnbBars();
-    startOnbLoop();
-  }
-  function hideOnboarding(){ if (!onboardingOverlay) return; cancelAnimationFrame(onbRaf); onboardingOverlay.classList.add('hidden'); onboardingOverlay.setAttribute('aria-hidden','true'); onbSeen(); }
-  function showOnboarding(){ if (!onboardingOverlay) return; onboardingOverlay.classList.remove('hidden'); onboardingOverlay.setAttribute('aria-hidden','false'); onbElapsed = 0; setOnbIndex(0); }
-  function maybeShowOnboarding(){ if (onbIsSeen()) return; showOnboarding(); }
-
-  function onbStep(ts){
-    if (!onboardingOverlay || onboardingOverlay.classList.contains('hidden')) return;
-    const dt = onbLastTs ? (ts - onbLastTs) : 16;
-    onbLastTs = ts;
-    if (!onbPaused && onbSlides.length){
-      onbElapsed += dt;
-      if (onbElapsed >= ONB_DURATION){
-        if (onbIndex < onbSlides.length - 1) { setOnbIndex(onbIndex + 1); return; }
-        else { updateOnbBars(); return hideOnboarding(); }
-      }
-      updateOnbBars();
-    }
-    onbRaf = requestAnimationFrame(onbStep);
-  }
-  function startOnbLoop(){ cancelAnimationFrame(onbRaf); onbLastTs = 0; onbRaf = requestAnimationFrame(onbStep); }
-
-  // Tap/hold navigation on overlay
-  if (onboardingOverlay){
-    let downAt = 0; let downId = null;
-    onboardingOverlay.addEventListener('pointerdown', (e)=>{
-      downAt = Date.now();
-      onbPaused = true;
-      try { onboardingOverlay.setPointerCapture(e.pointerId); downId = e.pointerId; } catch(_) {}
-    });
-    onboardingOverlay.addEventListener('pointerup', (e)=>{
-      const wasTap = Date.now() - downAt < 250;
-      const rect = onboardingOverlay.getBoundingClientRect();
-      if (wasTap){
-        const isRight = e.clientX > rect.left + rect.width/2;
-        if (isRight) { if (onbIndex < onbSlides.length - 1) setOnbIndex(onbIndex + 1); else hideOnboarding(); }
-        else { if (onbIndex > 0) setOnbIndex(onbIndex - 1); }
-      }
-      onbPaused = false;
-      try { if (downId!=null) onboardingOverlay.releasePointerCapture(downId); } catch(_) {}
-    });
-    onboardingOverlay.addEventListener('pointercancel', ()=>{ onbPaused = false; startOnbLoop(); });
-    onboardingOverlay.addEventListener('pointerleave', ()=>{ onbPaused = false; startOnbLoop(); });
-  }
-
-  // show onboarding after initial loading finishes, plus a time-based fallback
-  if (loadingOverlay) {
-    const obs = new MutationObserver(()=>{
-      const hidden = loadingOverlay.classList.contains('loading-overlay--hidden');
-      if (hidden) { obs.disconnect(); setTimeout(maybeShowOnboarding, 250); }
-    });
-    obs.observe(loadingOverlay, { attributes: true, attributeFilter: ['class'] });
-    // fallback: if loading overlay does not hide quickly (network/first-run), still show onboarding above it
-    setTimeout(maybeShowOnboarding, 1200);
-  } else {
-    setTimeout(maybeShowOnboarding, 600);
-  }
 })();
