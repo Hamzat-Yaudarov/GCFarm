@@ -349,7 +349,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!tgid) {
       leaderSelfRank.textContent = '—';
       leaderSelfValue.textContent = formatViewerValue(mode, 0);
-      leaderSelfNote.textContent = 'Открой игру через бота, чтобы участ��овать в рейтинге.';
+      leaderSelfNote.textContent = 'Открой игру через бота, чтобы участвовать в рейтинге.';
       if (leaderPersonal) leaderPersonal.classList.add('leader-personal-empty');
       return;
     }
@@ -370,7 +370,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'Выполня�� задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
     }
   }
 
@@ -592,7 +592,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const js = await res.json();
         if (js && js.ok){
           scubeEl.textContent = js.scube;
-          animateScube();
+          animateScube(); rewardBurstNear(scubeEl);
           showStoreFeedback(`Ежедневная награда получена (+${js.credited} SCube)`);
           await loadDailyStreak();
         } else {
@@ -636,6 +636,67 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     void golden.offsetWidth; // restart animation
     golden.classList.add('shake');
     setTimeout(()=> golden.classList.remove('shake'), 450);
+  }
+
+  // Microinteractions
+  function initRippleEffects(){
+    const candidates = document.querySelectorAll('button, .upgrade-btn, .withdraw-method-button, .withdraw-trigger-btn, .leader-btn, .watch-ad, .create-room-btn, .share-invite-btn, .bet-chip');
+    candidates.forEach((btn)=>{
+      if (btn.classList.contains('with-ripple')) return;
+      btn.classList.add('with-ripple');
+      btn.addEventListener('click', (e)=>{
+        const rect = btn.getBoundingClientRect();
+        const ripple = document.createElement('span');
+        ripple.className = 'btn-ripple';
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = size + 'px';
+        ripple.style.left = (e.clientX - rect.left - size/2) + 'px';
+        ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
+        btn.appendChild(ripple);
+        setTimeout(()=>{ if (ripple && ripple.parentNode) ripple.parentNode.removeChild(ripple); }, 650);
+      });
+    });
+  }
+
+  function sparkleAtElement(el, particles = 10){
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    for (let i=0;i<particles;i++){
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      const angle = (Math.PI*2) * (i/particles) + Math.random()*0.5;
+      const dist = 24 + Math.random()*36;
+      s.style.left = cx + 'px';
+      s.style.top = cy + 'px';
+      s.style.setProperty('--dx', Math.cos(angle)*dist + 'px');
+      s.style.setProperty('--dy', Math.sin(angle)*dist + 'px');
+      document.body.appendChild(s);
+      setTimeout(()=>{ if (s && s.parentNode) s.parentNode.removeChild(s); }, 750);
+    }
+  }
+
+  function rewardBurstNear(el){
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + 8;
+    const container = document.createElement('div');
+    container.className = 'burst';
+    container.style.left = cx + 'px';
+    container.style.top = cy + 'px';
+    for (let i=0;i<8;i++){
+      const dot = document.createElement('span');
+      dot.className = 'burst-dot';
+      const angle = (Math.PI*2) * (i/8);
+      const dist = 36;
+      dot.style.setProperty('--bx', Math.cos(angle)*dist + 'px');
+      dot.style.setProperty('--by', Math.sin(angle)*dist + 'px');
+      container.appendChild(dot);
+    }
+    document.body.appendChild(container);
+    setTimeout(()=>{ if (container && container.parentNode) container.parentNode.removeChild(container); }, 820);
   }
 
   function ensureCustomElementReady(name) {
@@ -709,7 +770,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const handleTooLong = () => {
       markState('error');
-      setTaskFeedback('Сессия рек��амы длится слишком долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning');
+      setTaskFeedback('Сессия рекламы длится слишком долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning');
       scheduleTaskReload(1400);
     };
 
@@ -1079,6 +1140,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
     animateScube();
     animateGolden();
+    sparkleAtElement(golden, 12);
     leaderboardCache.clicks = null;
     leaderboardCacheTime.clicks = 0;
     if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
@@ -1136,7 +1198,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
             const claimJson = await claimRes.json();
             if (claimJson && claimJson.ok) {
               scubeEl.textContent = claimJson.scube;
-              if (!claimJson.duplicate && Number(claimJson.credited || 0) > 0) animateScube();
+              if (!claimJson.duplicate && Number(claimJson.credited || 0) > 0) { animateScube(); rewardBurstNear(scubeEl); }
               const rewardText = Number(claimJson.credited || 0) > 0 ? `Награда зачислена (+${claimJson.credited} SCube)` : 'Награда уже была зачислена ранее';
               showStoreFeedback(rewardText);
             } else {
@@ -1156,7 +1218,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                   if (nowScube >= (beforeScubeVal + EXPECTED_REWARD)) {
                     credited = true;
                     scubeEl.textContent = nowScube;
-                    animateScube();
+                    animateScube(); rewardBurstNear(scubeEl);
                     showStoreFeedback('Награда зачислена');
                     break;
                   }
@@ -1183,6 +1245,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } finally { adBusy = false; }
   });
 
+
+  // init microinteractions
+  initRippleEffects();
 
   // refill button handler: show energy ad if block exists, otherwise do direct refill
   const refillBtn = document.getElementById('refill-btn');
@@ -1326,7 +1391,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   const WITHDRAW_METHODS = {
     stars: {
       key: 'stars',
-      title: 'Вывод как Telegram-звёзды',
+      title: 'Вывод как Telegram-зв��зды',
       hint: 'Выберите нужный набор звёзд. Комиссия — 5 SCube на каждые 100 SCube.',
       options: [
         buildWithdrawOption('stars-15', '15 Stars', 900, 45, 'Выплата: 15 Stars'),
