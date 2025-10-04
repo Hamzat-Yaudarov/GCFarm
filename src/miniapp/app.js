@@ -637,11 +637,26 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     golden.classList.add('shake');
     setTimeout(()=> golden.classList.remove('shake'), 450);
   }
+  let lastGoldenVisual = 0;
+  function animateGoldenThrottled() {
+    const now = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
+    if (now - lastGoldenVisual < 120) return;
+    lastGoldenVisual = now;
+    animateGolden();
+  }
+  let lastSparkleAt = 0;
+  function sparkleAtElementLimited(el, particles = 6) {
+    const now = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
+    if (now - lastSparkleAt < 120) return;
+    lastSparkleAt = now;
+    sparkleAtElement(el, particles);
+  }
 
   // Microinteractions
   function initRippleEffects(){
     const candidates = document.querySelectorAll('button, .upgrade-btn, .withdraw-method-button, .withdraw-trigger-btn, .leader-btn, .watch-ad, .create-room-btn, .share-invite-btn, .bet-chip');
     candidates.forEach((btn)=>{
+      if (btn.id === 'golden-cube') return;
       if (btn.classList.contains('with-ripple')) return;
       btn.classList.add('with-ripple');
       btn.addEventListener('click', (e)=>{
@@ -758,7 +773,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const handleUnavailable = () => {
       markState('empty');
-      setTaskFeedback('Пока заданий нет. Загляните позже.', 'warning');
+      setTaskFeedback('Пока заданий не��. Загляните позже.', 'warning');
       renderTaskEmptyState('Пока заданий нет, приходите позже');
     };
 
@@ -1036,7 +1051,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удало��ь загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -1139,8 +1154,8 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     dailyEl.textContent = json.daily_count;
     dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
     animateScube();
-    animateGolden();
-    sparkleAtElement(golden, 12);
+    animateGoldenThrottled();
+    sparkleAtElementLimited(golden, 6);
     leaderboardCache.clicks = null;
     leaderboardCacheTime.clicks = 0;
     if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
@@ -1354,7 +1369,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
       const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
-      if (!confirmed) return showStoreFeedback('Покупка отменена');
+      if (!confirmed) return showStoreFeedback('Поку��ка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
       if (!json.ok) return showStoreFeedback(json.message || 'Ошибка покупки');
