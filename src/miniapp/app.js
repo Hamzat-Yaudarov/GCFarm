@@ -383,7 +383,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'В��полняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'В��полняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик прибли��ает к топу!';
     }
   }
 
@@ -1193,6 +1193,60 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повторяем…');
     }
   }
+
+  // Handle account switching / visibility changes:
+  async function reAuthAndGetServerTgid(){
+    try {
+      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+        const initData = window.Telegram.WebApp.initData;
+        if (initData && initData.length > 0) {
+          try {
+            const res = await fetch('/auth/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData }) });
+            if (res && res.ok) {
+              const json = await res.json().catch(()=>null);
+              if (json && json.ok && json.tgid) return String(json.tgid);
+            }
+          } catch (e) { console.warn('reAuth post failed', e); }
+        }
+      }
+    } catch(e) { console.warn('reAuthAndGetServerTgid failed', e); }
+    try { const tgInit = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) || null; if (tgInit && tgInit.user && tgInit.user.id) return String(tgInit.user.id); } catch(e){}
+    const q = qs('tgid'); if (q) return String(q);
+    return null;
+  }
+
+  async function handlePossibleTgidChange(){
+    try {
+      const newTgid = await reAuthAndGetServerTgid();
+      if (!newTgid) return;
+      if (String(newTgid) !== String(tgid)) {
+        console.log('Account switched, updating tgid:', tgid, '=>', newTgid);
+        tgid = String(newTgid);
+        // reset UI state so loadUser performs fresh initialization
+        initialDataLoaded = false;
+        try { showInitialLoading('Обновляем данные для нового аккаунта…'); } catch(e){}
+        // clear caches and flags
+        try { leaderboardCache.clicks = null; leaderboardCache.tasks = null; leaderboardCacheTime.clicks = 0; leaderboardCacheTime.tasks = 0; } catch(e){}
+        try { interstitialShownCount = 0; interstitialElapsed = 0; energyEmptyShown = false; } catch(e){}
+        // stop background ticks
+        try { stopAutoTick(); } catch(e){}
+        try { stopInterstitialScheduler(); } catch(e){}
+        // reload user and UI
+        try { await loadUser(); } catch (e) { console.warn('reload after account switch failed', e); }
+        // restart interstitial scheduler if applicable
+        try { if (AdController && typeof startInterstitialScheduler === 'function') startInterstitialScheduler(); } catch(e){}
+      }
+    } catch (e) { console.warn('handlePossibleTgidChange failed', e); }
+  }
+
+  // Listen for visibility change (user switched Telegram accounts or returned to app)
+  document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'visible') { handlePossibleTgidChange().catch(()=>{}); } });
+  // Also listen for Telegram-specific events if available
+  try {
+    if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.onEvent === 'function') {
+      window.Telegram.WebApp.onEvent('viewportChanged', ()=>{ handlePossibleTgidChange().catch(()=>{}); });
+    }
+  } catch(e) { console.warn('attach webapp event failed', e); }
 
   golden.addEventListener('click', async ()=>{
     if (!tgid) return showStoreFeedback('tgid is required');
@@ -2021,7 +2075,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const win = String(room.state.winner)===me;
         banner = document.createElement('div');
         banner.className = 'result-banner ' + (win ? 'win' : 'lose');
-        banner.textContent = win ? 'Побе��а!' : 'Поражение';
+        banner.textContent = win ? 'Побе��а!' : 'Поражени��';
       } else {
         banner = document.createElement('div');
         banner.className = 'result-banner draw';
