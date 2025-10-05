@@ -1121,6 +1121,80 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       });
   }
 
+  // Sponsor tasks
+  async function loadSponsorTasks(){
+    const wrap = document.getElementById('sponsor-tasks-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    try {
+      const res = await fetch('/api/tasks/sponsors');
+      if (!res.ok) throw new Error('Failed to load tasks');
+      const js = await res.json();
+      const tasks = Array.isArray(js.tasks) ? js.tasks : [];
+      if (!tasks.length) {
+        const empty = document.createElement('div');
+        empty.className = 'tasks-empty-message';
+        empty.textContent = 'Пока заданий от спонсоров нет.';
+        wrap.appendChild(empty);
+        return;
+      }
+      tasks.forEach(task => {
+        const card = document.createElement('article');
+        card.className = 'adsgram-task-card sponsor-task-card';
+
+        const header = document.createElement('div');
+        header.className = 'adsgram-task-header';
+        const icon = document.createElement('div'); icon.className = 'adsgram-task-icon'; icon.textContent = '📣';
+        const text = document.createElement('div'); text.className = 'adsgram-task-text';
+        const title = document.createElement('h4'); title.className = 'adsgram-task-title'; title.textContent = task.title || 'Задание';
+        const subtitle = document.createElement('p'); subtitle.className = 'adsgram-task-subtitle'; subtitle.textContent = 'Подпишитесь и заберите награду.';
+        text.append(title, subtitle); header.append(icon, text);
+
+        const rewardBanner = document.createElement('div');
+        rewardBanner.className = 'task-slot-reward';
+        const amount = document.createElement('span'); amount.className = 'task-slot-reward-amount'; amount.textContent = `+${task.reward} SCube`;
+        const hint = document.createElement('span'); hint.className = 'task-slot-reward-hint'; hint.textContent = 'за подписку';
+        rewardBanner.append(amount, hint);
+
+        const actions = document.createElement('div');
+        const openBtn = document.createElement('a'); openBtn.className = 'task-slot-button task-slot-button--start'; openBtn.textContent = 'Открыть'; openBtn.href = task.url; openBtn.target = '_blank'; openBtn.rel = 'noopener noreferrer';
+        const claimBtn = document.createElement('button'); claimBtn.type='button'; claimBtn.className='task-slot-button task-slot-button--claim'; claimBtn.textContent = 'Получить награду';
+
+        let pending = false; let completed = false; let busy = false;
+        function updateState(){
+          claimBtn.disabled = pending || completed || busy;
+          claimBtn.textContent = completed ? 'DONE' : (pending ? 'На проверке' : 'Получить награду');
+        }
+        updateState();
+
+        claimBtn.addEventListener('click', async ()=>{
+          if (!tgid) { setTaskFeedback('Откройте игру через бота', 'warning'); return; }
+          busy = true; updateState();
+          try {
+            const r = await fetch(`/api/tasks/sponsors/${task.id}/claim`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ tgid }) });
+            const body = await r.json().catch(()=>({}));
+            if (!r.ok || !body.ok){
+              setTaskFeedback((body && (body.message||body.error)) || 'Ошибка', 'error');
+            } else if (body.pending){
+              pending = true; setTaskFeedback('Заявка отправлена на проверку', 'info');
+            } else {
+              completed = true; setTaskFeedback('Награда за задание начислена', 'success');
+              try { await loadUser(); } catch(e){}
+            }
+          } catch (e) {
+            setTaskFeedback('Ошибка сети', 'error');
+          } finally { busy = false; updateState(); }
+        });
+
+        actions.append(openBtn, claimBtn);
+        card.append(header, rewardBanner, actions);
+        wrap.appendChild(card);
+      });
+    } catch (e) {
+      const err = document.createElement('div'); err.className='task-feedback task-feedback--error'; err.textContent = 'Не удалось загрузить задания'; wrap.appendChild(err);
+    }
+  }
+
   async function loadSubgramStatus(){
     try {
       if (!tgid) return;
@@ -1198,6 +1272,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   setupAdsgramTask();
   try { loadDailyStreak(); } catch(e){}
   try { loadSubgramStatus(); } catch(e){}
+  try { loadSponsorTasks(); } catch(e){}
 
   async function loadUser(){
     if (!initialDataLoaded) showInitialLoading();
@@ -1666,7 +1741,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     rub: {
       key: 'rub',
       title: 'Вывод в рублях',
-      hint: 'Перевод на номер телефон��. Комиссия — 50 SCube на каждые 100 ₽.',
+      hint: 'Перевод на номер телефона. Комиссия — 50 SCube на каждые 100 ₽.',
       options: [
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
@@ -1971,7 +2046,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!rooms || !rooms.length){
       const empty = document.createElement('div');
       empty.className = 'store-empty';
-      empty.textContent = 'Нет ��оступных комнат. Создайте свою!';
+      empty.textContent = 'Нет доступных комнат. Создайте свою!';
       roomsList.appendChild(empty);
       return;
     }

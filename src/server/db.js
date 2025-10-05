@@ -207,6 +207,33 @@ async function init() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals (status);`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC);`);
     await client.query(`CREATE SEQUENCE IF NOT EXISTS withdrawal_success_seq START 1;`);
+
+    // Sponsor tasks
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sponsor_tasks (
+        id BIGSERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        url TEXT NOT NULL,
+        reward BIGINT NOT NULL DEFAULT 0,
+        verify_type TEXT NOT NULL DEFAULT 'auto',
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_sponsor_tasks_active ON sponsor_tasks (active)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS sponsor_task_claims (
+        task_id BIGINT NOT NULL REFERENCES sponsor_tasks(id) ON DELETE CASCADE,
+        tgid BIGINT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now(),
+        PRIMARY KEY (task_id, tgid)
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_sponsor_task_claims_status ON sponsor_task_claims (status)`);
   } finally {
     client.release();
   }
@@ -958,6 +985,114 @@ async function claimDailyReward(tgid){
   } catch (err){ await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
+async function listSponsorTasks() {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(`SELECT id, title, url, reward, verify_type, active FROM sponsor_tasks WHERE active = true ORDER BY id DESC`);
+    return res.rows.map((r)=>({ id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active }));
+  } finally { client.release(); }
+}
+
+async function getSponsorTaskById(id){
+  const client = await pool.connect();
+  try {
+    const res = await client.query(`SELECT id, title, url, reward, verify_type, active FROM sponsor_tasks WHERE id = $1`, [id]);
+    if (!res.rows.length) return null;
+    const r = res.rows[0];
+    return { id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active };
+  } finally { client.release(); }
+}
+
+async function createSponsorTask(title, url, reward, verifyType){
+  const client = await pool.connect();
+  try {
+    const vt = (String(verifyType||'auto').toLowerCase() === 'manual') ? 'manual' : 'auto';
+    const rw = Math.max(1, Number(reward||0));
+    const res = await client.query(`INSERT INTO sponsor_tasks (title, url, reward, verify_type, active) VALUES ($1,$2,$3,$4,true) RETURNING id, title, url, reward, verify_type, active`, [String(title).trim(), String(url).trim(), rw, vt]);
+    const r = res.rows[0];
+    return { ok:true, task: { id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active } };
+  } finally { client.release(); }
+}
+
+async function updateSponsorTask(id, patch){
+  const client = await pool.connect();
+  try {
+    const fields = [];
+    const values = [];
+    let i=1;
+    if (patch.title !== undefined) { fields.push(`title = $${i++}`); values.push(String(patch.title).trim()); }
+    if (patch.url !== undefined)   { fields.push(`url = $${i++}`); values.push(String(patch.url).trim()); }
+    if (patch.reward !== undefined){ fields.push(`reward = $${i++}`); values.push(Math.max(1, Number(patch.reward||0))); }
+    if (patch.verifyType !== undefined){ fields.push(`verify_type = $${i++}`); values.push(String(patch.verifyType)==='manual'?'manual':'auto'); }
+    if (patch.active !== undefined){ fields.push(`active = $${i++}`); values.push(Boolean(patch.active)); }
+    if (!fields.length) return { ok:false, message:'Nothing to update' };
+    fields.push(`updated_at = now()`);
+    values.push(id);
+    const res = await client.query(`UPDATE sponsor_tasks SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, title, url, reward, verify_type, active`, values);
+    if (!res.rows.length) return { ok:false, message:'Not found' };
+    const r = res.rows[0];
+    return { ok:true, task: { id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active } };
+  } finally { client.release(); }
+}
+
+async function claimSponsorTask(tgid, taskId){
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const taskRes = await client.query('SELECT id, reward, verify_type, active FROM sponsor_tasks WHERE id = $1 FOR UPDATE', [taskId]);
+    if (!taskRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Задание не найдено' }; }
+    const task = taskRes.rows[0];
+    if (!task.active) { await client.query('ROLLBACK'); return { ok:false, message:'Задание недоступно' }; }
+
+    const existing = await client.query('SELECT status FROM sponsor_task_claims WHERE task_id=$1 AND tgid=$2', [task.id, tgid]);
+    if (existing.rows.length){
+      const st = existing.rows[0].status;
+      if (st === 'completed' || st === 'approved') { await client.query('ROLLBACK'); return { ok:false, message:'Награда уже получена' }; }
+      if (st === 'pending') { await client.query('ROLLBACK'); return { ok:true, pending:true, message:'Заявка ожидает проверки' }; }
+    }
+
+    if (task.verify_type === 'manual'){
+      await client.query('INSERT INTO sponsor_task_claims (task_id, tgid, status) VALUES ($1,$2,$3) ON CONFLICT (task_id,tgid) DO UPDATE SET status=$3, updated_at=now()', [task.id, tgid, 'pending']);
+      await client.query('COMMIT');
+      return { ok:true, pending:true, message:'Заявка отправлена на проверку', reward: Number(task.reward) };
+    }
+
+    const ctx = `sponsor:${task.id}`;
+    // mark as completed first to ensure idempotency with context
+    await client.query('INSERT INTO sponsor_task_claims (task_id, tgid, status) VALUES ($1,$2,$3) ON CONFLICT (task_id,tgid) DO UPDATE SET status=$3, updated_at=now()', [task.id, tgid, 'completed']);
+    await client.query('COMMIT');
+    const rewardRes = await claimReward(tgid, Number(task.reward||0), 'task', { contextId: ctx, force: true });
+    return Object.assign({ ok:true, pending:false }, rewardRes);
+  } catch (err){
+    try { await client.query('ROLLBACK'); } catch(e){}
+    throw err;
+  } finally { client.release(); }
+}
+
+async function approveSponsorTask(taskId, tgid){
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cl = await client.query('SELECT status FROM sponsor_task_claims WHERE task_id=$1 AND tgid=$2 FOR UPDATE', [taskId, tgid]);
+    if (!cl.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Заявка не найдена' }; }
+    if (cl.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { ok:false, message:'Заявка уже обработана' }; }
+    const taskRes = await client.query('SELECT reward FROM sponsor_tasks WHERE id = $1', [taskId]);
+    if (!taskRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Задание не найдено' }; }
+    await client.query('UPDATE sponsor_task_claims SET status=$1, updated_at=now() WHERE task_id=$2 AND tgid=$3', ['approved', taskId, tgid]);
+    await client.query('COMMIT');
+    const rewardRes = await claimReward(tgid, Number(taskRes.rows[0].reward||0), 'task', { contextId: `sponsor:${taskId}`, force: true });
+    return Object.assign({ ok:true }, rewardRes);
+  } catch (err){ try { await client.query('ROLLBACK'); } catch(e){} throw err; } finally { client.release(); }
+}
+
+async function rejectSponsorTask(taskId, tgid){
+  const client = await pool.connect();
+  try {
+    const res = await client.query('UPDATE sponsor_task_claims SET status=$1, updated_at=now() WHERE task_id=$2 AND tgid=$3', ['rejected', taskId, tgid]);
+    return { ok: res.rowCount > 0 };
+  } finally { client.release(); }
+}
+
 module.exports = {
   init,
   ensureUser,
@@ -979,5 +1114,13 @@ module.exports = {
   completeWithdrawal,
   declineWithdrawal,
   getDailyStreak,
-  claimDailyReward
+  claimDailyReward,
+  // Sponsor tasks
+  listSponsorTasks,
+  getSponsorTaskById,
+  createSponsorTask,
+  updateSponsorTask,
+  claimSponsorTask,
+  approveSponsorTask,
+  rejectSponsorTask
 };
