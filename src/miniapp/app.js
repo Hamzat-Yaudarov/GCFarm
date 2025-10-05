@@ -18,6 +18,11 @@ const subgramGateEl = document.getElementById('subgram-gate');
 const subgramLinksEl = document.getElementById('subgram-links');
 const subgramOpenBtn = document.getElementById('subgram-open');
 const subgramRecheckBtn = document.getElementById('subgram-recheck');
+// Blocking overlay elements
+const subgramBlockerEl = document.getElementById('subgram-blocker');
+const subgramBlockerLinksEl = document.getElementById('subgram-blocker-links');
+const subgramBlockerOpenBtn = document.getElementById('subgram-blocker-open');
+const subgramBlockerRecheckBtn = document.getElementById('subgram-blocker-recheck');
 let subgramLocked = false;
 let subgramBotUrl = null;
 let subgramRecheckSec = 90;
@@ -638,7 +643,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         if (window.Adsgram && blockId){
           const controller = window.Adsgram.init({ blockId });
           const result = await controller.show();
-          if (!result || result.error) { showStoreFeedback('Реклама не была просмотрена полност��ю'); return; }
+          if (!result || result.error) { showStoreFeedback('Реклама не была просмотрена полностью'); return; }
         }
       } catch (e) { console.warn('daily ad error', e); }
       try {
@@ -1094,7 +1099,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!window.Adsgram) {
       if (attempt >= 20) {
         console.warn('AdsGram SDK was not ready for tasks');
-        renderTaskEmptyState('��е удалось загрузить задания. Попробуйте позже.');
+        renderTaskEmptyState('Не удалось загрузить задания. Попробуйте позже.');
         return;
       }
       setTimeout(()=> setupAdsgramTask(attempt + 1, force), 250);
@@ -1125,12 +1130,13 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       subgramLocked = Boolean(js.enabled) && js.enabled === true && js.subscribed === false;
       subgramBotUrl = js.botUrl || null;
       subgramRecheckSec = Number(js.recheckAfterSeconds || subgramRecheckSec);
+      const links = Array.isArray(js.requiredLinks) ? js.requiredLinks : [];
       if (subgramGateEl) {
         if (subgramLocked) {
           subgramGateEl.classList.remove('hidden');
-          if (Array.isArray(js.requiredLinks) && subgramLinksEl) {
+          if (subgramLinksEl) {
             subgramLinksEl.innerHTML = '';
-            js.requiredLinks.forEach((link)=>{
+            links.forEach((link)=>{
               const li = document.createElement('li');
               li.className = 'subgram-link-item';
               const a = document.createElement('a');
@@ -1143,9 +1149,28 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           subgramGateEl.classList.add('hidden');
         }
       }
+      if (subgramBlockerEl) {
+        if (subgramLocked) {
+          subgramBlockerEl.classList.remove('hidden');
+          if (subgramBlockerLinksEl) {
+            subgramBlockerLinksEl.innerHTML = '';
+            links.forEach((link)=>{
+              const li = document.createElement('li');
+              li.className = 'subgram-link-item';
+              const a = document.createElement('a');
+              a.href = link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = link;
+              li.appendChild(a);
+              subgramBlockerLinksEl.appendChild(li);
+            });
+          }
+        } else {
+          subgramBlockerEl.classList.add('hidden');
+        }
+      }
     } catch (e) {
       console.warn('SubGram status failed', e);
       if (subgramGateEl) subgramGateEl.classList.add('hidden');
+      if (subgramBlockerEl) subgramBlockerEl.classList.add('hidden');
       subgramLocked = false;
     } finally {
       // refresh tasks card availability after status
@@ -1153,7 +1178,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     }
   }
 
-  if (subgramOpenBtn) subgramOpenBtn.addEventListener('click', ()=>{
+  function openSubgramBot(){
     try {
       const url = subgramBotUrl || 'https://t.me/SubGramAppBot';
       if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function') {
@@ -1162,8 +1187,12 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         window.open(url, '_blank');
       }
     } catch (e) { window.open(subgramBotUrl || 'https://t.me/SubGramAppBot', '_blank'); }
-  });
+  }
+
+  if (subgramOpenBtn) subgramOpenBtn.addEventListener('click', openSubgramBot);
   if (subgramRecheckBtn) subgramRecheckBtn.addEventListener('click', ()=> loadSubgramStatus());
+  if (subgramBlockerOpenBtn) subgramBlockerOpenBtn.addEventListener('click', openSubgramBot);
+  if (subgramBlockerRecheckBtn) subgramBlockerRecheckBtn.addEventListener('click', ()=> loadSubgramStatus());
 
   // Initial init
   setupAdsgramTask();
@@ -1304,7 +1333,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         if (msg.includes('нет энер') || msg.includes('нет энергии')) {
           if (!energyEmptyShown) {
             energyEmptyShown = true;
-            const ok = await showConfirm('У вас закончилась энерги��. Хотите восполнить?');
+            const ok = await showConfirm('У вас закончилась энергия. Хотите восполнить?');
             if (ok) {
               try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
               const cfg = window.ADSGRAM_CONFIG || {};
@@ -1515,7 +1544,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         energyEl.textContent = json.energy;
         try { SoundManager.output(); } catch(e){}
         if (Number(json.energy) > 0) energyEmptyShown = false;
-        showStoreFeedback('Энергия восполнена д�� максимума (без рекламы)');
+        showStoreFeedback('Энергия восполнена до максимума (без рекламы)');
       }
       } finally {
         refillBusy = false;
@@ -1637,7 +1666,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     rub: {
       key: 'rub',
       title: 'Вывод в рублях',
-      hint: 'Перевод на номер телефона. Комиссия — 50 SCube на каждые 100 ₽.',
+      hint: 'Перевод на номер телефон��. Комиссия — 50 SCube на каждые 100 ₽.',
       options: [
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
@@ -1942,7 +1971,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!rooms || !rooms.length){
       const empty = document.createElement('div');
       empty.className = 'store-empty';
-      empty.textContent = 'Нет доступных комнат. Создайте свою!';
+      empty.textContent = 'Нет ��оступных комнат. Создайте свою!';
       roomsList.appendChild(empty);
       return;
     }
@@ -2099,7 +2128,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const wrap = document.createElement('div');
     const title = document.createElement('div'); title.className='room-title'; title.textContent = `Крестики-нолики • Ставка ${room.bet}`;
-    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = '��а ход даётся 30 секунд. Превышение - поражение.';
+    const notice = document.createElement('div'); notice.className='room-sub'; notice.textContent = 'На ход даётся 30 секунд. Превышение - поражение.';
     const timer = document.createElement('div'); timer.className = 'turn-timer-badge';
     if (room.deadlineAt && room.status === 'active') {
       const update = ()=>{

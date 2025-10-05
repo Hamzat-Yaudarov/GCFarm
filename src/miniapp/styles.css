@@ -303,6 +303,13 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .onb-btn{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:#0f2536;color:#fff;font-weight:800;cursor:pointer}
 .onb-btn.primary{background:linear-gradient(180deg,#2dbb6a,#1d8a4a)}
 
+/* SubGram blocking overlay */
+.subgram-blocker{position:fixed;inset:0;z-index:1450;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 30% 20%,rgba(26,107,137,0.35),rgba(6,18,32,0.94) 58%,rgba(6,18,32,0.98));backdrop-filter:blur(6px)}
+.subgram-blocker.hidden{display:none}
+.subgram-blocker-card{width:92%;max-width:520px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:18px;box-shadow:0 18px 46px rgba(0,0,0,0.45);display:flex;flex-direction:column;gap:12px}
+.subgram-blocker-header{display:flex;gap:10px;align-items:flex-start}
+.subgram-blocker-text{display:flex;flex-direction:column;gap:6px}
+
 /* Daily streak card */
 .daily-streak-card{width:100%;max-width:420px;padding:16px;border-radius:14px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.05);box-shadow:0 14px 34px rgba(0,0,0,0.38);display:flex;flex-direction:column;gap:12px}
 .daily-streak-header{display:flex;gap:10px;align-items:center}
