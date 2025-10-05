@@ -79,7 +79,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .tabs-bottom{position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(7,17,29,0.95),rgba(7,17,29,1));border-top:1px solid rgba(255,255,255,0.03);z-index:900;}
 .tab-button{flex:1;padding:10px 8px;border-radius:12px;background:#0f2536;color:#bcd3e6;border:1px solid rgba(255,255,255,0.04);font-weight:700;font-size:13px;line-height:1.2;transition:transform .12s ease}
 .tab-button:hover{transform:translateY(-1px)}
-.tab-button.active{background:#0f2536;color:#bcd3e6;box-shadow:none;animation:none;}
+.tab-button.active{background:#0f2536;color:#bcd3e6;box-shadow:none;animation:none}
 @keyframes activePulse{0%{box-shadow:0 0 12px rgba(26,107,137,0.25)}50%{box-shadow:0 0 22px rgba(26,107,137,0.45)}100%{box-shadow:0 0 12px rgba(26,107,137,0.25)}}
 
 /* Store */
@@ -193,7 +193,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .leader-personal-note{margin:10px 0 0;font-size:13px;color:#cfeaf9;position:relative;z-index:1}
 .leader-btn{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:#0f2536;color:#bcd3e6;font-weight:700;cursor:pointer;transition:transform .12s ease,opacity .2s ease,box-shadow .2s ease}
 .leader-btn:hover{transform:translateY(-1px);opacity:.95;box-shadow:0 8px 24px rgba(0,0,0,0.3)}
-.leader-btn.active{background:#0f2536;color:#bcd3e6;box-shadow:none;animation:none;}
+.leader-btn.active{background:linear-gradient(90deg,#1a6b89,#13445a);color:#fff}
 .leader-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .leader-item{display:flex;align-items:center;gap:10px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.03);padding:10px;border-radius:10px;animation:slideIn .25s ease;transition:transform .2s ease,box-shadow .3s ease}
 .leader-item:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,0.35)}
@@ -261,7 +261,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .withdraw-options{display:flex;flex-direction:column;gap:12px}
 .withdraw-option-card{display:flex;gap:12px;padding:14px;border-radius:14px;background:linear-gradient(180deg,#0f2a3b,#05202b);border:1px solid rgba(255,255,255,0.04);box-shadow:0 10px 28px rgba(0,0,0,0.32);cursor:pointer;position:relative;overflow:hidden;transition:transform .12s ease,box-shadow .18s ease,border-color .18s ease}
 .withdraw-option-card:hover{transform:translateY(-2px);box-shadow:0 16px 34px rgba(0,0,0,0.36)}
-.withdraw-option-card.selected{border-color:rgba(255,255,255,0.04);box-shadow:none;}
+.withdraw-option-card.selected{border-color:rgba(159,227,249,0.35);box-shadow:0 16px 34px rgba(0,0,0,0.42)}
 .withdraw-option-input{position:absolute;opacity:0;pointer-events:none}
 .withdraw-option-body{display:flex;flex-direction:column;gap:6px;width:100%}
 .withdraw-option-header{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -314,7 +314,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .streak-cell{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.04);display:flex;flex-direction:column;gap:4px;align-items:center}
 .streak-day{font-size:12px;color:#9fb6c9}
 .streak-reward{font-size:13px;font-weight:800;color:#ffd54b}
-.streak-cell.active{border-color:rgba(255,255,255,0.06);box-shadow:none;}
+.streak-cell.active{border-color:rgba(159,227,249,0.35);box-shadow:0 0 20px rgba(159,227,249,0.18)}
 .streak-cell.completed{opacity:.7}
 .daily-streak-actions{display:flex;gap:10px;align-items:center}
 .daily-claim-btn{padding:10px 14px;border-radius:12px;border:none;background:linear-gradient(140deg,#ffd54b,#ff9f1a);color:#1b1f2a;font-weight:800;cursor:pointer}
@@ -384,7 +384,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .bet-selector{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 10px}
 .bet-chip{padding:8px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.06);background:#0f2536;color:#bcd3e6;cursor:pointer;font-weight:800;transition:transform .12s ease,background .2s ease}
 .bet-chip:hover{transform:translateY(-1px)}
-.bet-chip.active{background:#0f2536;color:#bcd3e6;box-shadow:none;animation:none;}
+.bet-chip.active{background:linear-gradient(90deg,#1a6b89,#13445a);color:#fff}
 
 .rooms-actions{display:flex;justify-content:flex-end;margin-bottom:8px}
 .create-room-btn{padding:10px 12px;border-radius:10px;border:none;background:#2b6d91;color:#fff;font-weight:800;cursor:pointer;transition:transform .12s ease}

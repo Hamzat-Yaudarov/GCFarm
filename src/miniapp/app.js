@@ -154,8 +154,6 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   showInitialLoading();
 
   const scubeEl = document.getElementById('scube');
-  const gcubeEl = document.getElementById('gcube');
-  const starsEl = document.getElementById('stars');
   const energyEl = document.getElementById('energy');
   const energyCapEl = document.getElementById('energy-capacity');
   const dailyEl = document.getElementById('daily');
@@ -1127,8 +1125,6 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       const user = await res.json();
       if (appMessage) appMessage.textContent = '';
       scubeEl.textContent = user.scube;
-      gcubeEl.textContent = user.gcube;
-      if (starsEl) starsEl.textContent = (user.stars || 0);
       energyEl.textContent = user.energy;
       if (Number(user.energy) > 0) energyEmptyShown = false;
       energyCapEl.textContent = user.energy_capacity;
@@ -1405,7 +1401,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       // require full expansion before proceeding
       if (!isExpanded) {
         try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-        return showStoreFeedback('Разверни��е MiniApp полностью и повторите');
+        return showStoreFeedback('Разверните MiniApp полностью и повторите');
       }
       refillBusy = true;
       try {
@@ -1511,7 +1507,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
       const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
-      if (!confirmed) return showStoreFeedback('Покупка отменен��');
+      if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
       if (!json.ok) { try { SoundManager.error(); } catch(e){}; return showStoreFeedback(json.message || 'Ошибка покупки'); }
@@ -1581,7 +1577,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
         buildWithdrawOption('rub-750', '750 ₽', 28500, 375, 'Перевод: 750 ₽'),
-        buildWithdrawOption('rub-1000', '1000 ₽', 38000, 500, 'Перево��: 1000 ₽'),
+        buildWithdrawOption('rub-1000', '1000 ₽', 38000, 500, 'Перевод: 1000 ₽'),
         buildWithdrawOption('rub-1500', '1500 ₽', 57000, 750, 'Перевод: 1500 ₽'),
         buildWithdrawOption('rub-2000', '2000 ₽', 76000, 1000, 'Перевод: 2000 ₽')
       ],
@@ -1890,7 +1886,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       card.className = 'room-card';
       const meta = document.createElement('div'); meta.className = 'room-meta';
       const title = document.createElement('div'); title.className = 'room-title'; title.textContent = `${r.game === 'rps' ? 'КНБ' : 'Крестики-нолики'} • Ставка ${r.bet}`;
-      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `Со��датель: ${r.creator}`;
+      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `Создатель: ${r.creator}`;
       meta.append(title, sub);
       const join = document.createElement('button'); join.className = 'join-btn'; join.textContent = 'Вступить';
       join.addEventListener('click', ()=> joinRoom(r.id));
@@ -2006,7 +2002,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       controls.appendChild(btn);
     });
     const result = document.createElement('div'); result.className='rps-result';
-    if (!room.opponent) result.textContent = 'Ожидание соперни��а...';
+    if (!room.opponent) result.textContent = 'Ожидание соперника...';
     else if (!myMove) result.textContent = 'Сделайте ход';
     else if (!oppMove) result.textContent = 'Ожидаем ход соперника';
     if (finished){
