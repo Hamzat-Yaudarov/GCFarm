@@ -396,7 +396,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     }
 
     hideLeaderboardMessage();
-    const podiumIcons = ['🥇', '🥈', '����'];
+    const podiumIcons = ['🥇', '🥈', '🥉'];
     let viewerPlaced = false;
 
     entries.forEach((entry)=>{
@@ -785,7 +785,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const wrapper = getTasksWrapper();
     if (!wrapper) return;
     wrapper.innerHTML = '';
-    const text = message && message.trim() ? message : 'Пока заданий нет, приходите позже';
+    const text = message && message.trim() ? message : 'Пока задан��й нет, приходите позже';
     const empty = document.createElement('div');
     empty.className = 'tasks-empty-message';
     empty.textContent = text;
@@ -977,7 +977,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const hint = document.createElement('p');
     hint.className = 'adsgram-task-hint';
-    hint.textContent = 'Нажмите «GO», выполните шаги рекла��одателя, затем заберите награду.';
+    hint.textContent = 'Нажмите «GO», выполните шаги рекламодателя, затем заберите награду.';
 
     const taskEl = document.createElement('adsgram-task');
     taskEl.className = 'adsgram-task-element';
@@ -1007,7 +1007,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     rewardAmount.textContent = rewardLabel;
     const rewardHint = document.createElement('span');
     rewardHint.className = 'task-slot-reward-hint';
-    rewardHint.textContent = 'за в��полнение';
+    rewardHint.textContent = 'за выполнение';
     rewardSlot.append(rewardAmount, rewardHint);
 
     const startButton = document.createElement('button');
@@ -1078,17 +1078,27 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!initialDataLoaded) showInitialLoading();
     if (!tgid) {
       if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
-      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить да��ные.');
+      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить данные.');
       return;
     }
     try {
       const res = await fetch(`${apiBase}/user/${tgid}`);
+      if (res.status === 304) {
+        // Not Modified: treat as success to clear initial loading overlay (server likely sent caching headers)
+        if (!initialDataLoaded) {
+          initialDataLoaded = true;
+          hideInitialLoading();
+          initOnboarding();
+          maybeShowOnboarding();
+        }
+        return;
+      }
       if (!res.ok) {
         let body = null;
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить дан��ые. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -1197,7 +1207,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } catch (err) {
       console.error('loadUser error', err);
       if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
-      if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повторяем…');
+      if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повтор��ем…');
     }
   }
 
@@ -1341,7 +1351,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                   }
                 } catch (e) { console.warn('poll error', e); }
               }
-              if (!credited) showStoreFeedback('Награда не подтверждена — п��пробуйте позже');
+              if (!credited) showStoreFeedback('Награда не подтверждена — попробуйте позже');
             }
           } catch (e) {
             console.warn('Claim reward error', e);
@@ -1883,7 +1893,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try{
       const res = await fetch(`${apiBase}/games/rooms`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid, game: selectedGame, bet: selectedBet }) });
       const json = await res.json();
-      if (!json.ok) return alert(json.message || 'Не удалось соз��ать комнату');
+      if (!json.ok) return alert(json.message || 'Не удалось создать комнату');
       currentRoomId = json.room.id;
       openRoom(json.room);
       await loadUser();
