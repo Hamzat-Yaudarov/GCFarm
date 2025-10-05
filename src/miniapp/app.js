@@ -580,7 +580,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       const claimed = Boolean(js.claimedToday);
       renderDailyProgress(idx, claimed);
       if (dailyClaimBtn) dailyClaimBtn.disabled = claimed;
-      if (dailyNote) dailyNote.textContent = claimed ? 'Награда за сегодня получена' : `Сегодняшняя награда: +${DAILY_REWARDS[idx]} SCube`;
+      if (dailyNote) dailyNote.textContent = claimed ? 'Наг��ада за сегодня получена' : `Сегодняшняя награда: +${DAILY_REWARDS[idx]} SCube`;
     } catch(e){ console.warn('daily streak load failed', e); }
   }
 
@@ -1188,8 +1188,13 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   }
 
   golden.addEventListener('click', async ()=>{
+    // short UI lock: ignore any clicks within 500ms after a click
+    if (goldenShortLock) return;
+    goldenShortLock = true;
+    setTimeout(()=>{ goldenShortLock = false; }, 500);
+
     if (!tgid) return showStoreFeedback('tgid is required');
-    if (goldenBusy) return; // debounce rapid clicks
+    if (goldenBusy) return; // debounce in-flight request
     goldenBusy = true;
     try {
       try { SoundManager.gold(); } catch(e){}
@@ -1264,7 +1269,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     return null;
   }
 
-  let adBusy = false; let energyEmptyShown = false; let confirmOpen = false; let goldenBusy = false;
+  let adBusy = false; let energyEmptyShown = false; let confirmOpen = false; let goldenBusy = false; let goldenShortLock = false;
   watchAdBtn.addEventListener('click', async ()=>{
     if (adBusy) return;
     try { SoundManager.click(); } catch(e){}
@@ -1777,7 +1782,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
             return;
           }
           if (field.minLength && value.length < field.minLength) {
-            setWithdrawModalFeedback(`Поле «${field.label}» должно содержать не менее ${field.minLength} символов.`, 'error');
+            setWithdrawModalFeedback(`Поле «${field.label}» должн�� содержать не менее ${field.minLength} символов.`, 'error');
             if (input) input.focus();
             validationFailed = true;
             return;
