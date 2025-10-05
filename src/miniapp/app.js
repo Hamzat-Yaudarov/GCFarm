@@ -372,7 +372,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     leaderSelfRank.textContent = viewer.rank ? `#${viewer.rank}` : '—';
     leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
     if (viewer.rank <= 3) {
-      leaderSelfNote.textContent = 'Ты на пьедестале! Держи темп. 🌟';
+      leaderSelfNote.textContent = 'Ты на пьед��стале! Держи темп. 🌟';
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
@@ -705,7 +705,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     });
   }
 
-  function sparkleAtElement(el, particles = 10){
+  function sparkleAtElement(el, particles = 5){
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const cx = rect.left + rect.width/2;
@@ -714,13 +714,13 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       const s = document.createElement('div');
       s.className = 'sparkle';
       const angle = (Math.PI*2) * (i/particles) + Math.random()*0.5;
-      const dist = 24 + Math.random()*36;
+      const dist = 12 + Math.random()*20;
       s.style.left = cx + 'px';
       s.style.top = cy + 'px';
       s.style.setProperty('--dx', Math.cos(angle)*dist + 'px');
       s.style.setProperty('--dy', Math.sin(angle)*dist + 'px');
       document.body.appendChild(s);
-      setTimeout(()=>{ if (s && s.parentNode) s.parentNode.removeChild(s); }, 750);
+      setTimeout(()=>{ if (s && s.parentNode) s.parentNode.removeChild(s); }, 480);
     }
   }
 
@@ -733,17 +733,17 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     container.className = 'burst';
     container.style.left = cx + 'px';
     container.style.top = cy + 'px';
-    for (let i=0;i<8;i++){
+    for (let i=0;i<4;i++){
       const dot = document.createElement('span');
       dot.className = 'burst-dot';
-      const angle = (Math.PI*2) * (i/8);
-      const dist = 36;
+      const angle = (Math.PI*2) * (i/4);
+      const dist = 24;
       dot.style.setProperty('--bx', Math.cos(angle)*dist + 'px');
       dot.style.setProperty('--by', Math.sin(angle)*dist + 'px');
       container.appendChild(dot);
     }
     document.body.appendChild(container);
-    setTimeout(()=>{ if (container && container.parentNode) container.parentNode.removeChild(container); }, 820);
+    setTimeout(()=>{ if (container && container.parentNode) container.parentNode.removeChild(container); }, 520);
   }
 
   function ensureCustomElementReady(name) {
@@ -1127,7 +1127,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       // start auto-tick if enabled
       if (user.auto_energy) startAutoTick(); else stopAutoTick();
 
-      // set referrer if present in start_param or URL param (only once)
+      // set referrer if present in start_param or URL param (supports opening MiniApp outside bot)
       try {
         const startParam = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) || '';
         const urlRef = qs('ref');
@@ -1135,9 +1135,19 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
         const ref = m && m[1] ? Number(m[1]) : null;
         const refSetKey = `ref_set_${tgid}`;
-        if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
-          await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
-          localStorage.setItem(refSetKey, '1');
+        // If no tgid yet (opened outside bot), remember pending ref locally and apply later when tgid available
+        if (ref && !tgid) {
+          try { localStorage.setItem('pending_ref', String(ref)); } catch(e){}
+        }
+        // If tgid exists, prefer pending_ref stored earlier (user opened via deep link first)
+        const pending = localStorage.getItem('pending_ref');
+        const effectiveRef = pending ? Number(pending) : ref;
+        if (effectiveRef && Number(effectiveRef) !== Number(tgid) && !localStorage.getItem(refSetKey) && tgid) {
+          try {
+            await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(effectiveRef) }) });
+            localStorage.setItem(refSetKey, '1');
+            try { localStorage.removeItem('pending_ref'); } catch(e){}
+          } catch(e) { console.warn('set-referrer request failed', e); }
         }
       } catch (e) { console.warn('set-referrer failed', e); }
 
@@ -1227,7 +1237,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
       animateScube();
       animateGolden();
-      sparkleAtElement(golden, 12);
+      sparkleAtElement(golden, 4);
       leaderboardCache.clicks = null;
       leaderboardCacheTime.clicks = 0;
       if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
@@ -1324,7 +1334,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
             showStoreFeedback('Ошибка при зачислении награды');
           }
         } else {
-          showStoreFeedback('Реклама не была просмотрена полностью');
+          showStoreFeedback('Реклама не была просмотрена полно��тью');
         }
       } catch (err) {
         console.warn('Ads show error', err);
@@ -1457,7 +1467,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       try { SoundManager.click(); } catch(e){}
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за р��ссчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
@@ -1527,7 +1537,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       options: [
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
-        buildWithdrawOption('rub-750', '750 ₽', 28500, 375, 'Перевод: 750 ₽'),
+        buildWithdrawOption('rub-750', '750 ���', 28500, 375, 'Перевод: 750 ₽'),
         buildWithdrawOption('rub-1000', '1000 ₽', 38000, 500, 'Перевод: 1000 ₽'),
         buildWithdrawOption('rub-1500', '1500 ₽', 57000, 750, 'Перевод: 1500 ₽'),
         buildWithdrawOption('rub-2000', '2000 ₽', 76000, 1000, 'Перевод: 2000 ₽')
