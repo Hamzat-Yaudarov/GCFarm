@@ -4,13 +4,6 @@
     return url.searchParams.get(name);
   }
   let tgid = qs('tgid');
-  // If tgid not present in URL, try to derive it from Telegram WebApp init data
-  try {
-    const tgInit = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) || null;
-    if (!tgid && tgInit && tgInit.user && tgInit.user.id) {
-      tgid = String(tgInit.user.id);
-    }
-  } catch(e) { console.warn('tgid init parse failed', e); }
 const apiBase = '/api';
 const APP_CONFIG = window.APP_CONFIG || {};
 const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
@@ -1141,19 +1134,10 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const payload = startParam || urlRef || '';
         const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
         const ref = m && m[1] ? Number(m[1]) : null;
-        const refSetKey = `ref_set_${ref || 'unknown'}_${tgid || 'unknown'}`;
+        const refSetKey = `ref_set_${tgid}`;
         if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
-          try {
-            const resp = await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
-            let body = null;
-            try { body = await resp.json(); } catch(e){}
-            if (resp.ok && body && body.ok) {
-              localStorage.setItem(refSetKey, '1');
-              try { showStoreFeedback('Реферал успешно сохранён'); } catch(e){}
-            } else {
-              console.warn('set-referrer response not ok', resp.status, body);
-            }
-          } catch (e) { console.warn('set-referrer failed', e); }
+          await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
+          localStorage.setItem(refSetKey, '1');
         }
       } catch (e) { console.warn('set-referrer failed', e); }
 
@@ -1161,8 +1145,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       try {
         if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
-        // use standard Telegram deep link start parameter (start=) which works for bot deep links
-        const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?start=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?start=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
+        const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
         referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
         const copyBtn = document.getElementById('copy-referral');
         if (copyBtn) copyBtn.addEventListener('click', ()=>{
@@ -1194,64 +1177,12 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     }
   }
 
-  // Handle account switching / visibility changes:
-  async function reAuthAndGetServerTgid(){
-    try {
-      if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
-        const initData = window.Telegram.WebApp.initData;
-        if (initData && initData.length > 0) {
-          try {
-            const res = await fetch('/auth/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData }) });
-            if (res && res.ok) {
-              const json = await res.json().catch(()=>null);
-              if (json && json.ok && json.tgid) return String(json.tgid);
-            }
-          } catch (e) { console.warn('reAuth post failed', e); }
-        }
-      }
-    } catch(e) { console.warn('reAuthAndGetServerTgid failed', e); }
-    try { const tgInit = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) || null; if (tgInit && tgInit.user && tgInit.user.id) return String(tgInit.user.id); } catch(e){}
-    const q = qs('tgid'); if (q) return String(q);
-    return null;
-  }
-
-  async function handlePossibleTgidChange(){
-    try {
-      const newTgid = await reAuthAndGetServerTgid();
-      if (!newTgid) return;
-      if (String(newTgid) !== String(tgid)) {
-        console.log('Account switched, updating tgid:', tgid, '=>', newTgid);
-        tgid = String(newTgid);
-        // reset UI state so loadUser performs fresh initialization
-        initialDataLoaded = false;
-        try { showInitialLoading('Обновляем данные для нового аккаунта…'); } catch(e){}
-        // clear caches and flags
-        try { leaderboardCache.clicks = null; leaderboardCache.tasks = null; leaderboardCacheTime.clicks = 0; leaderboardCacheTime.tasks = 0; } catch(e){}
-        try { interstitialShownCount = 0; interstitialElapsed = 0; energyEmptyShown = false; } catch(e){}
-        // stop background ticks
-        try { stopAutoTick(); } catch(e){}
-        try { stopInterstitialScheduler(); } catch(e){}
-        // reload user and UI
-        try { await loadUser(); } catch (e) { console.warn('reload after account switch failed', e); }
-        // restart interstitial scheduler if applicable
-        try { if (AdController && typeof startInterstitialScheduler === 'function') startInterstitialScheduler(); } catch(e){}
-      }
-    } catch (e) { console.warn('handlePossibleTgidChange failed', e); }
-  }
-
-  // Listen for visibility change (user switched Telegram accounts or returned to app)
-  document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState === 'visible') { handlePossibleTgidChange().catch(()=>{}); } });
-  // Also listen for Telegram-specific events if available
-  try {
-    if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.onEvent === 'function') {
-      window.Telegram.WebApp.onEvent('viewportChanged', ()=>{ handlePossibleTgidChange().catch(()=>{}); });
-    }
-  } catch(e) { console.warn('attach webapp event failed', e); }
-
   golden.addEventListener('click', async ()=>{
     if (!tgid) return showStoreFeedback('tgid is required');
-    try { SoundManager.gold(); } catch(e){}
+    if (goldenBusy) return; // debounce rapid clicks
+    goldenBusy = true;
     try {
+      try { SoundManager.gold(); } catch(e){}
       const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
       const json = await res.json();
       if (!json.ok) {
@@ -1303,6 +1234,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         loadLeaderboard('clicks', true);
       }
     } catch (e) { console.warn('golden click failed', e); }
+    finally { goldenBusy = false; }
   });
 
   // helper to poll server for changes
@@ -1322,7 +1254,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     return null;
   }
 
-  let adBusy = false; let energyEmptyShown = false;
+  let adBusy = false; let energyEmptyShown = false; let confirmOpen = false; let goldenBusy = false;
   watchAdBtn.addEventListener('click', async ()=>{
     if (adBusy) return;
     try { SoundManager.click(); } catch(e){}
@@ -1501,6 +1433,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   const confirmCancel = document.getElementById('confirm-cancel');
 
   function showConfirm(message){
+    // prevent multiple confirm dialogs stacking
+    if (confirmOpen) return Promise.resolve(false);
+    confirmOpen = true;
     return new Promise((resolve) => {
       confirmMessage.textContent = message;
       confirmModal.classList.remove('hidden');
@@ -1508,6 +1443,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         confirmModal.classList.add('hidden');
         confirmOk.removeEventListener('click', onOk);
         confirmCancel.removeEventListener('click', onCancel);
+        confirmOpen = false;
       }
       function onOk(){ cleanup(); resolve(true); }
       function onCancel(){ cleanup(); resolve(false); }
@@ -1935,7 +1871,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try{
       const res = await fetch(`${apiBase}/games/rooms/${id}/join`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) });
       const json = await res.json();
-      if (!json.ok) return alert(json.message || 'Не удалось войти в комнаду');
+      if (!json.ok) return alert(json.message || 'Не удалось войти в комнату');
       currentRoomId = json.room.id;
       openRoom(json.room);
       await loadUser();
