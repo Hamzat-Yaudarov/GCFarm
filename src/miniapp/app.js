@@ -280,6 +280,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   let interstitialShownCount = 0;
   let interstitialReady = false;
   let interstitialLoadingPromise = null;
+  let interstitialInstance = null;
   const INTERSTITIAL_INTERVAL = 3 * 60 * 1000;
   const INTERSTITIAL_MAX_PER_SESSION = 3;
 
@@ -292,17 +293,33 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   });
 
   async function preloadInterstitial(force = false) {
-    if (!AdController || typeof AdController.load !== 'function') return false;
+    if (!AdController) return false;
+    // If controller doesn't support load but has show, consider it ready
+    if (typeof AdController.load !== 'function') {
+      if (typeof AdController.show === 'function') {
+        interstitialReady = true;
+        interstitialInstance = null;
+        return true;
+      }
+      return false;
+    }
     if (interstitialReady && !force) return true;
     if (interstitialLoadingPromise && !force) return interstitialLoadingPromise;
     interstitialLoadingPromise = AdController.load()
-      .then(() => {
+      .then((maybeInstance) => {
+        // Some AdsGram implementations return a ready instance from load()
+        if (maybeInstance && typeof maybeInstance.show === 'function') {
+          interstitialInstance = maybeInstance;
+        } else {
+          interstitialInstance = null;
+        }
         interstitialReady = true;
         console.log('AdsGram interstitial ready');
         return true;
       })
       .catch((err) => {
         interstitialReady = false;
+        interstitialInstance = null;
         console.warn('AdsGram interstitial load failed', err);
         return false;
       })
@@ -372,7 +389,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     leaderSelfRank.textContent = viewer.rank ? `#${viewer.rank}` : '—';
     leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
     if (viewer.rank <= 3) {
-      leaderSelfNote.textContent = 'Ты на пьед��стале! Держи темп. 🌟';
+      leaderSelfNote.textContent = 'Ты на пьедьстале! Держи темп. 🌟';
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
@@ -522,7 +539,22 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         overlay.classList.add('hidden');
       }
       if (!isExpanded) return false;
-      const result = await AdController.show();
+      // prefer instance.show if available
+      let result = null;
+      try {
+        if (interstitialInstance && typeof interstitialInstance.show === 'function') {
+          result = await interstitialInstance.show();
+        } else if (AdController && typeof AdController.show === 'function') {
+          result = await AdController.show();
+        } else if (AdController && typeof AdController.load === 'function') {
+          // try to load then show from returned instance
+          const inst = await AdController.load();
+          if (inst && typeof inst.show === 'function') result = await inst.show();
+        }
+      } catch (err) {
+        console.warn('Interstitial show threw', err);
+        result = null;
+      }
       if (result && !result.error) {
         interstitialReady = false;
         lastInterstitialAt = Date.now();
@@ -580,7 +612,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       const claimed = Boolean(js.claimedToday);
       renderDailyProgress(idx, claimed);
       if (dailyClaimBtn) dailyClaimBtn.disabled = claimed;
-      if (dailyNote) dailyNote.textContent = claimed ? 'Наг��ада за сегодня получена' : `Сегодняшняя награда: +${DAILY_REWARDS[idx]} SCube`;
+      if (dailyNote) dailyNote.textContent = claimed ? 'Награда за сегодня получена' : `Сегодняшняя награда: +${DAILY_REWARDS[idx]} SCube`;
     } catch(e){ console.warn('daily streak load failed', e); }
   }
 
@@ -684,9 +716,10 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     };
   })();
 
-  // Microinteractions with ripple + sound
+  // Microinteractions with ripple + sound (exclude golden cube to avoid white splash)
   function initRippleEffects(){
-    const candidates = document.querySelectorAll('button, .upgrade-btn, .withdraw-method-button, .withdraw-trigger-btn, .leader-btn, .watch-ad, .create-room-btn, .share-invite-btn, .bet-chip');
+    const all = Array.from(document.querySelectorAll('button, .upgrade-btn, .withdraw-method-button, .withdraw-trigger-btn, .leader-btn, .watch-ad, .create-room-btn, .share-invite-btn, .bet-chip'));
+    const candidates = all.filter(btn => btn && btn.id !== 'golden-cube');
     candidates.forEach((btn)=>{
       if (btn.classList.contains('with-ripple')) return;
       btn.classList.add('with-ripple');
@@ -1339,7 +1372,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
             showStoreFeedback('Ошибка при зачислении награды');
           }
         } else {
-          showStoreFeedback('Реклама не была просмотрена полно��тью');
+          showStoreFeedback('Реклама не была просмотрена полностью');
         }
       } catch (err) {
         console.warn('Ads show error', err);
@@ -1472,7 +1505,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       try { SoundManager.click(); } catch(e){}
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за р��ссчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
@@ -1542,7 +1575,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       options: [
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
-        buildWithdrawOption('rub-750', '750 ���', 28500, 375, 'Перевод: 750 ₽'),
+        buildWithdrawOption('rub-750', '750 ₽', 28500, 375, 'Перевод: 750 ₽'),
         buildWithdrawOption('rub-1000', '1000 ₽', 38000, 500, 'Перевод: 1000 ₽'),
         buildWithdrawOption('rub-1500', '1500 ₽', 57000, 750, 'Перевод: 1500 ₽'),
         buildWithdrawOption('rub-2000', '2000 ₽', 76000, 1000, 'Перевод: 2000 ₽')
@@ -1782,7 +1815,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
             return;
           }
           if (field.minLength && value.length < field.minLength) {
-            setWithdrawModalFeedback(`Поле «${field.label}» должн�� содержать не менее ${field.minLength} символов.`, 'error');
+            setWithdrawModalFeedback(`Поле «${field.label}» должно содержать не менее ${field.minLength} символов.`, 'error');
             if (input) input.focus();
             validationFailed = true;
             return;
