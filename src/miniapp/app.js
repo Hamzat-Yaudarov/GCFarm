@@ -82,12 +82,13 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 }
 
   // Exchange Telegram initData for a secure HttpOnly session (anti-cheat)
-  (async function tryAuth(){
+  let authPromise = Promise.resolve();
+  authPromise = (async function tryAuth(){
     try {
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
         const initData = window.Telegram.WebApp.initData;
         if (initData && initData.length > 0) {
-          const res = await fetch('/auth/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData }) });
+          const res = await fetch('/auth/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData }), credentials: 'include' });
           if (res.ok) {
             const json = await res.json();
             if (json && json.ok && json.tgid) {
@@ -534,9 +535,11 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       return false;
     } catch (e) { console.warn('Scheduled interstitial failed', e); return false; }
   }
+  let pageVisible = true; let userAutoEnabled = false;
   function startInterstitialScheduler() {
-    if (interstitialTicker) return;
+    if (interstitialTicker || !pageVisible) return;
     interstitialTicker = setInterval(()=>{
+      if (!pageVisible) return;
       if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return;
       interstitialElapsed += 1000;
       if (interstitialElapsed >= INTERSTITIAL_INTERVAL) {
@@ -549,6 +552,18 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
   // start scheduler if AdsGram initialized
   if (AdController) startInterstitialScheduler();
+
+  // Pause heavy timers/animations when page not visible
+  document.addEventListener('visibilitychange', ()=>{
+    pageVisible = !document.hidden;
+    if (!pageVisible) {
+      stopInterstitialScheduler();
+      stopAutoTick();
+    } else {
+      if (AdController) startInterstitialScheduler();
+      if (userAutoEnabled) startAutoTick();
+    }
+  });
 
   // Daily streak UI
   const dailyStreakCard = document.getElementById('daily-streak-card');
@@ -705,22 +720,24 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     });
   }
 
-  function sparkleAtElement(el, particles = 10){
+  function sparkleAtElement(el, particles = 6){
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const cx = rect.left + rect.width/2;
     const cy = rect.top + rect.height/2;
-    for (let i=0;i<particles;i++){
+    // cap particles to avoid DOM overload
+    const count = Math.max(2, Math.min(12, particles));
+    for (let i=0;i<count;i++){
       const s = document.createElement('div');
       s.className = 'sparkle';
-      const angle = (Math.PI*2) * (i/particles) + Math.random()*0.5;
-      const dist = 24 + Math.random()*36;
+      const angle = (Math.PI*2) * (i/count) + Math.random()*0.5;
+      const dist = 16 + Math.random()*28;
       s.style.left = cx + 'px';
       s.style.top = cy + 'px';
       s.style.setProperty('--dx', Math.cos(angle)*dist + 'px');
       s.style.setProperty('--dy', Math.sin(angle)*dist + 'px');
       document.body.appendChild(s);
-      setTimeout(()=>{ if (s && s.parentNode) s.parentNode.removeChild(s); }, 750);
+      setTimeout(()=>{ if (s && s.parentNode) s.parentNode.removeChild(s); }, 650);
     }
   }
 
@@ -733,17 +750,17 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     container.className = 'burst';
     container.style.left = cx + 'px';
     container.style.top = cy + 'px';
-    for (let i=0;i<8;i++){
+    for (let i=0;i<4;i++){
       const dot = document.createElement('span');
       dot.className = 'burst-dot';
-      const angle = (Math.PI*2) * (i/8);
-      const dist = 36;
+      const angle = (Math.PI*2) * (i/4);
+      const dist = 28;
       dot.style.setProperty('--bx', Math.cos(angle)*dist + 'px');
       dot.style.setProperty('--by', Math.sin(angle)*dist + 'px');
       container.appendChild(dot);
     }
     document.body.appendChild(container);
-    setTimeout(()=>{ if (container && container.parentNode) container.parentNode.removeChild(container); }, 820);
+    setTimeout(()=>{ if (container && container.parentNode) container.parentNode.removeChild(container); }, 700);
   }
 
   function ensureCustomElementReady(name) {
@@ -1125,7 +1142,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
 
       // start auto-tick if enabled
-      if (user.auto_energy) startAutoTick(); else stopAutoTick();
+      if (user.auto_energy) { userAutoEnabled = true; if (pageVisible) startAutoTick(); } else { userAutoEnabled = false; stopAutoTick(); }
 
       // set referrer if present in start_param or URL param (only once)
       try {
@@ -1136,8 +1153,17 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const ref = m && m[1] ? Number(m[1]) : null;
         const refSetKey = `ref_set_${tgid}`;
         if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
-          await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
-          localStorage.setItem(refSetKey, '1');
+          try {
+            // wait for auth exchange to finish so session cookie is present
+            await authPromise;
+            const resSet = await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({ referrer: Number(ref) }) });
+            if (!resSet.ok) {
+              const body = await resSet.text().catch(()=>null);
+              console.warn('set-referrer failed', resSet.status, body);
+            } else {
+              localStorage.setItem(refSetKey, '1');
+            }
+          } catch (e) { console.warn('set-referrer error', e); }
         }
       } catch (e) { console.warn('set-referrer failed', e); }
 
