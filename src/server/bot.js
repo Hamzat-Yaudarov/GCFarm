@@ -523,7 +523,7 @@ bot.start(async (ctx) => {
   const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}${refQuery}`;
 
   try {
-    await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
+    await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми ��нопку, чтобы открыть MiniApp.`, {
       reply_markup: {
         inline_keyboard: [[{ text: 'Play', web_app: { url: webAppUrl } }]]
       }
@@ -919,7 +919,7 @@ app.get('/api/subgram/status', async (req, res) => {
       error: status.error,
       temporaryBypass: Boolean(status.temporaryBypass),
       botUrl: config.botUrl,
-      requiredLinks: config.links,
+      requiredLinks: Array.isArray(status.links) && status.links.length ? status.links : config.links,
       recheckAfterSeconds: status.recheckAfterSeconds || config.recheckAfterSeconds
     });
   } catch (err) {

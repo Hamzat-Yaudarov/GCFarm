@@ -4,19 +4,21 @@ const https = require('https');
 const http = require('http');
 const { URL } = require('url');
 
-function parseLinks(value) {
+function parseList(value) {
   return String(value || '')
     .split(/[\n,;\s]+/)
     .map((entry) => entry.trim())
     .filter((entry) => Boolean(entry));
 }
 
-const API_ENDPOINT = (process.env.SUBGRAM_API_URL || 'https://api.subgram.ru/get-user-subscriptions').trim();
+const API_CHECK_URL = (process.env.SUBGRAM_API_URL || 'https://api.subgram.ru/get-user-subscriptions').trim();
+const API_REQUEST_OP_URL = (process.env.SUBGRAM_REQUEST_OP_URL || 'https://api.subgram.ru/request-op/').trim();
 const API_TOKEN = (process.env.SUBGRAM_API_TOKEN || '').trim();
 const BOT_URL = (process.env.SUBGRAM_BOT_URL || 'https://t.me/SubGramAppBot').trim();
-const REQUIRED_LINKS = parseLinks(process.env.SUBGRAM_SPONSOR_LINKS || process.env.SUBGRAM_REQUIRED_LINKS || '');
 const DEFAULT_RECHECK_SECONDS = Math.max(30, parseInt(process.env.SUBGRAM_RECHECK_SECONDS || '90', 10) || 90);
-const ENABLED = Boolean(API_TOKEN && REQUIRED_LINKS.length);
+const MAX_OP = Math.max(0, Math.min(10, parseInt(process.env.SUBGRAM_MAX_OP || '0', 10) || 0));
+const EXCLUDE_IDS = parseList(process.env.SUBGRAM_EXCLUDE_IDS);
+const ENABLED = Boolean(API_TOKEN);
 
 function pickTransport(protocol) {
   return protocol === 'http:' ? http : https;
@@ -38,7 +40,7 @@ function buildRequestOptions(targetUrl, payload) {
         'Content-Length': Buffer.byteLength(body),
         Auth: API_TOKEN
       },
-      timeout: 8000
+      timeout: 10000
     }
   };
 }
@@ -101,6 +103,7 @@ async function checkUserSubscriptions(userId) {
       enabled: false,
       subscribed: true,
       sponsors: [],
+      links: [],
       error: null,
       temporaryBypass: false,
       recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
@@ -113,6 +116,7 @@ async function checkUserSubscriptions(userId) {
       enabled: true,
       subscribed: false,
       sponsors: [],
+      links: [],
       error: 'Некорректный идентификатор пользователя',
       temporaryBypass: false,
       recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
@@ -121,37 +125,39 @@ async function checkUserSubscriptions(userId) {
 
   try {
     const payload = {
-      user_id: numericId,
-      links: REQUIRED_LINKS
+      UserId: String(numericId),
+      ChatId: String(numericId),
+      action: 'subscribe'
     };
+    if (MAX_OP) payload.MaxOP = MAX_OP;
+    if (EXCLUDE_IDS && EXCLUDE_IDS.length) payload.exclude_channel_ids = EXCLUDE_IDS;
 
-    const { statusCode, body } = await requestJson(API_ENDPOINT, payload);
+    const { statusCode, body } = await requestJson(API_REQUEST_OP_URL, payload);
     if (statusCode !== 200 || !body) {
       const message = body && body.message ? body.message : `SubGram ответил со статусом ${statusCode}`;
       throw new Error(message);
     }
 
-    if (body.status && String(body.status).toLowerCase() !== 'ok') {
-      throw new Error(body.message || 'SubGram вернул ошибку');
-    }
-
+    const status = String(body.status || '').toLowerCase();
+    const code = Number(body.code || 0);
     const sponsorsData = body.additional && Array.isArray(body.additional.sponsors) ? body.additional.sponsors : [];
-    const sponsorsMap = new Map();
-    sponsorsData.forEach((entry) => {
-      if (entry && entry.link) {
-        sponsorsMap.set(String(entry.link).trim(), entry);
-      }
-    });
+    const links = Array.isArray(body.links) ? body.links.map((l)=>String(l).trim()).filter(Boolean) : [];
 
-    const sponsors = REQUIRED_LINKS.map((link) => normalizeSponsor(sponsorsMap.get(link), link)).filter(Boolean);
-    const subscribed = sponsors.length === 0 ? true : sponsors.every((item) => item.status === 'subscribed');
+    const normalizedSponsors = sponsorsData.map((entry)=> normalizeSponsor(entry, null)).filter(Boolean);
+
+    // Determine subscription result: 'ok' + 200 means fully subscribed
+    const subscribed = status === 'ok' && code === 200;
+
+    // If service asks for gender explicitly, allow bypass temporarily but inform client
+    const needGender = status === 'gender';
 
     return {
       enabled: true,
       subscribed,
-      sponsors,
-      error: null,
-      temporaryBypass: false,
+      sponsors: normalizedSponsors,
+      links,
+      error: needGender ? 'Требуется указать пол пользователя' : null,
+      temporaryBypass: needGender ? true : false,
       recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
     };
   } catch (error) {
@@ -159,6 +165,7 @@ async function checkUserSubscriptions(userId) {
       enabled: true,
       subscribed: true,
       sponsors: [],
+      links: [],
       error: error && error.message ? error.message : 'Не удалось проверить подписки SubGram',
       temporaryBypass: true,
       recheckAfterSeconds: Math.max(DEFAULT_RECHECK_SECONDS, 180)
@@ -170,7 +177,7 @@ function getConfig() {
   return {
     enabled: ENABLED,
     botUrl: BOT_URL,
-    links: REQUIRED_LINKS.slice(),
+    links: [],
     recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
   };
 }
