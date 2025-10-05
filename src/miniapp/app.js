@@ -383,7 +383,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'В��полняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик прибли��ает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
     }
   }
 
@@ -464,7 +464,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     updateLeaderboardInsights(null, mode, 'loading');
     const requestId = ++leaderboardRequestId;
     leaderList.innerHTML = '';
-    showLeaderboardMessage('Загружаем рейтин��...');
+    showLeaderboardMessage('Загружаем рейтинг...');
 
     try {
       const viewerQuery = tgid ? `&viewer=${tgid}` : '';
@@ -1271,7 +1271,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                     const refillRes = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
                     if (refillRes.ok) { await loadUser(); showStoreFeedback('Энергия восполнена'); try{ SoundManager.output(); }catch(e){} }
                   } else {
-                    showStoreFeedback('Реклама не ��ыла просмотрена полностью');
+                    showStoreFeedback('Реклама не была просмотрена полностью');
                   }
                 } catch (e) { console.warn('Energy ad failed', e); showStoreFeedback('Ошибка восполнения энергии'); }
               } else {
@@ -1452,7 +1452,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                 showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
               }
             } else {
-              showStoreFeedback('Сервер не отвечает ��ри попытке восполнить энергию');
+              showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
             }
           } else {
             showStoreFeedback('Реклама не была просмотрена полностью');
@@ -1560,7 +1560,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   const WITHDRAW_METHODS = {
     stars: {
       key: 'stars',
-      title: 'Вывод как Telegram-зв��зды',
+      title: 'Вывод как Telegram-звёзды',
       hint: 'Выберите нужный набор звёзд. Комиссия — 5 SCube на каждые 100 SCube.',
       options: [
         buildWithdrawOption('stars-15', '15 Stars', 900, 45, 'Выплата: 15 Stars'),
@@ -1597,7 +1597,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         buildWithdrawOption('rub-2000', '2000 ₽', 76000, 1000, 'Перевод: 2000 ₽')
       ],
       fields: [
-        { id: 'payoutPhone', label: 'Но��ер для перевода', type: 'tel', placeholder: '+7XXXXXXXXXX', required: true, minLength: 7 }
+        { id: 'payoutPhone', label: 'Номер для перевода', type: 'tel', placeholder: '+7XXXXXXXXXX', required: true, minLength: 7 }
       ]
     }
   };
@@ -1935,7 +1935,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try{
       const res = await fetch(`${apiBase}/games/rooms/${id}/join`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) });
       const json = await res.json();
-      if (!json.ok) return alert(json.message || 'Не удалось войти в комна��у');
+      if (!json.ok) return alert(json.message || 'Не удалось войти в комнаду');
       currentRoomId = json.room.id;
       openRoom(json.room);
       await loadUser();
@@ -2075,7 +2075,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const win = String(room.state.winner)===me;
         banner = document.createElement('div');
         banner.className = 'result-banner ' + (win ? 'win' : 'lose');
-        banner.textContent = win ? 'Побе��а!' : 'Поражени��';
+        banner.textContent = win ? 'Победа!' : 'Поражение';
       } else {
         banner = document.createElement('div');
         banner.className = 'result-banner draw';
