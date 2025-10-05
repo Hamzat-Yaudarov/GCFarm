@@ -446,9 +446,13 @@ async function buyUpgrade(tgid, type) {
     scube = Number(scube); energy_capacity = Number(energy_capacity); daily_limit_level = Number(daily_limit_level); auto_energy = Boolean(auto_energy);
 
     if (type === 'energy_capacity') {
-      // energy capacity upgrade removed, do not allow
-      await client.query('ROLLBACK');
-      return { ok:false, message: 'Улучшение вместимости энергии было удалено' };
+      const cost = 100;
+      if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
+      scube -= cost;
+      energy_capacity += 25;
+      await client.query('UPDATE users SET scube=$1, energy_capacity=$2 WHERE tgid=$3', [scube, energy_capacity, tgid]);
+      await client.query('COMMIT');
+      return { ok:true, scube, energy_capacity };
     } else if (type === 'daily_limit') {
       const cost = 90 + daily_limit_level * 10;
       if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }

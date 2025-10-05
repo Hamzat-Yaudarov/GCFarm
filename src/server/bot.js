@@ -244,8 +244,7 @@ async function fetchTelegramProfile(tgid){
       displayName
     };
   } catch (err) {
-    const desc = err && err.response && err.response.description ? err.response.description : (err && err.message) || String(err);
-    console.warn('Failed to fetch Telegram profile:', desc);
+    console.warn('Failed to fetch Telegram profile', err);
     return null;
   }
 }
@@ -390,8 +389,7 @@ async function notifyWithdrawalUser(withdrawal, status, meta){
   try {
     await bot.telegram.sendMessage(withdrawal.tgid, lines.join('\n'));
   } catch (err) {
-    const desc = err && err.response && err.response.description ? err.response.description : (err && err.message) || String(err);
-    console.warn('Failed to notify user about withdrawal status:', desc);
+    console.warn('Failed to notify user about withdrawal status', err);
   }
 }
 
@@ -453,8 +451,7 @@ bot.on('callback_query', async (ctx) => {
           ];
           await bot.telegram.sendMessage(WITHDRAW_SUCCESS_CHAT, successLines.join('\n'));
         } catch (err) {
-          const desc = err && err.response && err.response.description ? err.response.description : (err && err.message) || String(err);
-          console.warn('Failed to notify success chat about withdrawal:', desc);
+          console.warn('Failed to notify success chat about withdrawal', err);
         }
       }
       return;
@@ -988,15 +985,13 @@ app.post('/api/user/:tgid/set-referrer', async (req, res) => {
   const tgid = parseInt(req.params.tgid, 10);
   const { referrer } = req.body || {};
   const authTgid = getAuthTgid(req);
-  console.info('set-referrer called', { tgid, referrer, authTgid });
   if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   if (!tgid || !referrer) return res.status(400).json({ error: 'Invalid params' });
   try {
     const result = await db.setReferrer(tgid, Number(referrer));
-    console.info('set-referrer result', { tgid, referrer, ok: result && result.ok });
     res.json(result);
   } catch (err) {
-    console.error('set-referrer error', err && err.message ? err.message : err);
+    console.error(err);
     res.status(500).json({ error: 'Internal error' });
   }
 });

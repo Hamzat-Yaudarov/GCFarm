@@ -82,13 +82,12 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 }
 
   // Exchange Telegram initData for a secure HttpOnly session (anti-cheat)
-  let authPromise = Promise.resolve();
-  authPromise = (async function tryAuth(){
+  (async function tryAuth(){
     try {
       if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
         const initData = window.Telegram.WebApp.initData;
         if (initData && initData.length > 0) {
-          const res = await fetch('/auth/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData }), credentials: 'include' });
+          const res = await fetch('/auth/telegram', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ initData }) });
           if (res.ok) {
             const json = await res.json();
             if (json && json.ok && json.tgid) {
@@ -373,7 +372,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     leaderSelfRank.textContent = viewer.rank ? `#${viewer.rank}` : '—';
     leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
     if (viewer.rank <= 3) {
-      leaderSelfNote.textContent = 'Ты на пьедестале! Держи темп. 🌟';
+      leaderSelfNote.textContent = 'Ты на пье��естале! Держи темп. 🌟';
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
@@ -535,11 +534,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       return false;
     } catch (e) { console.warn('Scheduled interstitial failed', e); return false; }
   }
-  let pageVisible = true; let userAutoEnabled = false;
   function startInterstitialScheduler() {
-    if (interstitialTicker || !pageVisible) return;
+    if (interstitialTicker) return;
     interstitialTicker = setInterval(()=>{
-      if (!pageVisible) return;
       if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return;
       interstitialElapsed += 1000;
       if (interstitialElapsed >= INTERSTITIAL_INTERVAL) {
@@ -552,18 +549,6 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
   // start scheduler if AdsGram initialized
   if (AdController) startInterstitialScheduler();
-
-  // Pause heavy timers/animations when page not visible
-  document.addEventListener('visibilitychange', ()=>{
-    pageVisible = !document.hidden;
-    if (!pageVisible) {
-      stopInterstitialScheduler();
-      stopAutoTick();
-    } else {
-      if (AdController) startInterstitialScheduler();
-      if (userAutoEnabled) startAutoTick();
-    }
-  });
 
   // Daily streak UI
   const dailyStreakCard = document.getElementById('daily-streak-card');
@@ -720,24 +705,22 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     });
   }
 
-  function sparkleAtElement(el, particles = 6){
+  function sparkleAtElement(el, particles = 10){
     if (!el) return;
     const rect = el.getBoundingClientRect();
     const cx = rect.left + rect.width/2;
     const cy = rect.top + rect.height/2;
-    // cap particles to avoid DOM overload
-    const count = Math.max(2, Math.min(12, particles));
-    for (let i=0;i<count;i++){
+    for (let i=0;i<particles;i++){
       const s = document.createElement('div');
       s.className = 'sparkle';
-      const angle = (Math.PI*2) * (i/count) + Math.random()*0.5;
-      const dist = 16 + Math.random()*28;
+      const angle = (Math.PI*2) * (i/particles) + Math.random()*0.5;
+      const dist = 24 + Math.random()*36;
       s.style.left = cx + 'px';
       s.style.top = cy + 'px';
       s.style.setProperty('--dx', Math.cos(angle)*dist + 'px');
       s.style.setProperty('--dy', Math.sin(angle)*dist + 'px');
       document.body.appendChild(s);
-      setTimeout(()=>{ if (s && s.parentNode) s.parentNode.removeChild(s); }, 650);
+      setTimeout(()=>{ if (s && s.parentNode) s.parentNode.removeChild(s); }, 750);
     }
   }
 
@@ -750,17 +733,17 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     container.className = 'burst';
     container.style.left = cx + 'px';
     container.style.top = cy + 'px';
-    for (let i=0;i<4;i++){
+    for (let i=0;i<8;i++){
       const dot = document.createElement('span');
       dot.className = 'burst-dot';
-      const angle = (Math.PI*2) * (i/4);
-      const dist = 28;
+      const angle = (Math.PI*2) * (i/8);
+      const dist = 36;
       dot.style.setProperty('--bx', Math.cos(angle)*dist + 'px');
       dot.style.setProperty('--by', Math.sin(angle)*dist + 'px');
       container.appendChild(dot);
     }
     document.body.appendChild(container);
-    setTimeout(()=>{ if (container && container.parentNode) container.parentNode.removeChild(container); }, 700);
+    setTimeout(()=>{ if (container && container.parentNode) container.parentNode.removeChild(container); }, 820);
   }
 
   function ensureCustomElementReady(name) {
@@ -1142,26 +1125,36 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
 
       // start auto-tick if enabled
-      if (user.auto_energy) { userAutoEnabled = true; if (pageVisible) startAutoTick(); } else { userAutoEnabled = false; stopAutoTick(); }
+      if (user.auto_energy) startAutoTick(); else stopAutoTick();
 
       // set referrer if present in start_param or URL param (only once)
       try {
         const startParam = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) || '';
         const urlRef = qs('ref');
         const payload = startParam || urlRef || '';
+        // support start_param, startapp query and ?ref=...
+        const startParamRaw = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && (window.Telegram.WebApp.initDataUnsafe.start_param || window.Telegram.WebApp.initDataUnsafe.startapp)) || '';
+        const urlRef = qs('ref') || qs('startapp') || qs('start_param') || qs('startapp');
+        const payload = startParamRaw || urlRef || '';
         const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
         const ref = m && m[1] ? Number(m[1]) : null;
         const refSetKey = `ref_set_${tgid}`;
-        if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
+        // ensure we have a tgid value (try to read from Telegram init data if missing)
+        let resolvedTgid = tgid;
+        try {
+          if (!resolvedTgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+            resolvedTgid = window.Telegram.WebApp.initDataUnsafe.user.id;
+            tgid = resolvedTgid; // update global
+          }
+        } catch(e){}
+        if (ref && resolvedTgid && Number(ref) !== Number(resolvedTgid) && !localStorage.getItem(refSetKey)) {
           try {
-            // wait for auth exchange to finish so session cookie is present
-            await authPromise;
-            const resSet = await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, credentials: 'include', body: JSON.stringify({ referrer: Number(ref) }) });
-            if (!resSet.ok) {
-              const body = await resSet.text().catch(()=>null);
-              console.warn('set-referrer failed', resSet.status, body);
+            const resp = await fetch(`${apiBase}/user/${resolvedTgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
+            if (resp && resp.ok) {
+              try { localStorage.setItem(refSetKey, '1'); } catch(e){}
+              console.log('set-referrer success', ref, resolvedTgid);
             } else {
-              localStorage.setItem(refSetKey, '1');
+              console.warn('set-referrer failed', resp && resp.status);
             }
           } catch (e) { console.warn('set-referrer error', e); }
         }
@@ -1253,7 +1246,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
       animateScube();
       animateGolden();
-      sparkleAtElement(golden, 12);
+      sparkleAtElement(golden, 4);
       leaderboardCache.clicks = null;
       leaderboardCacheTime.clicks = 0;
       if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
@@ -1413,7 +1406,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
               showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
             }
           } else {
-            showStoreFeedback('Реклама не была просмотрена полностью');
+            showStoreFeedback('Реклам�� не была просмотрена полностью');
           }
         } catch (e) {
           console.warn('Energy ad show error', e);
@@ -1817,7 +1810,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || (json && json.ok === false)) {
-          const message = (json && (json.message || json.error)) || 'Не удалось отправить заявку. Попробуйте позже.';
+          const message = (json && (json.message || json.error)) || 'Не удалось отправить за��вку. Попробуйте позже.';
           setWithdrawModalFeedback(message, 'error');
         } else {
           closeWithdrawModal();
