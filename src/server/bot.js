@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const crypto = require('crypto');
 const db = require('./db');
+const subgram = require('./subgram');
 
 const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
@@ -460,7 +461,7 @@ bot.on('callback_query', async (ctx) => {
       const result = await db.declineWithdrawal(withdrawalId, adminData);
       if (!result || !result.ok) {
         if (result && result.reason === 'already_processed') {
-          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
+          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана р��нее.');
           await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
           return;
         }
@@ -874,6 +875,64 @@ app.post('/api/games/rooms/:id/leave', async (req,res)=>{
     if (room.opponent) userActiveRoom.delete(String(room.opponent));
     res.json({ ok:true, room: serializeRoom(room) });
   } catch(err){ console.error(err); res.status(500).json({ ok:false, message:'Server error' }); }
+});
+
+// SubGram subscription status
+app.get('/api/subgram/status', async (req, res) => {
+  try {
+    const config = subgram.getConfig();
+    const authTgid = getAuthTgid(req);
+    const queryTgidRaw = req.query && req.query.tgid;
+    const queryTgid = queryTgidRaw !== undefined ? parseInt(queryTgidRaw, 10) : null;
+    const hasAuth = typeof authTgid === 'number' && Number.isFinite(authTgid);
+    const hasQuery = typeof queryTgid === 'number' && Number.isFinite(queryTgid);
+
+    if (hasAuth && hasQuery && Number(authTgid) !== Number(queryTgid)) {
+      return res.status(403).json({
+        ok: false,
+        message: 'Auth mismatch',
+        enabled: config.enabled,
+        botUrl: config.botUrl,
+        requiredLinks: config.links
+      });
+    }
+
+    const resolvedTgid = hasAuth ? Number(authTgid) : (hasQuery ? Number(queryTgid) : null);
+    if (!resolvedTgid) {
+      return res.status(400).json({
+        ok: false,
+        message: 'tgid is required',
+        enabled: config.enabled,
+        botUrl: config.botUrl,
+        requiredLinks: config.links,
+        recheckAfterSeconds: config.recheckAfterSeconds
+      });
+    }
+
+    const status = await subgram.checkUserSubscriptions(resolvedTgid);
+    return res.json({
+      ok: true,
+      tgid: resolvedTgid,
+      enabled: status.enabled,
+      subscribed: status.subscribed,
+      sponsors: status.sponsors,
+      error: status.error,
+      temporaryBypass: Boolean(status.temporaryBypass),
+      botUrl: config.botUrl,
+      requiredLinks: config.links,
+      recheckAfterSeconds: status.recheckAfterSeconds || config.recheckAfterSeconds
+    });
+  } catch (err) {
+    console.error('SubGram status check failed', err);
+    const config = subgram.getConfig();
+    return res.status(500).json({
+      ok: false,
+      message: 'SubGram status check failed',
+      enabled: config.enabled,
+      botUrl: config.botUrl,
+      requiredLinks: config.links
+    });
+  }
 });
 
 // API endpoints

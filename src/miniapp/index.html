@@ -163,6 +163,22 @@
         <div class="tasks-container">
           <h3>📝 Командные задания</h3>
           <p class="section-hint">✅ Выполняй задания от AdsGram и забирай космические бонусы.</p>
+
+          <div id="subgram-gate" class="subgram-gate hidden" aria-live="polite">
+            <div class="subgram-gate-header">
+              <div class="subgram-gate-icon" aria-hidden="true">🔒</div>
+              <div class="subgram-gate-text">
+                <h4 class="subgram-gate-title">Подпишитесь на спонсоров</h4>
+                <p class="subgram-gate-sub">Откройте SubGram и подпишитесь на ресурсы ниже, затем нажмите «Проверить».</p>
+              </div>
+            </div>
+            <ul id="subgram-links" class="subgram-links"></ul>
+            <div class="subgram-gate-actions">
+              <button id="subgram-open" class="subgram-btn primary" type="button">Открыть SubGram</button>
+              <button id="subgram-recheck" class="subgram-btn" type="button">Проверить</button>
+            </div>
+          </div>
+
           <div class="daily-streak-card" id="daily-streak-card" aria-live="polite">
             <div class="daily-streak-header">
               <div class="daily-streak-icon">📅</div>
