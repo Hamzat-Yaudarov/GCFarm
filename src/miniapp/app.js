@@ -4,11 +4,6 @@
     return url.searchParams.get(name);
   }
   let tgid = qs('tgid');
-  try {
-    if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-      tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
-    }
-  } catch(e) {}
 const apiBase = '/api';
 const APP_CONFIG = window.APP_CONFIG || {};
 const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
@@ -377,7 +372,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     leaderSelfRank.textContent = viewer.rank ? `#${viewer.rank}` : '—';
     leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
     if (viewer.rank <= 3) {
-      leaderSelfNote.textContent = 'Ты на пье��естале! Держи темп. 🌟';
+      leaderSelfNote.textContent = 'Ты на пьедестале! Держи темп. 🌟';
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
@@ -785,7 +780,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const wrapper = getTasksWrapper();
     if (!wrapper) return;
     wrapper.innerHTML = '';
-    const text = message && message.trim() ? message : 'Пока задан��й нет, приходите позже';
+    const text = message && message.trim() ? message : 'Пока заданий нет, приходите позже';
     const empty = document.createElement('div');
     empty.className = 'tasks-empty-message';
     empty.textContent = text;
@@ -1083,22 +1078,12 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     }
     try {
       const res = await fetch(`${apiBase}/user/${tgid}`);
-      if (res.status === 304) {
-        // Not Modified: treat as success to clear initial loading overlay (server likely sent caching headers)
-        if (!initialDataLoaded) {
-          initialDataLoaded = true;
-          hideInitialLoading();
-          initOnboarding();
-          maybeShowOnboarding();
-        }
-        return;
-      }
       if (!res.ok) {
         let body = null;
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить дан��ые. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -1147,31 +1132,12 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const startParam = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.start_param) || '';
         const urlRef = qs('ref');
         const payload = startParam || urlRef || '';
-        // support start_param, startapp query and ?ref=...
-        const startParamRaw = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && (window.Telegram.WebApp.initDataUnsafe.start_param || window.Telegram.WebApp.initDataUnsafe.startapp)) || '';
-        const urlRef = qs('ref') || qs('startapp') || qs('start_param') || qs('startapp');
-        const payload = startParamRaw || urlRef || '';
         const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
         const ref = m && m[1] ? Number(m[1]) : null;
         const refSetKey = `ref_set_${tgid}`;
-        // ensure we have a tgid value (try to read from Telegram init data if missing)
-        let resolvedTgid = tgid;
-        try {
-          if (!resolvedTgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
-            resolvedTgid = window.Telegram.WebApp.initDataUnsafe.user.id;
-            tgid = resolvedTgid; // update global
-          }
-        } catch(e){}
-        if (ref && resolvedTgid && Number(ref) !== Number(resolvedTgid) && !localStorage.getItem(refSetKey)) {
-          try {
-            const resp = await fetch(`${apiBase}/user/${resolvedTgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
-            if (resp && resp.ok) {
-              try { localStorage.setItem(refSetKey, '1'); } catch(e){}
-              console.log('set-referrer success', ref, resolvedTgid);
-            } else {
-              console.warn('set-referrer failed', resp && resp.status);
-            }
-          } catch (e) { console.warn('set-referrer error', e); }
+        if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
+          await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
+          localStorage.setItem(refSetKey, '1');
         }
       } catch (e) { console.warn('set-referrer failed', e); }
 
@@ -1207,7 +1173,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } catch (err) {
       console.error('loadUser error', err);
       if (appMessage) appMessage.textContent = 'Ошибка связи с сервером. Попробуйте позже.';
-      if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повтор��ем…');
+      if (!initialDataLoaded) showInitialLoading('Ошибка связи с сервером. Повторяем…');
     }
   }
 
@@ -1261,7 +1227,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
       animateScube();
       animateGolden();
-      sparkleAtElement(golden, 4);
+      sparkleAtElement(golden, 12);
       leaderboardCache.clicks = null;
       leaderboardCacheTime.clicks = 0;
       if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
@@ -1421,7 +1387,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
               showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
             }
           } else {
-            showStoreFeedback('Реклам�� не была просмотрена полностью');
+            showStoreFeedback('Реклама не была просмотрена полностью');
           }
         } catch (e) {
           console.warn('Energy ad show error', e);
@@ -1825,7 +1791,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || (json && json.ok === false)) {
-          const message = (json && (json.message || json.error)) || 'Не удалось отправить за��вку. Попробуйте позже.';
+          const message = (json && (json.message || json.error)) || 'Не удалось отправить заявку. Попробуйте позже.';
           setWithdrawModalFeedback(message, 'error');
         } else {
           closeWithdrawModal();

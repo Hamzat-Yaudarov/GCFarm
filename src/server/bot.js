@@ -534,8 +534,6 @@ bot.start(async (ctx) => {
 });
 
 const app = express();
-// Disable ETag to avoid conditional 304 responses for dynamic API endpoints
-app.set('etag', false);
 // capture raw body for signature verification
 app.use(bodyParser.json({ verify: (req, res, buf) => { req.rawBody = buf ? buf.toString() : ''; } }));
 
@@ -886,11 +884,6 @@ app.get('/api/user/:tgid', async (req, res) => {
   if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
   try {
     const user = await db.getOrCreateUser(tgid);
-    // ensure clients and intermediaries do not cache this response
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
-    res.set('Surrogate-Control', 'no-store');
     res.json(user);
   } catch (err) {
     console.error(err);
