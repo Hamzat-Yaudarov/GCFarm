@@ -281,6 +281,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   let interstitialReady = false;
   let interstitialLoadingPromise = null;
   let interstitialInstance = null;
+  let interstitialShowing = false; // guard to prevent concurrent/show reentrancy
   const INTERSTITIAL_INTERVAL = 3 * 60 * 1000;
   const INTERSTITIAL_MAX_PER_SESSION = 3;
 
@@ -518,6 +519,9 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   let interstitialElapsed = 0; // ms accumulated only when expanded
   let interstitialInitialShown = false;
   async function showInterstitialWithCountdownIfExpanded() {
+    // prevent concurrent show attempts
+    if (interstitialShowing) return false;
+    interstitialShowing = true;
     try {
       if (!isExpanded) return false;
       if (!AdController || typeof AdController.show !== 'function') return false;
@@ -565,6 +569,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       }
       return false;
     } catch (e) { console.warn('Scheduled interstitial failed', e); return false; }
+    finally { interstitialShowing = false; }
   }
   function startInterstitialScheduler() {
     if (interstitialTicker) return;
@@ -746,7 +751,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     for (let i=0;i<particles;i++){
       const s = document.createElement('div');
       s.className = 'sparkle';
-      const angle = (Math.PI*2) * (i/particles) + Math.random()*0.2;
+      const angle = (Math.PI*2) * (i/particles) + Math.random()*0.5;
       const dist = 12 + Math.random()*20;
       s.style.left = cx + 'px';
       s.style.top = cy + 'px';
@@ -1400,7 +1405,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       // require full expansion before proceeding
       if (!isExpanded) {
         try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-        return showStoreFeedback('Разверните MiniApp полностью и повторите');
+        return showStoreFeedback('Разверни��е MiniApp полностью и повторите');
       }
       refillBusy = true;
       try {
@@ -1506,7 +1511,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
       const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
-      if (!confirmed) return showStoreFeedback('Покупка отменена');
+      if (!confirmed) return showStoreFeedback('Покупка отменен��');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
       if (!json.ok) { try { SoundManager.error(); } catch(e){}; return showStoreFeedback(json.message || 'Ошибка покупки'); }
@@ -1576,7 +1581,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
         buildWithdrawOption('rub-750', '750 ₽', 28500, 375, 'Перевод: 750 ₽'),
-        buildWithdrawOption('rub-1000', '1000 ₽', 38000, 500, 'Перевод: 1000 ₽'),
+        buildWithdrawOption('rub-1000', '1000 ₽', 38000, 500, 'Перево��: 1000 ₽'),
         buildWithdrawOption('rub-1500', '1500 ₽', 57000, 750, 'Перевод: 1500 ₽'),
         buildWithdrawOption('rub-2000', '2000 ₽', 76000, 1000, 'Перевод: 2000 ₽')
       ],
@@ -1885,7 +1890,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       card.className = 'room-card';
       const meta = document.createElement('div'); meta.className = 'room-meta';
       const title = document.createElement('div'); title.className = 'room-title'; title.textContent = `${r.game === 'rps' ? 'КНБ' : 'Крестики-нолики'} • Ставка ${r.bet}`;
-      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `Создатель: ${r.creator}`;
+      const sub = document.createElement('div'); sub.className = 'room-sub'; sub.textContent = `Со��датель: ${r.creator}`;
       meta.append(title, sub);
       const join = document.createElement('button'); join.className = 'join-btn'; join.textContent = 'Вступить';
       join.addEventListener('click', ()=> joinRoom(r.id));
@@ -2001,7 +2006,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       controls.appendChild(btn);
     });
     const result = document.createElement('div'); result.className='rps-result';
-    if (!room.opponent) result.textContent = 'Ожидание соперника...';
+    if (!room.opponent) result.textContent = 'Ожидание соперни��а...';
     else if (!myMove) result.textContent = 'Сделайте ход';
     else if (!oppMove) result.textContent = 'Ожидаем ход соперника';
     if (finished){
