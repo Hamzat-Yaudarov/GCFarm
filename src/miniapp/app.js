@@ -746,7 +746,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     for (let i=0;i<particles;i++){
       const s = document.createElement('div');
       s.className = 'sparkle';
-      const angle = (Math.PI*2) * (i/particles) + Math.random()*0.5;
+      const angle = (Math.PI*2) * (i/particles) + Math.random()*0.2;
       const dist = 12 + Math.random()*20;
       s.style.left = cx + 'px';
       s.style.top = cy + 'px';
