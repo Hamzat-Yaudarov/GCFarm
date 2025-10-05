@@ -153,6 +153,7 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_reward DATE`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_energy_refill_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_bonus BIGINT DEFAULT 0`);
     // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
     // For rating system
@@ -249,8 +250,9 @@ async function ensureUser(tgid, name) {
 }
 
 function mapUser(row) {
+  if (!row) return null;
   return {
-    tgid: row.tgid,
+    tgid: Number(row.tgid),
     name: row.name,
     scube: Number(row.scube),
     gcube: Number(row.gcube),
@@ -261,7 +263,10 @@ function mapUser(row) {
     daily_limit_level: Number(row.daily_limit_level),
     last_reset: row.last_reset,
     last_refill: row.last_refill,
-    auto_energy: Boolean(row.auto_energy)
+    auto_energy: Boolean(row.auto_energy),
+    referrer_tgid: row.referrer_tgid ? Number(row.referrer_tgid) : null,
+    referrer_bonus: Number(row.referral_bonus || 0),
+    referrals_count: Number(row.referrals_count || 0)
   };
 }
 
@@ -274,6 +279,17 @@ async function getOrCreateUser(tgid) {
   try {
     const res = await client.query('SELECT * FROM users WHERE tgid = $1', [tgid]);
     const today = new Date().toISOString().slice(0,10);
+
+    async function buildUser(row) {
+      if (!row) return null;
+      const mapped = mapUser(row);
+      if (!mapped) return null;
+      const referralsRes = await client.query('SELECT COUNT(*) AS count FROM users WHERE referrer_tgid = $1', [row.tgid]);
+      const countRow = referralsRes.rows[0];
+      mapped.referrals_count = Number(countRow && countRow.count ? countRow.count : 0);
+      return mapped;
+    }
+
     if (res.rows.length) {
       const user = res.rows[0];
       // reset daily_count if day changed
@@ -287,13 +303,13 @@ async function getOrCreateUser(tgid) {
         user.energy = user.energy_capacity;
         user.last_refill = new Date();
         const updated = await client.query('SELECT * FROM users WHERE tgid = $1', [tgid]);
-        return mapUser(updated.rows[0]);
+        return await buildUser(updated.rows[0]);
       }
-      return mapUser(user);
-    } else {
-      await client.query('INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
-      return await getOrCreateUser(tgid);
+      return await buildUser(user);
     }
+
+    await client.query('INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
+    return await getOrCreateUser(tgid);
   } finally {
     client.release();
   }
@@ -338,7 +354,7 @@ async function handleClick(tgid) {
       const clickCount = upsert.rows[0].click_count;
       if (clickCount >= 10) {
         await client.query('UPDATE referral_stats SET click_count = click_count - 10 WHERE referrer = $1 AND referred = $2', [referrer, tgid]);
-        await client.query('UPDATE users SET scube = scube + 1 WHERE tgid = $1', [referrer]);
+        await client.query('UPDATE users SET scube = scube + 1, referral_bonus = COALESCE(referral_bonus, 0) + 1 WHERE tgid = $1', [referrer]);
       }
     }
 
@@ -552,7 +568,7 @@ async function claimReward(tgid, amount, source, options = {}) {
     if (referrer) {
       const bonus = Math.floor(credit * 0.1);
       if (bonus > 0) {
-        await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2', [bonus, referrer]);
+        await client.query('UPDATE users SET scube = scube + $1, referral_bonus = COALESCE(referral_bonus, 0) + $1 WHERE tgid = $2', [bonus, referrer]);
       }
     }
 
