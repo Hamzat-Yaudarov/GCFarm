@@ -428,7 +428,7 @@ bot.on('callback_query', async (ctx) => {
       const result = await db.completeWithdrawal(withdrawalId, adminData);
       if (!result || !result.ok) {
         if (result && result.reason === 'already_processed') {
-          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
+          await updateAdminWithdrawalMessage(ctx, 'За��вка уже обработана ранее.');
           await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
           return;
         }
@@ -522,9 +522,9 @@ bot.start(async (ctx) => {
   const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}${refQuery}`;
 
   try {
-    await ctx.reply(`Привет, ${firstName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
+    await ctx.reply(`П��ивет, ${first || displayName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
       reply_markup: {
-        inline_keyboard: [[{ text: 'Открыт�� игру', web_app: { url: webAppUrl } }]]
+        inline_keyboard: [[{ text: 'Play', web_app: { url: webAppUrl } }]]
       }
     });
   } catch (err) {
@@ -760,7 +760,7 @@ app.post('/api/games/rooms/:id/join', async (req, res)=>{
     if (!room) return res.status(404).json({ ok:false, message:'Room not found' });
     if (room.status!=='waiting') return res.json({ ok:false, message:'Комната уже занята' });
     if (String(room.creator) === String(tgid)) return res.json({ ok:false, message:'Нельзя присоединиться к своей комнате' });
-    if (userActiveRoom.get(String(tgid))) return res.json({ ok:false, message:'У вас уже есть активная комната' });
+    if (userActiveRoom.get(String(tgid))) return res.json({ ok:false, message:'У вас уже есть активная ком��ата' });
     const reserve = await db.tryReserveScube(tgid, room.bet);
     if (!reserve.ok) return res.json(reserve);
     room.opponent = tgid;

@@ -260,10 +260,16 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   try {
     if (window.Telegram && window.Telegram.WebApp) {
       if (typeof window.Telegram.WebApp.onEvent === 'function') {
-        window.Telegram.WebApp.onEvent('viewportChanged', ()=>{ isExpanded = computeExpanded(); });
+        window.Telegram.WebApp.onEvent('viewportChanged', ()=>{
+          const prev = isExpanded;
+          isExpanded = computeExpanded();
+          if (isExpanded && interstitialElapsed >= INTERSTITIAL_INTERVAL) {
+            showInterstitialWithCountdownIfExpanded().then((shown)=>{ if (shown) interstitialElapsed = 0; }).catch(()=>{});
+          }
+        });
       }
       if (typeof window.Telegram.WebApp.expand === 'function') {
-        window.Telegram.WebApp.expand();
+        try { window.Telegram.WebApp.expand(); } catch(e){}
         isExpanded = computeExpanded();
       }
     }
@@ -370,7 +376,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     } else if (viewer.rank <= 10) {
       leaderSelfNote.textContent = 'До медалей рукой подать — продолжай в том же духе!';
     } else {
-      leaderSelfNote.textContent = isTasks ? 'Выполняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
+      leaderSelfNote.textContent = isTasks ? 'В��полняй задания и забирай награды, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
     }
   }
 
@@ -451,7 +457,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     updateLeaderboardInsights(null, mode, 'loading');
     const requestId = ++leaderboardRequestId;
     leaderList.innerHTML = '';
-    showLeaderboardMessage('Загружаем рейтинг...');
+    showLeaderboardMessage('Загружаем рейтин��...');
 
     try {
       const viewerQuery = tgid ? `&viewer=${tgid}` : '';
@@ -496,13 +502,13 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   let interstitialInitialShown = false;
   async function showInterstitialWithCountdownIfExpanded() {
     try {
-      if (!isExpanded) return;
-      if (!AdController || typeof AdController.show !== 'function') return;
-      if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return;
+      if (!isExpanded) return false;
+      if (!AdController || typeof AdController.show !== 'function') return false;
+      if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return false;
       const now = Date.now();
-      if (lastInterstitialAt && now - lastInterstitialAt < INTERSTITIAL_INTERVAL) return;
+      if (lastInterstitialAt && now - lastInterstitialAt < INTERSTITIAL_INTERVAL) return false;
       const ready = await preloadInterstitial();
-      if (!ready) return;
+      if (!ready) return false;
       const overlay = document.getElementById('ad-countdown-overlay');
       if (overlay) {
         overlay.classList.remove('hidden');
@@ -515,24 +521,27 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         }
         overlay.classList.add('hidden');
       }
-      if (!isExpanded) return;
+      if (!isExpanded) return false;
       const result = await AdController.show();
-      interstitialReady = false;
-      lastInterstitialAt = Date.now();
-      interstitialShownCount += 1;
-      console.log('Scheduled interstitial shown', result);
-      preloadInterstitial().catch((err)=>console.warn('AdsGram interstitial reload failed', err));
-    } catch (e) { console.warn('Scheduled interstitial failed', e); }
+      if (result && !result.error) {
+        interstitialReady = false;
+        lastInterstitialAt = Date.now();
+        interstitialShownCount += 1;
+        console.log('Scheduled interstitial shown', result);
+        preloadInterstitial().catch((err)=>console.warn('AdsGram interstitial reload failed', err));
+        return true;
+      }
+      return false;
+    } catch (e) { console.warn('Scheduled interstitial failed', e); return false; }
   }
   function startInterstitialScheduler() {
     if (interstitialTicker) return;
     interstitialTicker = setInterval(()=>{
-      if (!isExpanded) return;
       if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return;
       interstitialElapsed += 1000;
       if (interstitialElapsed >= INTERSTITIAL_INTERVAL) {
-        interstitialElapsed = 0;
-        showInterstitialWithCountdownIfExpanded();
+        // attempt to show; only reset elapsed if ad actually shown
+        showInterstitialWithCountdownIfExpanded().then((shown)=>{ if (shown) interstitialElapsed = 0; }).catch(()=>{});
       }
     }, 1000);
   }
@@ -577,6 +586,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
   if (dailyClaimBtn) {
     dailyClaimBtn.addEventListener('click', async ()=>{
+      try { SoundManager.click(); } catch(e){}
       if (!tgid) return alert('tgid is required');
       const cfg = window.ADSGRAM_CONFIG || {};
       const blockId = cfg.dailyRewardBlockId;
@@ -592,6 +602,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const js = await res.json();
         if (js && js.ok){
           scubeEl.textContent = js.scube;
+          try { SoundManager.reward(); } catch(e){}
           animateScube(); rewardBurstNear(scubeEl);
           showStoreFeedback(`Ежедневная награда получена (+${js.credited} SCube)`);
           await loadDailyStreak();
@@ -630,6 +641,8 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     scubeEl.classList.add('scube-pop');
     setTimeout(() => scubeEl.classList.remove('scube-pop'), 700);
   }
+
+  // small animation for golden cube
   function animateGolden() {
     if (!golden) return;
     golden.classList.remove('shake');
@@ -637,29 +650,48 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     golden.classList.add('shake');
     setTimeout(()=> golden.classList.remove('shake'), 450);
   }
-  let lastGoldenVisual = 0;
-  function animateGoldenThrottled() {
-    const now = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
-    if (now - lastGoldenVisual < 120) return;
-    lastGoldenVisual = now;
-    animateGolden();
-  }
-  let lastSparkleAt = 0;
-  function sparkleAtElementLimited(el, particles = 6) {
-    const now = (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
-    if (now - lastSparkleAt < 120) return;
-    lastSparkleAt = now;
-    sparkleAtElement(el, particles);
-  }
 
-  // Microinteractions
+  // Sound manager using WebAudio (no external assets required)
+  const SoundManager = (function(){
+    let ctx = null;
+    function ensure() {
+      try {
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      } catch(e) { ctx = null; }
+      return ctx;
+    }
+    function playTone(freq, type = 'sine', duration = 0.08, gain = 0.12) {
+      const c = ensure();
+      if (!c) return;
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      g.gain.value = gain;
+      o.connect(g);
+      g.connect(c.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + duration);
+      setTimeout(()=>{ try{ o.stop(); }catch(e){} }, duration * 1000 + 20);
+    }
+    return {
+      click() { playTone(900, 'sine', 0.06, 0.08); },
+      purchase() { playTone(1150, 'triangle', 0.12, 0.14); playTone(880, 'sine', 0.09, 0.08); },
+      output() { playTone(720, 'sine', 0.10, 0.12); },
+      gold() { playTone(1400, 'sine', 0.09, 0.14); playTone(1000, 'sine', 0.06, 0.1); },
+      reward() { playTone(1600, 'sine', 0.12, 0.16); playTone(1200, 'sine', 0.08, 0.12); },
+      error() { playTone(240, 'sawtooth', 0.12, 0.14); }
+    };
+  })();
+
+  // Microinteractions with ripple + sound
   function initRippleEffects(){
     const candidates = document.querySelectorAll('button, .upgrade-btn, .withdraw-method-button, .withdraw-trigger-btn, .leader-btn, .watch-ad, .create-room-btn, .share-invite-btn, .bet-chip');
     candidates.forEach((btn)=>{
-      if (btn.id === 'golden-cube') return;
       if (btn.classList.contains('with-ripple')) return;
       btn.classList.add('with-ripple');
       btn.addEventListener('click', (e)=>{
+        try { SoundManager.click(); } catch(e){}
         const rect = btn.getBoundingClientRect();
         const ripple = document.createElement('span');
         ripple.className = 'btn-ripple';
@@ -773,7 +805,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const handleUnavailable = () => {
       markState('empty');
-      setTaskFeedback('Пока заданий не��. Загляните позже.', 'warning');
+      setTaskFeedback('Пока заданий нет. Загляните позже.', 'warning');
       renderTaskEmptyState('Пока заданий нет, приходите позже');
     };
 
@@ -1051,7 +1083,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         try { body = await res.json(); } catch(e){}
         const msg = (body && (body.error || body.message)) || `Server returned ${res.status}`;
         if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg;
-        if (!initialDataLoaded) showInitialLoading('Не удало��ь загрузить данные. Повторяем попытку…');
+        if (!initialDataLoaded) showInitialLoading('Не удалось загрузить данные. Повторяем попытку…');
         return;
       }
       const user = await res.json();
@@ -1060,6 +1092,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       gcubeEl.textContent = user.gcube;
       if (starsEl) starsEl.textContent = (user.stars || 0);
       energyEl.textContent = user.energy;
+      if (Number(user.energy) > 0) energyEmptyShown = false;
       energyCapEl.textContent = user.energy_capacity;
       dailyEl.textContent = user.daily_count;
       dailyLevelEl.textContent = user.daily_limit_level;
@@ -1145,22 +1178,60 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
   }
 
   golden.addEventListener('click', async ()=>{
-    if (!tgid) return alert('tgid is required');
-    const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
-    const json = await res.json();
-    if (!json.ok) return alert(json.message || 'Action failed');
-    scubeEl.textContent = json.scube;
-    energyEl.textContent = json.energy;
-    dailyEl.textContent = json.daily_count;
-    dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
-    animateScube();
-    animateGoldenThrottled();
-    sparkleAtElementLimited(golden, 6);
-    leaderboardCache.clicks = null;
-    leaderboardCacheTime.clicks = 0;
-    if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
-      loadLeaderboard('clicks', true);
-    }
+    if (!tgid) return showStoreFeedback('tgid is required');
+    try { SoundManager.gold(); } catch(e){}
+    try {
+      const res = await fetch(`${apiBase}/user/${tgid}/click`, { method: 'POST' });
+      const json = await res.json();
+      if (!json.ok) {
+        const msg = String(json.message || '').toLowerCase();
+        if (msg.includes('нет энер') || msg.includes('нет энергии')) {
+          if (!energyEmptyShown) {
+            energyEmptyShown = true;
+            const ok = await showConfirm('У вас закончилась энергия. Хотите восполнить?');
+            if (ok) {
+              try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
+              const cfg = window.ADSGRAM_CONFIG || {};
+              if (window.Adsgram && cfg.energyAdBlockId) {
+                try {
+                  const controller = window.Adsgram.init({ blockId: cfg.energyAdBlockId });
+                  const result = await controller.show();
+                  if (result && result.done && !result.error) {
+                    const refillRes = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
+                    if (refillRes.ok) { await loadUser(); showStoreFeedback('Энергия восполнена'); try{ SoundManager.output(); }catch(e){} }
+                  } else {
+                    showStoreFeedback('Реклама не ��ыла просмотрена полностью');
+                  }
+                } catch (e) { console.warn('Energy ad failed', e); showStoreFeedback('Ошибка восполнения энергии'); }
+              } else {
+                try {
+                  const refillRes = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
+                  if (refillRes.ok) { await loadUser(); showStoreFeedback('Энергия восполнена'); try{ SoundManager.output(); }catch(e){} }
+                } catch(e){ showStoreFeedback('Ошибка восполнения энергии'); }
+              }
+            }
+          }
+          try { SoundManager.error(); } catch(e){}
+          return;
+        }
+        showStoreFeedback(json.message || 'Action failed');
+        try { SoundManager.error(); } catch(e){}
+        return;
+      }
+      scubeEl.textContent = json.scube;
+      energyEl.textContent = json.energy;
+      if (Number(json.energy) > 0) energyEmptyShown = false;
+      dailyEl.textContent = json.daily_count;
+      dailyLimitEl.textContent = json.daily_limit || dailyLimitEl.textContent;
+      animateScube();
+      animateGolden();
+      sparkleAtElement(golden, 12);
+      leaderboardCache.clicks = null;
+      leaderboardCacheTime.clicks = 0;
+      if (leaderboardSection && !leaderboardSection.classList.contains('hidden') && leaderboardMode === 'clicks') {
+        loadLeaderboard('clicks', true);
+      }
+    } catch (e) { console.warn('golden click failed', e); }
   });
 
   // helper to poll server for changes
@@ -1180,9 +1251,10 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     return null;
   }
 
-  let adBusy = false;
+  let adBusy = false; let energyEmptyShown = false;
   watchAdBtn.addEventListener('click', async ()=>{
     if (adBusy) return;
+    try { SoundManager.click(); } catch(e){}
     // require full expansion before proceeding
     if (!isExpanded) {
       try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
@@ -1205,6 +1277,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const result = await controller.show();
         console.log('reward show', result);
         if (result && result.done && !result.error) {
+          try { SoundManager.reward(); } catch(e){}
           // Ad watched successfully  request server to credit reward.
           // Try immediate claim; if server prefers callback-based crediting, poll until confirmed.
           const EXPECTED_REWARD = 20;
@@ -1216,6 +1289,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
               if (!claimJson.duplicate && Number(claimJson.credited || 0) > 0) { animateScube(); rewardBurstNear(scubeEl); }
               const rewardText = Number(claimJson.credited || 0) > 0 ? `Награда зачислена (+${claimJson.credited} SCube)` : 'Награда уже была зачислена ранее';
               showStoreFeedback(rewardText);
+              try { SoundManager.purchase(); } catch(e){}
             } else {
               // fallback: poll server for up to 15s to detect server-side callback credit
               let beforeScubeVal = beforeScube || 0;
@@ -1235,6 +1309,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                     scubeEl.textContent = nowScube;
                     animateScube(); rewardBurstNear(scubeEl);
                     showStoreFeedback('Награда зачислена');
+                    try { SoundManager.purchase(); } catch(e){}
                     break;
                   }
                 } catch (e) { console.warn('poll error', e); }
@@ -1270,6 +1345,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     let refillBusy = false;
     refillBtn.addEventListener('click', async ()=>{
       if (refillBusy) return;
+      try { SoundManager.click(); } catch(e){}
       // require full expansion before proceeding
       if (!isExpanded) {
         try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
@@ -1291,6 +1367,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
           const controller = window.Adsgram.init({ blockId: cfg.energyAdBlockId });
           const result = await controller.show();
           if (result && result.done && !result.error) {
+            try { SoundManager.reward(); } catch(e){}
             // Immediately request server to refill energy after confirmed ad view
             const resRefill = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
             if (resRefill.ok) {
@@ -1298,6 +1375,8 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
               if (jsonRefill.ok) {
                 energyEl.textContent = jsonRefill.energy;
                 showStoreFeedback('Энергия восполнена');
+                try { SoundManager.output(); } catch(e){}
+                if (Number(jsonRefill.energy) > 0) energyEmptyShown = false;
               } else {
                 showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
               }
@@ -1317,6 +1396,8 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const json = await res.json();
         if (!json.ok) return showStoreFeedback(json.message || 'Ошибка восполнения');
         energyEl.textContent = json.energy;
+        try { SoundManager.output(); } catch(e){}
+        if (Number(json.energy) > 0) energyEmptyShown = false;
         showStoreFeedback('Энергия восполнена до максимума (без рекламы)');
       }
       } finally {
@@ -1366,14 +1447,16 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
   upgradeBtns.forEach(btn=>{
     btn.addEventListener('click', async ()=>{
+      try { SoundManager.click(); } catch(e){}
       const type = btn.dataset.type;
       if (!tgid) return alert('tgid is required');
       const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
-      if (!confirmed) return showStoreFeedback('Поку��ка отменена');
+      if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
-      if (!json.ok) return showStoreFeedback(json.message || 'Ошибка покупки');
+      if (!json.ok) { try { SoundManager.error(); } catch(e){}; return showStoreFeedback(json.message || 'Ошибка покупки'); }
       await loadUser();
+      try { SoundManager.purchase(); } catch(e){}
       showStoreFeedback('Покупка успешна');
       if (type === 'auto_energy') startAutoTick();
     });
@@ -1443,7 +1526,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         buildWithdrawOption('rub-2000', '2000 ₽', 76000, 1000, 'Перевод: 2000 ₽')
       ],
       fields: [
-        { id: 'payoutPhone', label: 'Номер для перевода', type: 'tel', placeholder: '+7XXXXXXXXXX', required: true, minLength: 7 }
+        { id: 'payoutPhone', label: 'Но��ер для перевода', type: 'tel', placeholder: '+7XXXXXXXXXX', required: true, minLength: 7 }
       ]
     }
   };
@@ -1781,7 +1864,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try{
       const res = await fetch(`${apiBase}/games/rooms/${id}/join`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) });
       const json = await res.json();
-      if (!json.ok) return alert(json.message || 'Не удалось войти в комнату');
+      if (!json.ok) return alert(json.message || 'Не удалось войти в комна��у');
       currentRoomId = json.room.id;
       openRoom(json.room);
       await loadUser();
@@ -1921,7 +2004,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const win = String(room.state.winner)===me;
         banner = document.createElement('div');
         banner.className = 'result-banner ' + (win ? 'win' : 'lose');
-        banner.textContent = win ? 'Победа!' : 'Поражение';
+        banner.textContent = win ? 'Побе��а!' : 'Поражение';
       } else {
         banner = document.createElement('div');
         banner.className = 'result-banner draw';
