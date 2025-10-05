@@ -4,6 +4,11 @@
     return url.searchParams.get(name);
   }
   let tgid = qs('tgid');
+  try {
+    if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+      tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
+    }
+  } catch(e) {}
 const apiBase = '/api';
 const APP_CONFIG = window.APP_CONFIG || {};
 const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
@@ -391,7 +396,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     }
 
     hideLeaderboardMessage();
-    const podiumIcons = ['🥇', '🥈', '🥉'];
+    const podiumIcons = ['🥇', '🥈', '����'];
     let viewerPlaced = false;
 
     entries.forEach((entry)=>{
@@ -972,7 +977,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
 
     const hint = document.createElement('p');
     hint.className = 'adsgram-task-hint';
-    hint.textContent = 'Нажмите «GO», выполните шаги рекламодателя, затем заберите награду.';
+    hint.textContent = 'Нажмите «GO», выполните шаги рекла��одателя, затем заберите награду.';
 
     const taskEl = document.createElement('adsgram-task');
     taskEl.className = 'adsgram-task-element';
@@ -1002,7 +1007,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     rewardAmount.textContent = rewardLabel;
     const rewardHint = document.createElement('span');
     rewardHint.className = 'task-slot-reward-hint';
-    rewardHint.textContent = 'за выполнение';
+    rewardHint.textContent = 'за в��полнение';
     rewardSlot.append(rewardAmount, rewardHint);
 
     const startButton = document.createElement('button');
@@ -1073,7 +1078,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!initialDataLoaded) showInitialLoading();
     if (!tgid) {
       if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").';
-      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить данные.');
+      if (!initialDataLoaded) showInitialLoading('Откройте игру через бота, чтобы загрузить да��ные.');
       return;
     }
     try {
@@ -1336,7 +1341,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                   }
                 } catch (e) { console.warn('poll error', e); }
               }
-              if (!credited) showStoreFeedback('Награда не подтверждена — попробуйте позже');
+              if (!credited) showStoreFeedback('Награда не подтверждена — п��пробуйте позже');
             }
           } catch (e) {
             console.warn('Claim reward error', e);
@@ -1878,7 +1883,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try{
       const res = await fetch(`${apiBase}/games/rooms`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid, game: selectedGame, bet: selectedBet }) });
       const json = await res.json();
-      if (!json.ok) return alert(json.message || 'Не удалось создать комнату');
+      if (!json.ok) return alert(json.message || 'Не удалось соз��ать комнату');
       currentRoomId = json.room.id;
       openRoom(json.room);
       await loadUser();
