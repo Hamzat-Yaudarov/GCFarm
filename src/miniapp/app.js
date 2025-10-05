@@ -4,6 +4,13 @@
     return url.searchParams.get(name);
   }
   let tgid = qs('tgid');
+  // If tgid not present in URL, try to derive it from Telegram WebApp init data
+  try {
+    const tgInit = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe) || null;
+    if (!tgid && tgInit && tgInit.user && tgInit.user.id) {
+      tgid = String(tgInit.user.id);
+    }
+  } catch(e) { console.warn('tgid init parse failed', e); }
 const apiBase = '/api';
 const APP_CONFIG = window.APP_CONFIG || {};
 const BOT_USERNAME = APP_CONFIG.BOT_USERNAME || '';
@@ -1134,10 +1141,19 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
         const payload = startParam || urlRef || '';
         const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
         const ref = m && m[1] ? Number(m[1]) : null;
-        const refSetKey = `ref_set_${tgid}`;
+        const refSetKey = `ref_set_${ref || 'unknown'}_${tgid || 'unknown'}`;
         if (ref && Number(ref) !== Number(tgid) && !localStorage.getItem(refSetKey)) {
-          await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
-          localStorage.setItem(refSetKey, '1');
+          try {
+            const resp = await fetch(`${apiBase}/user/${tgid}/set-referrer`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ referrer: Number(ref) }) });
+            let body = null;
+            try { body = await resp.json(); } catch(e){}
+            if (resp.ok && body && body.ok) {
+              localStorage.setItem(refSetKey, '1');
+              try { showStoreFeedback('Реферал успешно сохранён'); } catch(e){}
+            } else {
+              console.warn('set-referrer response not ok', resp.status, body);
+            }
+          } catch (e) { console.warn('set-referrer failed', e); }
         }
       } catch (e) { console.warn('set-referrer failed', e); }
 
@@ -1145,7 +1161,8 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       try {
         if (referralInfoEl) referralInfoEl.textContent = user.referrer_tgid ? `Вас пригласил: ${user.referrer_tgid}` : 'Вас никто не приглашал';
       if (referralCodeEl) {
-        const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?startapp=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?startapp=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
+        // use standard Telegram deep link start parameter (start=) which works for bot deep links
+        const deepLink = BOT_USERNAME ? (BOT_WEBAPP_PATH ? `https://t.me/${BOT_USERNAME}/${BOT_WEBAPP_PATH}?start=ref_${user.tgid}` : `https://t.me/${BOT_USERNAME}?start=ref_${user.tgid}`) : `${BASE_URL}/miniapp?ref=${user.tgid}&tgid=${user.tgid}`;
         referralCodeEl.innerHTML = `<div class="referral-code-line">Ваш код: <strong>${user.tgid}</strong></div><div class="referral-link-line"><input id="referral-link-input" readonly value="${deepLink}" class="referral-link-input" /><button id="copy-referral" class="copy-referral small-btn">Копировать</button></div>`;
         const copyBtn = document.getElementById('copy-referral');
         if (copyBtn) copyBtn.addEventListener('click', ()=>{
@@ -1381,7 +1398,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
                 showStoreFeedback(jsonRefill.message || 'Ошибка восполнения энергии');
               }
             } else {
-              showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
+              showStoreFeedback('Сервер не отвечает ��ри попытке восполнить энергию');
             }
           } else {
             showStoreFeedback('Реклама не была просмотрена полностью');
