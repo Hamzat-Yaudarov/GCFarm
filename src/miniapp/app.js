@@ -13,6 +13,20 @@ const BASE_URL = APP_CONFIG.BASE_URL || window.location.origin;
 const DEFAULT_AD_REWARD = 5;
 const DEFAULT_TASK_REWARD = 15;
 
+// SubGram gate controls
+const subgramGateEl = document.getElementById('subgram-gate');
+const subgramLinksEl = document.getElementById('subgram-links');
+const subgramOpenBtn = document.getElementById('subgram-open');
+const subgramRecheckBtn = document.getElementById('subgram-recheck');
+// Blocking overlay elements
+const subgramBlockerEl = document.getElementById('subgram-blocker');
+const subgramBlockerLinksEl = document.getElementById('subgram-blocker-links');
+const subgramBlockerOpenBtn = document.getElementById('subgram-blocker-open');
+const subgramBlockerRecheckBtn = document.getElementById('subgram-blocker-recheck');
+let subgramLocked = false;
+let subgramBotUrl = null;
+let subgramRecheckSec = 90;
+
 function resolveAdsgramReward(detail, fallback = DEFAULT_AD_REWARD) {
   const data = detail || {};
   const numericKeys = ['reward','amount','value','payout','reward_amount','rewardAmount','bonus','coins'];
@@ -1071,6 +1085,11 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!wrapper) return;
     if (!force && wrapper.dataset.taskReady === 'true') return;
 
+    if (subgramLocked) {
+      renderTaskEmptyState('Подпишитесь на спонсоров в SubGram, затем нажмите «Проверить».');
+      return;
+    }
+
     const taskId = cfg.taskBlockId;
     if (!taskId) {
       renderTaskEmptyState('Пока заданий нет, приходите позже');
@@ -1102,8 +1121,163 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       });
   }
 
+  // Sponsor tasks
+  async function loadSponsorTasks(){
+    const wrap = document.getElementById('sponsor-tasks-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    try {
+      const res = await fetch('/api/tasks/sponsors');
+      if (!res.ok) throw new Error('Failed to load tasks');
+      const js = await res.json();
+      const tasks = Array.isArray(js.tasks) ? js.tasks : [];
+      if (!tasks.length) {
+        const empty = document.createElement('div');
+        empty.className = 'tasks-empty-message';
+        empty.textContent = 'Пока заданий от спонсоров нет.';
+        wrap.appendChild(empty);
+        return;
+      }
+      tasks.forEach(task => {
+        const card = document.createElement('article');
+        card.className = 'adsgram-task-card sponsor-task-card';
+
+        const header = document.createElement('div');
+        header.className = 'adsgram-task-header';
+        const icon = document.createElement('div'); icon.className = 'adsgram-task-icon'; icon.textContent = '📣';
+        const text = document.createElement('div'); text.className = 'adsgram-task-text';
+        const title = document.createElement('h4'); title.className = 'adsgram-task-title'; title.textContent = task.title || 'Задание';
+        const subtitle = document.createElement('p'); subtitle.className = 'adsgram-task-subtitle'; subtitle.textContent = 'Подпишитесь и заберите награду.';
+        text.append(title, subtitle); header.append(icon, text);
+
+        const rewardBanner = document.createElement('div');
+        rewardBanner.className = 'task-slot-reward';
+        const amount = document.createElement('span'); amount.className = 'task-slot-reward-amount'; amount.textContent = `+${task.reward} SCube`;
+        const hint = document.createElement('span'); hint.className = 'task-slot-reward-hint'; hint.textContent = 'за подписку';
+        rewardBanner.append(amount, hint);
+
+        const actions = document.createElement('div');
+        const openBtn = document.createElement('a'); openBtn.className = 'task-slot-button task-slot-button--start'; openBtn.textContent = 'Открыть'; openBtn.href = task.url; openBtn.target = '_blank'; openBtn.rel = 'noopener noreferrer';
+        const claimBtn = document.createElement('button'); claimBtn.type='button'; claimBtn.className='task-slot-button task-slot-button--claim'; claimBtn.textContent = 'Получить награду';
+
+        let pending = false; let completed = false; let busy = false;
+        function updateState(){
+          claimBtn.disabled = pending || completed || busy;
+          claimBtn.textContent = completed ? 'DONE' : (pending ? 'На проверке' : 'Получить награду');
+        }
+        updateState();
+
+        claimBtn.addEventListener('click', async ()=>{
+          if (!tgid) { setTaskFeedback('Откройте игру через бота', 'warning'); return; }
+          busy = true; updateState();
+          try {
+            const r = await fetch(`/api/tasks/sponsors/${task.id}/claim`, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ tgid }) });
+            const body = await r.json().catch(()=>({}));
+            if (!r.ok || !body.ok){
+              setTaskFeedback((body && (body.message||body.error)) || 'Ошибка', 'error');
+            } else if (body.pending){
+              pending = true; setTaskFeedback('Заявка отправлена на проверку', 'info');
+            } else {
+              completed = true; setTaskFeedback('Награда за задание начислена', 'success');
+              try { await loadUser(); } catch(e){}
+            }
+          } catch (e) {
+            setTaskFeedback('Ошибка сети', 'error');
+          } finally { busy = false; updateState(); }
+        });
+
+        actions.append(openBtn, claimBtn);
+        card.append(header, rewardBanner, actions);
+        wrap.appendChild(card);
+      });
+    } catch (e) {
+      const err = document.createElement('div'); err.className='task-feedback task-feedback--error'; err.textContent = 'Не удалось загрузить задания'; wrap.appendChild(err);
+    }
+  }
+
+  async function loadSubgramStatus(){
+    try {
+      if (!tgid) return;
+      const res = await fetch(`/api/subgram/status?tgid=${encodeURIComponent(tgid)}`);
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const js = await res.json();
+      subgramLocked = Boolean(js.enabled) && js.enabled === true && js.subscribed === false;
+      subgramBotUrl = js.botUrl || null;
+      subgramRecheckSec = Number(js.recheckAfterSeconds || subgramRecheckSec);
+      let links = Array.isArray(js.requiredLinks) ? js.requiredLinks.slice() : [];
+      const sponsors = Array.isArray(js.sponsors) ? js.sponsors : [];
+      if (!links.length && sponsors.length) links = sponsors.map(s=> s && s.link).filter(Boolean);
+
+      function renderLinks(listEl){
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        if (links.length) {
+          links.forEach((link)=>{
+            const li = document.createElement('li');
+            li.className = 'subgram-link-item';
+            const a = document.createElement('a');
+            a.href = link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = link;
+            li.appendChild(a);
+            const meta = sponsors.find(s=>s && s.link === link);
+            if (meta && meta.name) {
+              const name = document.createElement('span');
+              name.style.marginLeft = '8px';
+              name.textContent = `— ${meta.name}`;
+              li.appendChild(name);
+            }
+            listEl.appendChild(li);
+          });
+        }
+      }
+
+      if (subgramGateEl) {
+        if (subgramLocked) {
+          subgramGateEl.classList.remove('hidden');
+          renderLinks(subgramLinksEl);
+        } else {
+          subgramGateEl.classList.add('hidden');
+        }
+      }
+      if (subgramBlockerEl) {
+        if (subgramLocked) {
+          subgramBlockerEl.classList.remove('hidden');
+          renderLinks(subgramBlockerLinksEl);
+        } else {
+          subgramBlockerEl.classList.add('hidden');
+        }
+      }
+    } catch (e) {
+      console.warn('SubGram status failed', e);
+      if (subgramGateEl) subgramGateEl.classList.add('hidden');
+      if (subgramBlockerEl) subgramBlockerEl.classList.add('hidden');
+      subgramLocked = false;
+    } finally {
+      // refresh tasks card availability after status
+      setupAdsgramTask(0, true);
+    }
+  }
+
+  function openSubgramBot(){
+    try {
+      const url = subgramBotUrl || 'https://t.me/SubGramAppBot';
+      if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function') {
+        window.Telegram.WebApp.openTelegramLink(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    } catch (e) { window.open(subgramBotUrl || 'https://t.me/SubGramAppBot', '_blank'); }
+  }
+
+  if (subgramOpenBtn) subgramOpenBtn.addEventListener('click', openSubgramBot);
+  if (subgramRecheckBtn) subgramRecheckBtn.addEventListener('click', ()=> loadSubgramStatus());
+  if (subgramBlockerOpenBtn) subgramBlockerOpenBtn.addEventListener('click', openSubgramBot);
+  if (subgramBlockerRecheckBtn) subgramBlockerRecheckBtn.addEventListener('click', ()=> loadSubgramStatus());
+
+  // Initial init
   setupAdsgramTask();
   try { loadDailyStreak(); } catch(e){}
+  try { loadSubgramStatus(); } catch(e){}
+  try { loadSponsorTasks(); } catch(e){}
 
   async function loadUser(){
     if (!initialDataLoaded) showInitialLoading();
@@ -1225,7 +1399,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     // short UI lock: ignore any clicks within 500ms after a click
     if (goldenShortLock) return;
     goldenShortLock = true;
-    setTimeout(()=>{ goldenShortLock = false; }, 500);
+    setTimeout(()=>{ goldenShortLock = false; }, 100);
 
     if (!tgid) return showStoreFeedback('tgid is required');
     if (goldenBusy) return; // debounce in-flight request
@@ -1316,7 +1490,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try {
       if (!tgid) { adBusy = false; return alert('tgid is required'); }
       // Enforce 90s cooldown between reward ads
-      addAdCooldown(watchAdBtn, 90000);
+      addAdCooldown(watchAdBtn, 135000);
     const cfg = window.ADSGRAM_CONFIG || {};
     const rewardBlock = cfg.rewardBlockId || cfg.interstitialBlockId;
     if (window.Adsgram && rewardBlock) {
