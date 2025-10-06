@@ -1407,7 +1407,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       try {
         if (!tgid) { refillBusy = false; return alert('tgid is required'); }
         // add cooldown to avoid rapid ad openings
-        addAdCooldown(refillBtn, 60000);
+        addAdCooldown(refillBtn, 200000);
       const cfg = window.ADSGRAM_CONFIG || {};
       const energyBlock = cfg.energyAdBlockId || cfg.rewardBlockId || cfg.interstitialBlockId;
       if (window.Adsgram && cfg.energyAdBlockId) {
