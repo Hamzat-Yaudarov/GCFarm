@@ -491,7 +491,7 @@ bot.on('callback_query', async (ctx) => {
       const result = await db.declineWithdrawal(withdrawalId, adminData);
       if (!result || !result.ok) {
         if (result && result.reason === 'already_processed') {
-          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
+          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана р��нее.');
           await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
           return;
         }
@@ -551,7 +551,7 @@ bot.start(async (ctx) => {
   const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}${refQuery}`;
 
   try {
-    await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
+    await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми ��нопку, чтобы открыть MiniApp.`, {
       reply_markup: {
         inline_keyboard: [[{ text: 'Play', web_app: { url: webAppUrl } }]]
       }
@@ -908,6 +908,9 @@ app.post('/api/games/rooms/:id/leave', async (req,res)=>{
 // SubGram subscription status
 app.get('/api/subgram/status', async (req, res) => {
   try {
+    // disable caching so UI always sees fresh status
+    res.setHeader('Cache-Control', 'no-store');
+
     const config = subgram.getConfig();
     const authTgid = getAuthTgid(req);
     const queryTgidRaw = req.query && req.query.tgid;
@@ -938,6 +941,10 @@ app.get('/api/subgram/status', async (req, res) => {
     }
 
     const status = await subgram.checkUserSubscriptions(resolvedTgid);
+    const derivedLinks = Array.isArray(status.links) && status.links.length
+      ? status.links
+      : (Array.isArray(status.sponsors) ? status.sponsors.map(s => s && s.link).filter(Boolean) : []);
+
     return res.json({
       ok: true,
       tgid: resolvedTgid,
@@ -947,7 +954,7 @@ app.get('/api/subgram/status', async (req, res) => {
       error: status.error,
       temporaryBypass: Boolean(status.temporaryBypass),
       botUrl: config.botUrl,
-      requiredLinks: Array.isArray(status.links) && status.links.length ? status.links : config.links,
+      requiredLinks: derivedLinks,
       recheckAfterSeconds: status.recheckAfterSeconds || config.recheckAfterSeconds
     });
   } catch (err) {

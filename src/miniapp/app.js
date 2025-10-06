@@ -1204,21 +1204,36 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       subgramLocked = Boolean(js.enabled) && js.enabled === true && js.subscribed === false;
       subgramBotUrl = js.botUrl || null;
       subgramRecheckSec = Number(js.recheckAfterSeconds || subgramRecheckSec);
-      const links = Array.isArray(js.requiredLinks) ? js.requiredLinks : [];
+      let links = Array.isArray(js.requiredLinks) ? js.requiredLinks.slice() : [];
+      const sponsors = Array.isArray(js.sponsors) ? js.sponsors : [];
+      if (!links.length && sponsors.length) links = sponsors.map(s=> s && s.link).filter(Boolean);
+
+      function renderLinks(listEl){
+        if (!listEl) return;
+        listEl.innerHTML = '';
+        if (links.length) {
+          links.forEach((link)=>{
+            const li = document.createElement('li');
+            li.className = 'subgram-link-item';
+            const a = document.createElement('a');
+            a.href = link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = link;
+            li.appendChild(a);
+            const meta = sponsors.find(s=>s && s.link === link);
+            if (meta && meta.name) {
+              const name = document.createElement('span');
+              name.style.marginLeft = '8px';
+              name.textContent = `— ${meta.name}`;
+              li.appendChild(name);
+            }
+            listEl.appendChild(li);
+          });
+        }
+      }
+
       if (subgramGateEl) {
         if (subgramLocked) {
           subgramGateEl.classList.remove('hidden');
-          if (subgramLinksEl) {
-            subgramLinksEl.innerHTML = '';
-            links.forEach((link)=>{
-              const li = document.createElement('li');
-              li.className = 'subgram-link-item';
-              const a = document.createElement('a');
-              a.href = link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = link;
-              li.appendChild(a);
-              subgramLinksEl.appendChild(li);
-            });
-          }
+          renderLinks(subgramLinksEl);
         } else {
           subgramGateEl.classList.add('hidden');
         }
@@ -1226,17 +1241,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
       if (subgramBlockerEl) {
         if (subgramLocked) {
           subgramBlockerEl.classList.remove('hidden');
-          if (subgramBlockerLinksEl) {
-            subgramBlockerLinksEl.innerHTML = '';
-            links.forEach((link)=>{
-              const li = document.createElement('li');
-              li.className = 'subgram-link-item';
-              const a = document.createElement('a');
-              a.href = link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = link;
-              li.appendChild(a);
-              subgramBlockerLinksEl.appendChild(li);
-            });
-          }
+          renderLinks(subgramBlockerLinksEl);
         } else {
           subgramBlockerEl.classList.add('hidden');
         }
@@ -1479,7 +1484,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     // require full expansion before proceeding
     if (!isExpanded) {
       try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-      return showStoreFeedback('Разверните MiniApp полностью и повторите');
+      return showStoreFeedback('Разверните MiniApp полнос��ью и повторите');
     }
     adBusy = true;
     try {
@@ -1741,7 +1746,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     rub: {
       key: 'rub',
       title: 'Вывод в рублях',
-      hint: 'Перевод на номер телефона. Комиссия — 50 SCube на каждые 100 ₽.',
+      hint: 'Перевод на номер телефон��. Комиссия — 50 SCube на каждые 100 ₽.',
       options: [
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
@@ -2046,7 +2051,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!rooms || !rooms.length){
       const empty = document.createElement('div');
       empty.className = 'store-empty';
-      empty.textContent = 'Нет доступных комнат. Создайте свою!';
+      empty.textContent = 'Нет ��оступных комнат. Создайте свою!';
       roomsList.appendChild(empty);
       return;
     }
@@ -2173,7 +2178,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const result = document.createElement('div'); result.className='rps-result';
     if (!room.opponent) result.textContent = 'Ожидание соперника...';
     else if (!myMove) result.textContent = 'Сделайте ход';
-    else if (!oppMove) result.textContent = 'Ожидаем ход соперника';
+    else if (!oppMove) result.textContent = 'Ожида��м ход соперника';
     if (finished){
       if (room.state && room.state.result){
         const r = room.state.result;
