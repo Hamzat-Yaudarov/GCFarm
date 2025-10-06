@@ -16,7 +16,7 @@ const API_TOKEN = (process.env.SUBGRAM_API_TOKEN || '').trim();
 const BOT_URL = (process.env.SUBGRAM_BOT_URL || 'https://t.me/SubGramAppBot').trim();
 const REQUIRED_LINKS = parseLinks(process.env.SUBGRAM_SPONSOR_LINKS || process.env.SUBGRAM_REQUIRED_LINKS || '');
 const DEFAULT_RECHECK_SECONDS = Math.max(30, parseInt(process.env.SUBGRAM_RECHECK_SECONDS || '90', 10) || 90);
-const ENABLED = Boolean(API_TOKEN && REQUIRED_LINKS.length);
+const ENABLED = Boolean(API_TOKEN);
 
 function pickTransport(protocol) {
   return protocol === 'http:' ? http : https;
