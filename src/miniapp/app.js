@@ -1490,7 +1490,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     try {
       if (!tgid) { adBusy = false; return alert('tgid is required'); }
       // Enforce 90s cooldown between reward ads
-      addAdCooldown(watchAdBtn, 90000);
+      addAdCooldown(watchAdBtn, 204000);
     const cfg = window.ADSGRAM_CONFIG || {};
     const rewardBlock = cfg.rewardBlockId || cfg.interstitialBlockId;
     if (window.Adsgram && rewardBlock) {
