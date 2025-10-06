@@ -270,7 +270,7 @@ async function notifyAdminWithdrawal(withdrawal, user, profileMeta){
     lines.push(`GCube: ${user.gcube} • Stars: ${user.stars}`);
     lines.push('');
     lines.push(`Способ: ${methodConfig ? methodConfig.label : withdrawal.method}`);
-    lines.push(`Вар��ант: ${withdrawal.payoutLabel}`);
+    lines.push(`Вариант: ${withdrawal.payoutLabel}`);
     lines.push(`Стоимость: ${withdrawal.baseCost} SCube`);
     lines.push(`Комиссия: ${withdrawal.commission} SCube`);
     lines.push(`Списано всего: ${withdrawal.totalCost} SCube`);
@@ -502,7 +502,7 @@ bot.on('callback_query', async (ctx) => {
           const successLines = [
             '🎉 Выплата подтверждена!',
             `Заявка #${withdrawal.id}`,
-            `Получ��тель: ${withdrawal.tgid}`,
+            `Получатель: ${withdrawal.tgid}`,
             `Способ: ${resolveMethodLabel(withdrawal.method)} • ${withdrawal.payoutLabel}`
           ];
           await bot.telegram.sendMessage(WITHDRAW_SUCCESS_CHAT, successLines.join('\n'));
@@ -516,7 +516,7 @@ bot.on('callback_query', async (ctx) => {
       const result = await db.declineWithdrawal(withdrawalId, adminData);
       if (!result || !result.ok) {
         if (result && result.reason === 'already_processed') {
-          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана р��нее.');
+          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
           await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
           return;
         }

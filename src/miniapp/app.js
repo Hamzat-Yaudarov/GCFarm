@@ -1399,7 +1399,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     // short UI lock: ignore any clicks within 500ms after a click
     if (goldenShortLock) return;
     goldenShortLock = true;
-    setTimeout(()=>{ goldenShortLock = false; }, 500);
+    setTimeout(()=>{ goldenShortLock = false; }, 200);
 
     if (!tgid) return showStoreFeedback('tgid is required');
     if (goldenBusy) return; // debounce in-flight request
@@ -1484,7 +1484,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     // require full expansion before proceeding
     if (!isExpanded) {
       try { if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.expand) window.Telegram.WebApp.expand(); } catch(e){}
-      return showStoreFeedback('Разверните MiniApp полнос��ью и повторите');
+      return showStoreFeedback('Разверните MiniApp полностью и повторите');
     }
     adBusy = true;
     try {
@@ -1746,7 +1746,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     rub: {
       key: 'rub',
       title: 'Вывод в рублях',
-      hint: 'Перевод на номер телефон��. Комиссия — 50 SCube на каждые 100 ₽.',
+      hint: 'Перевод на номер телефона. Комиссия — 50 SCube на каждые 100 ₽.',
       options: [
         buildWithdrawOption('rub-200', '200 ₽', 7600, 100, 'Перевод: 200 ₽'),
         buildWithdrawOption('rub-500', '500 ₽', 19000, 250, 'Перевод: 500 ₽'),
@@ -2051,7 +2051,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     if (!rooms || !rooms.length){
       const empty = document.createElement('div');
       empty.className = 'store-empty';
-      empty.textContent = 'Нет ��оступных комнат. Создайте свою!';
+      empty.textContent = 'Нет доступных комнат. Создайте свою!';
       roomsList.appendChild(empty);
       return;
     }
@@ -2178,7 +2178,7 @@ if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp
     const result = document.createElement('div'); result.className='rps-result';
     if (!room.opponent) result.textContent = 'Ожидание соперника...';
     else if (!myMove) result.textContent = 'Сделайте ход';
-    else if (!oppMove) result.textContent = 'Ожида��м ход соперника';
+    else if (!oppMove) result.textContent = 'Ожидаем ход соперника';
     if (finished){
       if (room.state && room.state.result){
         const r = room.state.result;
