@@ -461,7 +461,7 @@ bot.on('callback_query', async (ctx) => {
       const result = await db.declineWithdrawal(withdrawalId, adminData);
       if (!result || !result.ok) {
         if (result && result.reason === 'already_processed') {
-          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана р��нее.');
+          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
           await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
           return;
         }

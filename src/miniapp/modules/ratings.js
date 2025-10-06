@@ -54,7 +54,7 @@ function updateLeaderboardInsights(viewer, mode, state = 'ready', tgid){
   leaderSelfValue.textContent = formatViewerValue(mode, viewer.value);
   if (viewer.rank <= 3) leaderSelfNote.textContent = 'Ты на пьедьстале! Держи темп. 🌟';
   else if (viewer.rank <= 10) leaderSelfNote.textContent = 'До медалей рукой подать — продолжай!';
-  else leaderSelfNote.textContent = isTasks ? 'Выполняй задания, чтобы расти.' : 'Добывай ещё SCube ��� каждый клик приближает к топу!';
+  else leaderSelfNote.textContent = isTasks ? 'Выполняй задания, чтобы расти.' : 'Добывай ещё SCube — каждый клик приближает к топу!';
 }
 
 function renderLeaderboard(entries, mode, viewer, tgid){

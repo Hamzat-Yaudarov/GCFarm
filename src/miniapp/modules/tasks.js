@@ -37,7 +37,7 @@ function attachTaskEventHandlers(taskEl, cardRef, getTgid, onRewarded){
   const markState = (state)=>{ if (!cardRef) return; const states = ['idle','empty','error','reward']; states.forEach((s)=> cardRef.classList.remove(`adsgram-task-card--${s}`)); if (state) cardRef.classList.add(`adsgram-task-card--${state}`); };
   const handleUnavailable = ()=>{ markState('empty'); setTaskFeedback('Пока заданий нет. Загляните позже.', 'warning'); renderTaskEmptyState('Пока заданий нет, приходите позже'); };
   const handleError = ()=>{ markState('error'); setTaskFeedback('Не удалось загрузить рекламное задание. Повторите попытку позже.', 'error'); scheduleTaskReload(1400); };
-  const handleTooLong = ()=>{ markState('error'); setTaskFeedback('Сессия рекламы длится слишк��м долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning'); scheduleTaskReload(1400); };
+  const handleTooLong = ()=>{ markState('error'); setTaskFeedback('Сессия рекламы длится слишком долго. Перезапустите мини‑приложение и попробуйте снова.', 'warning'); scheduleTaskReload(1400); };
   const scubeEl = document.getElementById('scube');
   const leaderboardSection = document.getElementById('leaderboard');
   const rewardHandler = async (event)=>{
@@ -48,7 +48,7 @@ function attachTaskEventHandlers(taskEl, cardRef, getTgid, onRewarded){
       const applyRewardSuccess = (amountCredited, latestScube, duplicate=false)=>{
         const rounded = Math.max(0, Math.round(amountCredited)); if (Number.isFinite(latestScube)) scubeEl.textContent = latestScube;
         if (leaderboardSection && !leaderboardSection.classList.contains('hidden')) { /* leaderboard reload is handled by app */ }
-        if (duplicate) setTaskFeedback('Награда за это задание уже была з��числена ранее.', 'warning');
+        if (duplicate) setTaskFeedback('Награда за это задание уже была зачислена ранее.', 'warning');
         else if (rounded >= expectedReward) setTaskFeedback(`Задание выполнено — вы получили +${rounded} SCube`, 'success');
         else if (rounded > 0) setTaskFeedback(`Награда зачислена (+${rounded} SCube). Сумма меньше ожидаемой.`, 'warning');
         else setTaskFeedback('Задание подтверждено.', 'info');
@@ -108,7 +108,7 @@ function createAdsgramTaskCard(cfg, getTgid, onRewarded){
 
 export function setupAdsgramTask(attempt=0, force=false, getTgid=()=>null, onRewarded){
   const cfg = window.ADSGRAM_CONFIG || {}; const wrapper = document.getElementById('ads-task-wrap'); if (!wrapper) return; if (!force && wrapper.dataset.taskReady === 'true') return;
-  if (subgramLocked) { renderTaskEmptyState('Подпишитесь на спонсоров в SubGram, затем нажмите «Проверит��».'); return; }
+  if (subgramLocked) { renderTaskEmptyState('Подпишитесь на спонсоров в SubGram, затем нажмите «Проверить».'); return; }
   const taskId = cfg.taskBlockId; if (!taskId) { renderTaskEmptyState('Пока заданий нет, приходите позже'); return; }
   if (!window.Adsgram) { if (attempt >= 20) { console.warn('AdsGram SDK was not ready for tasks'); renderTaskEmptyState('Не удалось загрузить задания. Попробуйте позже.'); return; } setTimeout(()=> setupAdsgramTask(attempt + 1, force, getTgid, onRewarded), 250); return; }
   ensureCustomElementReady('adsgram-task').then(()=>{ const card = createAdsgramTaskCard(cfg, getTgid, onRewarded); if (!card) return; wrapper.innerHTML=''; wrapper.appendChild(card); wrapper.dataset.taskReady='true'; setTaskFeedback('', 'info'); }).catch((err)=>{ console.warn('Failed to init AdsGram task element', err); renderTaskEmptyState('Не удалось загрузить задания. Попробуйте позже.'); });
