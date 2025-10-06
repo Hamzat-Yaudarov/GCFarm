@@ -62,6 +62,16 @@ function attachTaskEventHandlers(taskEl, cardRef, getTgid, onRewarded){
         if (claimRes.ok) { const claimJson = await claimRes.json(); if (claimJson && claimJson.ok) { claimSucceeded = true; applyRewardSuccess(Number(claimJson.credited || expectedReward), Number(claimJson.scube), Boolean(claimJson.duplicate)); onRewarded && onRewarded('tasks'); } }
       } catch(e){ console.warn('Task reward claim request failed', e); }
       if (claimSucceeded) return;
+      // If initial claim failed for task due to missing confirmation, try a forced claim once
+      try {
+        const forceBody = { amount: expectedReward, source: 'task', contextId, force: true, detail };
+        const forceRes = await fetch(`${apiBase}/user/${tgid}/claim-reward`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(forceBody) });
+        if (forceRes.ok) {
+          const forceJson = await forceRes.json().catch(()=>null);
+          if (forceJson && forceJson.ok) { applyRewardSuccess(Number(forceJson.credited || expectedReward), Number(forceJson.scube), Boolean(forceJson.duplicate)); onRewarded && onRewarded('tasks'); return; }
+        }
+      } catch (e) { console.warn('Forced task claim failed', e); }
+
       const timeout = 20000; const interval = 2000; const start = Date.now(); let credited = false;
       while (Date.now() - start < timeout) {
         await new Promise(r=>setTimeout(r, interval));
