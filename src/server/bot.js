@@ -270,7 +270,7 @@ async function notifyAdminWithdrawal(withdrawal, user, profileMeta){
     lines.push(`GCube: ${user.gcube} • Stars: ${user.stars}`);
     lines.push('');
     lines.push(`Способ: ${methodConfig ? methodConfig.label : withdrawal.method}`);
-    lines.push(`Вариант: ${withdrawal.payoutLabel}`);
+    lines.push(`Вар��ант: ${withdrawal.payoutLabel}`);
     lines.push(`Стоимость: ${withdrawal.baseCost} SCube`);
     lines.push(`Комиссия: ${withdrawal.commission} SCube`);
     lines.push(`Списано всего: ${withdrawal.totalCost} SCube`);
@@ -502,7 +502,7 @@ bot.on('callback_query', async (ctx) => {
           const successLines = [
             '🎉 Выплата подтверждена!',
             `Заявка #${withdrawal.id}`,
-            `Получатель: ${withdrawal.tgid}`,
+            `Получ��тель: ${withdrawal.tgid}`,
             `Способ: ${resolveMethodLabel(withdrawal.method)} • ${withdrawal.payoutLabel}`
           ];
           await bot.telegram.sendMessage(WITHDRAW_SUCCESS_CHAT, successLines.join('\n'));
@@ -590,7 +590,7 @@ bot.start(async (ctx) => {
   try {
     const cfg = subgram.getConfig();
     if (cfg && cfg.enabled && tgid) {
-      const status = await subgram.checkUserSubscriptions(tgid);
+      const status = await subgram.checkUserSubscriptions(tgid, ctx.chat && ctx.chat.id);
       if (status && status.enabled && status.subscribed === false) {
         const links = Array.isArray(status.links) && status.links.length
           ? status.links

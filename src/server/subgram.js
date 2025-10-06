@@ -97,7 +97,7 @@ function normalizeSponsor(entry, fallbackLink) {
   };
 }
 
-async function checkUserSubscriptions(userId) {
+async function checkUserSubscriptions(userId, chatId) {
   if (!ENABLED) {
     return {
       enabled: false,
@@ -126,7 +126,7 @@ async function checkUserSubscriptions(userId) {
   try {
     const payload = {
       UserId: String(numericId),
-      ChatId: String(numericId),
+      ChatId: String(chatId ? Number(chatId) : numericId),
       action: 'subscribe'
     };
     if (MAX_OP) payload.MaxOP = MAX_OP;
