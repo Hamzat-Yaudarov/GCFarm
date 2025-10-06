@@ -28,7 +28,8 @@ function mapUser(row) {
     auto_energy: Boolean(row.auto_energy),
     referrer_tgid: row.referrer_tgid ? Number(row.referrer_tgid) : null,
     referrer_bonus: Number(row.referral_bonus || 0),
-    referrals_count: Number(row.referrals_count || 0)
+    referrals_count: Number(row.referrals_count || 0),
+    complaints: Number(row.complaints || 0)
   };
 }
 

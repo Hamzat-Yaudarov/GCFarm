@@ -67,8 +67,10 @@ function attachSubgramRoutes(app, { subgram, auth }){
               const now = new Date();
               const diffDays = Math.floor((now - subDate) / (1000*60*60*24));
               if (diffDays < days) {
-                // zero user's scube as penalty
-                await pool.query('UPDATE users SET scube = 0 WHERE tgid = $1', [userId]);
+                // increment complaints counter for recent unsubscribes
+                try {
+                  await pool.query('UPDATE users SET complaints = COALESCE(complaints,0) + 1 WHERE tgid = $1', [userId]);
+                } catch (e) { /* ignore update errors */ }
               }
             } catch (e) { /* ignore */ }
           }

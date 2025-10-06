@@ -23,7 +23,11 @@ function attachWithdrawalRoutes(app, { db, auth, telegraf }){
       if (!creation.ok) { return res.status(400).json(creation); }
       const withdrawal = creation.withdrawal; const userSnapshot = await db.getOrCreateUser(resolvedTgid);
       try { await telegraf.notifyAdminWithdrawal(withdrawal, userSnapshot, metadata); } catch(e){}
-      res.json({ ok:true, message:'Заявка на вывод отправлена. Ожидайте ответа.', scube: creation.scube, withdrawalId: withdrawal.id });
+      const responsePayload = { ok:true, message:'Заявка на вывод отправлена. Ожидайте ответа.', scube: creation.scube, withdrawalId: withdrawal.id };
+      if (userSnapshot && Number(userSnapshot.complaints || 0) > 0) {
+        responsePayload.warning = `У вас есть ${userSnapshot.complaints} жалоб(а) за отписки от спонсоров. Если вы продолжите отписываться — ваши заявки на вывод могут быть отклонены без возврата средств.`;
+      }
+      res.json(responsePayload);
     } catch (err) { res.status(500).json({ ok:false, message:'Не удалось отправить заявку. Попробуйте позже.' }); }
   });
 }

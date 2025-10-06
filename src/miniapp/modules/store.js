@@ -101,7 +101,7 @@ export function initWithdrawals(getTgid, onAfterSubmit){
         const res = await fetch(`${apiBase}/withdrawals`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ method: methodKey, optionId, note, details }) });
         const json = await res.json().catch(()=>({}));
         if (!res.ok || (json && json.ok === false)) { const message = (json && (json.message || json.error)) || 'Не удалось отправить заявку. Попробуйте позже.'; setWithdrawModalFeedback(message, 'error'); }
-        else { closeWithdrawModal(); const message = (json && json.message) || 'Заявка на вывод отправлена. Ожидайте подтверждения.'; setWithdrawFeedback(message, 'success'); if (typeof onAfterSubmit === 'function') onAfterSubmit(); }
+        else { closeWithdrawModal(); const message = (json && json.message) || 'Заявка на вывод отправлена. Ожидайте подтверждения.'; setWithdrawFeedback(message, 'success'); if (json && json.warning) { setWithdrawFeedback(json.warning, 'warning'); } if (typeof onAfterSubmit === 'function') onAfterSubmit(); }
       } catch(err){ console.warn('withdraw submit failed', err); setWithdrawModalFeedback('Ошибка соединения. Попробуйте позже.', 'error'); }
       finally { submitting=false; if (submitBtn) submitBtn.disabled=false; }
     });

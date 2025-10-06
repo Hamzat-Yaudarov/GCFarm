@@ -93,6 +93,8 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
     if (interstitialShowing) return false;
     interstitialShowing = true;
     try {
+      // Do not show interstitials while SubGram blocker is active
+      if (document && document.body && document.body.classList && document.body.classList.contains('subgram-locked')) return false;
       if (!isExpanded) return false;
       if (!AdController || typeof AdController.show !== 'function') return false;
       if (interstitialShownCount >= INTERSTITIAL_MAX_PER_SESSION) return false;

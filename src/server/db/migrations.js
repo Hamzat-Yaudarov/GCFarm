@@ -35,6 +35,8 @@ async function init() {
     // For rating system
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS clicks_total BIGINT DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tasks_completed BIGINT DEFAULT 0`);
+    // Complaints counter for SubGram unsubscribes
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS complaints INTEGER DEFAULT 0`);
 
     // Helpful indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clicks_total ON users (clicks_total)`);
