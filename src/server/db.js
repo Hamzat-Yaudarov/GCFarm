@@ -154,6 +154,7 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_energy_refill_at TIMESTAMPTZ`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_bonus BIGINT DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ DEFAULT now()`);
     // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
     // For rating system
@@ -207,33 +208,6 @@ async function init() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals (status);`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC);`);
     await client.query(`CREATE SEQUENCE IF NOT EXISTS withdrawal_success_seq START 1;`);
-
-    // Sponsor tasks
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS sponsor_tasks (
-        id BIGSERIAL PRIMARY KEY,
-        title TEXT NOT NULL,
-        url TEXT NOT NULL,
-        reward BIGINT NOT NULL DEFAULT 0,
-        verify_type TEXT NOT NULL DEFAULT 'auto',
-        active BOOLEAN DEFAULT true,
-        created_at TIMESTAMPTZ DEFAULT now(),
-        updated_at TIMESTAMPTZ DEFAULT now()
-      );
-    `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_sponsor_tasks_active ON sponsor_tasks (active)`);
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS sponsor_task_claims (
-        task_id BIGINT NOT NULL REFERENCES sponsor_tasks(id) ON DELETE CASCADE,
-        tgid BIGINT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at TIMESTAMPTZ DEFAULT now(),
-        updated_at TIMESTAMPTZ DEFAULT now(),
-        PRIMARY KEY (task_id, tgid)
-      );
-    `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_sponsor_task_claims_status ON sponsor_task_claims (status)`);
   } finally {
     client.release();
   }
@@ -248,10 +222,23 @@ async function setReferrer(tgid, referrer) {
     await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [tgid, `Player ${tgid}`]);
     await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
 
-    // set only if not set
-    const res = await client.query('SELECT referrer_tgid FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    // set only if not set and only for fresh accounts (first visit)
+    const res = await client.query('SELECT referrer_tgid, first_seen_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
     if (res.rows[0].referrer_tgid) { await client.query('ROLLBACK'); return { ok:false, message:'Реферал уже установлен' }; }
+
+    const firstSeen = res.rows[0].first_seen_at ? new Date(res.rows[0].first_seen_at) : null;
+    const now = new Date();
+    if (!firstSeen) {
+      await client.query('ROLLBACK');
+      return { ok:false, message:'Нельзя установить реферала' };
+    }
+    const GRACE_MS = 10 * 60 * 1000; // allow assigning only within 10 minutes from first visit
+    if (now - firstSeen > GRACE_MS) {
+      await client.query('ROLLBACK');
+      return { ok:false, message:'Слишком поздно назначить реферала' };
+    }
+
     await client.query('UPDATE users SET referrer_tgid = $1 WHERE tgid = $2', [referrer, tgid]);
     await client.query('COMMIT');
     return { ok:true };
@@ -266,11 +253,20 @@ async function setReferrer(tgid, referrer) {
 async function ensureUser(tgid, name) {
   const client = await pool.connect();
   try {
-    await client.query(
-      `INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)
-       ON CONFLICT (tgid) DO UPDATE SET name = EXCLUDED.name`,
+    // Try to insert a fresh user and detect if it is a brand new account
+    const insertRes = await client.query(
+      `INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy)
+       VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)
+       ON CONFLICT (tgid) DO NOTHING
+       RETURNING tgid`,
       [tgid, name]
     );
+    if (insertRes.rows.length) {
+      return { inserted: true };
+    }
+    // Existing user: update name only
+    await client.query('UPDATE users SET name = $2 WHERE tgid = $1', [tgid, name]);
+    return { inserted: false };
   } finally {
     client.release();
   }
@@ -985,114 +981,6 @@ async function claimDailyReward(tgid){
   } catch (err){ await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
-async function listSponsorTasks() {
-  const client = await pool.connect();
-  try {
-    const res = await client.query(`SELECT id, title, url, reward, verify_type, active FROM sponsor_tasks WHERE active = true ORDER BY id DESC`);
-    return res.rows.map((r)=>({ id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active }));
-  } finally { client.release(); }
-}
-
-async function getSponsorTaskById(id){
-  const client = await pool.connect();
-  try {
-    const res = await client.query(`SELECT id, title, url, reward, verify_type, active FROM sponsor_tasks WHERE id = $1`, [id]);
-    if (!res.rows.length) return null;
-    const r = res.rows[0];
-    return { id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active };
-  } finally { client.release(); }
-}
-
-async function createSponsorTask(title, url, reward, verifyType){
-  const client = await pool.connect();
-  try {
-    const vt = (String(verifyType||'auto').toLowerCase() === 'manual') ? 'manual' : 'auto';
-    const rw = Math.max(1, Number(reward||0));
-    const res = await client.query(`INSERT INTO sponsor_tasks (title, url, reward, verify_type, active) VALUES ($1,$2,$3,$4,true) RETURNING id, title, url, reward, verify_type, active`, [String(title).trim(), String(url).trim(), rw, vt]);
-    const r = res.rows[0];
-    return { ok:true, task: { id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active } };
-  } finally { client.release(); }
-}
-
-async function updateSponsorTask(id, patch){
-  const client = await pool.connect();
-  try {
-    const fields = [];
-    const values = [];
-    let i=1;
-    if (patch.title !== undefined) { fields.push(`title = $${i++}`); values.push(String(patch.title).trim()); }
-    if (patch.url !== undefined)   { fields.push(`url = $${i++}`); values.push(String(patch.url).trim()); }
-    if (patch.reward !== undefined){ fields.push(`reward = $${i++}`); values.push(Math.max(1, Number(patch.reward||0))); }
-    if (patch.verifyType !== undefined){ fields.push(`verify_type = $${i++}`); values.push(String(patch.verifyType)==='manual'?'manual':'auto'); }
-    if (patch.active !== undefined){ fields.push(`active = $${i++}`); values.push(Boolean(patch.active)); }
-    if (!fields.length) return { ok:false, message:'Nothing to update' };
-    fields.push(`updated_at = now()`);
-    values.push(id);
-    const res = await client.query(`UPDATE sponsor_tasks SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, title, url, reward, verify_type, active`, values);
-    if (!res.rows.length) return { ok:false, message:'Not found' };
-    const r = res.rows[0];
-    return { ok:true, task: { id: Number(r.id), title: r.title, url: r.url, reward: Number(r.reward||0), verifyType: r.verify_type, active: !!r.active } };
-  } finally { client.release(); }
-}
-
-async function claimSponsorTask(tgid, taskId){
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const taskRes = await client.query('SELECT id, reward, verify_type, active FROM sponsor_tasks WHERE id = $1 FOR UPDATE', [taskId]);
-    if (!taskRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Задание не найдено' }; }
-    const task = taskRes.rows[0];
-    if (!task.active) { await client.query('ROLLBACK'); return { ok:false, message:'Задание недоступно' }; }
-
-    const existing = await client.query('SELECT status FROM sponsor_task_claims WHERE task_id=$1 AND tgid=$2', [task.id, tgid]);
-    if (existing.rows.length){
-      const st = existing.rows[0].status;
-      if (st === 'completed' || st === 'approved') { await client.query('ROLLBACK'); return { ok:false, message:'Награда уже получена' }; }
-      if (st === 'pending') { await client.query('ROLLBACK'); return { ok:true, pending:true, message:'Заявка ожидает проверки' }; }
-    }
-
-    if (task.verify_type === 'manual'){
-      await client.query('INSERT INTO sponsor_task_claims (task_id, tgid, status) VALUES ($1,$2,$3) ON CONFLICT (task_id,tgid) DO UPDATE SET status=$3, updated_at=now()', [task.id, tgid, 'pending']);
-      await client.query('COMMIT');
-      return { ok:true, pending:true, message:'Заявка отправлена на проверку', reward: Number(task.reward) };
-    }
-
-    const ctx = `sponsor:${task.id}`;
-    // mark as completed first to ensure idempotency with context
-    await client.query('INSERT INTO sponsor_task_claims (task_id, tgid, status) VALUES ($1,$2,$3) ON CONFLICT (task_id,tgid) DO UPDATE SET status=$3, updated_at=now()', [task.id, tgid, 'completed']);
-    await client.query('COMMIT');
-    const rewardRes = await claimReward(tgid, Number(task.reward||0), 'task', { contextId: ctx, force: true });
-    return Object.assign({ ok:true, pending:false }, rewardRes);
-  } catch (err){
-    try { await client.query('ROLLBACK'); } catch(e){}
-    throw err;
-  } finally { client.release(); }
-}
-
-async function approveSponsorTask(taskId, tgid){
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const cl = await client.query('SELECT status FROM sponsor_task_claims WHERE task_id=$1 AND tgid=$2 FOR UPDATE', [taskId, tgid]);
-    if (!cl.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Заявка не найдена' }; }
-    if (cl.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return { ok:false, message:'Заявка уже обработана' }; }
-    const taskRes = await client.query('SELECT reward FROM sponsor_tasks WHERE id = $1', [taskId]);
-    if (!taskRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Задание не найдено' }; }
-    await client.query('UPDATE sponsor_task_claims SET status=$1, updated_at=now() WHERE task_id=$2 AND tgid=$3', ['approved', taskId, tgid]);
-    await client.query('COMMIT');
-    const rewardRes = await claimReward(tgid, Number(taskRes.rows[0].reward||0), 'task', { contextId: `sponsor:${taskId}`, force: true });
-    return Object.assign({ ok:true }, rewardRes);
-  } catch (err){ try { await client.query('ROLLBACK'); } catch(e){} throw err; } finally { client.release(); }
-}
-
-async function rejectSponsorTask(taskId, tgid){
-  const client = await pool.connect();
-  try {
-    const res = await client.query('UPDATE sponsor_task_claims SET status=$1, updated_at=now() WHERE task_id=$2 AND tgid=$3', ['rejected', taskId, tgid]);
-    return { ok: res.rowCount > 0 };
-  } finally { client.release(); }
-}
-
 module.exports = {
   init,
   ensureUser,
@@ -1114,13 +1002,5 @@ module.exports = {
   completeWithdrawal,
   declineWithdrawal,
   getDailyStreak,
-  claimDailyReward,
-  // Sponsor tasks
-  listSponsorTasks,
-  getSponsorTaskById,
-  createSponsorTask,
-  updateSponsorTask,
-  claimSponsorTask,
-  approveSponsorTask,
-  rejectSponsorTask
+  claimDailyReward
 };

@@ -396,69 +396,10 @@ async function notifyWithdrawalUser(withdrawal, status, meta){
 
 bot.on('callback_query', async (ctx) => {
   const data = ctx.callbackQuery && ctx.callbackQuery.data;
-  if (!data) {
-    try { await ctx.answerCbQuery(); } catch(e){}
-    return;
-  }
-
-  // SubGram re-check
-  if (data === 'sg:check') {
+  if (!data || !data.startsWith('wd:')) {
     try {
-      const userId = ctx.from && ctx.from.id;
-      const status = await subgram.checkUserSubscriptions(userId);
-      if (status && status.subscribed) {
-        try { await ctx.answerCbQuery('Подписки подтверждены'); } catch(e){}
-        const cq = ctx.callbackQuery; const msg = cq && cq.message;
-        if (msg) {
-          const newText = '✅ Подписки подтверждены. Спасибо! Можете продолжать играть.';
-          try {
-            if (msg.text) await ctx.telegram.editMessageText(msg.chat.id, msg.message_id, undefined, newText, { reply_markup: null });
-            else await ctx.telegram.editMessageCaption(msg.chat.id, msg.message_id, undefined, newText, { reply_markup: null });
-          } catch(e){}
-        }
-      } else {
-        try { await ctx.answerCbQuery('Ещё не все подписки подтверждены', { show_alert:true }); } catch(e){}
-      }
-    } catch (err) {
-      console.warn('sg:check failed', err);
-      try { await ctx.answerCbQuery('Ошибка проверки', { show_alert:true }); } catch(e){}
-    }
-    return;
-  }
-
-  // Sponsor task moderation
-  if (data.startsWith('st:')) {
-    const parts = data.split(':'); // st:approve:taskId:tgid or st:reject:taskId:tgid
-    const action = parts[1];
-    const taskId = Number(parts[2]);
-    const userId = Number(parts[3]);
-    const actorId = ctx.from && ctx.from.id;
-    if (!isAuthorizedAdmin(actorId)) {
-      try { await ctx.answerCbQuery('Нет прав', { show_alert:true }); } catch(e){}
-      return;
-    }
-    try {
-      if (action === 'approve') {
-        const res = await db.approveSponsorTask(taskId, userId);
-        if (!res || !res.ok) { await ctx.answerCbQuery(res && res.message ? res.message : 'Ошибка', { show_alert:true }); return; }
-        await ctx.answerCbQuery('Одобрено');
-      } else if (action === 'reject') {
-        const res = await db.rejectSponsorTask(taskId, userId);
-        if (!res || !res.ok) { await ctx.answerCbQuery('Ошибка', { show_alert:true }); return; }
-        await ctx.answerCbQuery('Отклонено');
-      } else {
-        await ctx.answerCbQuery('Неизвестное действие', { show_alert:true });
-      }
-    } catch (err) {
-      console.error('Sponsor task moderation failed', err);
-      try { await ctx.answerCbQuery('Ошибка', { show_alert:true }); } catch(e){}
-    }
-    return;
-  }
-
-  // Withdrawals
-  if (!data.startsWith('wd:')) {
-    try { await ctx.answerCbQuery(); } catch(e){}
+      await ctx.answerCbQuery();
+    } catch (err) {}
     return;
   }
   const parts = data.split(':');
@@ -466,12 +407,16 @@ bot.on('callback_query', async (ctx) => {
   const idRaw = parts[2];
   const withdrawalId = Number(idRaw);
   if (!withdrawalId) {
-    try { await ctx.answerCbQuery('Некорректная заявка', { show_alert: true }); } catch (err) {}
+    try {
+      await ctx.answerCbQuery('Некорректная заявка', { show_alert: true });
+    } catch (err) {}
     return;
   }
   const actorId = ctx.from && ctx.from.id;
   if (!isAuthorizedAdmin(actorId)) {
-    try { await ctx.answerCbQuery('У вас нет прав для этого действия', { show_alert: true }); } catch (err) {}
+    try {
+      await ctx.answerCbQuery('У вас нет прав для этого действия', { show_alert: true });
+    } catch (err) {}
     return;
   }
   const adminData = {
@@ -516,7 +461,7 @@ bot.on('callback_query', async (ctx) => {
       const result = await db.declineWithdrawal(withdrawalId, adminData);
       if (!result || !result.ok) {
         if (result && result.reason === 'already_processed') {
-          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана ранее.');
+          await updateAdminWithdrawalMessage(ctx, 'Заявка уже обработана р��нее.');
           await ctx.answerCbQuery('Заявка уже обработана', { show_alert: true });
           return;
         }
@@ -535,7 +480,9 @@ bot.on('callback_query', async (ctx) => {
     await ctx.answerCbQuery('Неизвестное действие', { show_alert: true });
   } catch (err) {
     console.error('Failed to process withdrawal callback', err);
-    try { await ctx.answerCbQuery('Ошибка обработки', { show_alert: true }); } catch (answerErr) {}
+    try {
+      await ctx.answerCbQuery('Ошибка обработки', { show_alert: true });
+    } catch (answerErr) {}
   }
 });
 
@@ -548,8 +495,12 @@ bot.start(async (ctx) => {
   const tgid = user.id;
 
   // Try to ensure user in DB, but do not block reply on DB errors
+  let wasInserted = false;
   try {
-    if (tgid) await db.ensureUser(tgid, displayName);
+    if (tgid) {
+      const ensured = await db.ensureUser(tgid, displayName);
+      wasInserted = ensured && ensured.inserted === true;
+    }
   } catch (dbErr) {
     console.error('DB ensureUser failed on /start', dbErr);
     // notify admin about DB issue (best effort)
@@ -565,13 +516,26 @@ bot.start(async (ctx) => {
 
   // Try to pass referral param via URL if present in /start payload
   let refQuery = '';
+  let refFromStart = null;
   try {
     const payload = ctx.startPayload;
     if (payload) {
       const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/);
-      if (m && m[1]) refQuery = `&ref=${Number(m[1])}`;
+      if (m && m[1]) {
+        refFromStart = Number(m[1]);
+        refQuery = `&ref=${refFromStart}`;
+      }
     }
   } catch(e) { /* ignored */ }
+
+  // If this is the very first /start for the user and start payload contains referrer — bind immediately
+  if (wasInserted && tgid && refFromStart && Number(refFromStart) !== Number(tgid)) {
+    try {
+      await db.setReferrer(tgid, Number(refFromStart));
+    } catch (e) {
+      console.warn('Auto setReferrer on first start failed', e);
+    }
+  }
 
   const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}${refQuery}`;
 
@@ -584,28 +548,6 @@ bot.start(async (ctx) => {
   } catch (err) {
     console.error('Failed to send welcome message in /start', err);
     try { await ctx.reply('Добро пожаловать!'); } catch (e) { console.error('Fallback reply failed', e); }
-  }
-
-  // Send SubGram sponsors if not subscribed
-  try {
-    const cfg = subgram.getConfig();
-    if (cfg && cfg.enabled && tgid) {
-      const status = await subgram.checkUserSubscriptions(tgid, ctx.chat && ctx.chat.id);
-      if (status && status.enabled && status.subscribed === false) {
-        const links = Array.isArray(status.links) && status.links.length
-          ? status.links
-          : (Array.isArray(status.sponsors) ? status.sponsors.map(s=>s && s.link).filter(Boolean) : []);
-        if (links && links.length) {
-          const kb = links.slice(0, 8).map((link, idx)=> [{ text: `Подписаться ${idx+1}`, url: link }]);
-          const botUrl = cfg.botUrl || 'https://t.me/SubGramAppBot';
-          kb.push([{ text: 'Открыть SubGram', url: botUrl }, { text: '✅ Проверить', callback_data: 'sg:check' }]);
-          const text = '🔔 Подпишитесь на спонсоров, чтобы продолжить игру и сохранить баланс. После подписки нажмите «Проверить».\nЕсли отписаться в течение 7 дней, баланс может быть обнулён.';
-          await ctx.reply(text, { reply_markup: { inline_keyboard: kb } });
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to send SubGram sponsors on /start', e);
   }
 });
 
@@ -955,9 +897,6 @@ app.post('/api/games/rooms/:id/leave', async (req,res)=>{
 // SubGram subscription status
 app.get('/api/subgram/status', async (req, res) => {
   try {
-    // disable caching so UI always sees fresh status
-    res.setHeader('Cache-Control', 'no-store');
-
     const config = subgram.getConfig();
     const authTgid = getAuthTgid(req);
     const queryTgidRaw = req.query && req.query.tgid;
@@ -988,10 +927,6 @@ app.get('/api/subgram/status', async (req, res) => {
     }
 
     const status = await subgram.checkUserSubscriptions(resolvedTgid);
-    const derivedLinks = Array.isArray(status.links) && status.links.length
-      ? status.links
-      : (Array.isArray(status.sponsors) ? status.sponsors.map(s => s && s.link).filter(Boolean) : []);
-
     return res.json({
       ok: true,
       tgid: resolvedTgid,
@@ -1001,7 +936,7 @@ app.get('/api/subgram/status', async (req, res) => {
       error: status.error,
       temporaryBypass: Boolean(status.temporaryBypass),
       botUrl: config.botUrl,
-      requiredLinks: derivedLinks,
+      requiredLinks: config.links,
       recheckAfterSeconds: status.recheckAfterSeconds || config.recheckAfterSeconds
     });
   } catch (err) {
@@ -1015,81 +950,6 @@ app.get('/api/subgram/status', async (req, res) => {
       requiredLinks: config.links
     });
   }
-});
-
-// Sponsor tasks API
-app.get('/api/tasks/sponsors', async (req, res) => {
-  try {
-    const tasks = await db.listSponsorTasks();
-    res.json({ ok:true, tasks });
-  } catch (err) {
-    console.error('list sponsor tasks failed', err);
-    res.status(500).json({ ok:false, message:'Internal error' });
-  }
-});
-
-app.post('/api/tasks/sponsors/:id/claim', async (req, res) => {
-  try {
-    const taskId = Number(req.params.id);
-    if (!taskId) return res.status(400).json({ ok:false, message:'Invalid task id' });
-    const authTgid = getAuthTgid(req);
-    const bodyTgid = req.body && req.body.tgid !== undefined ? Number(req.body.tgid) : null;
-    if (authTgid && bodyTgid && Number(authTgid)!==Number(bodyTgid)) return res.status(403).json({ ok:false, message:'Auth mismatch' });
-    const tgid = (authTgid !== null && authTgid !== undefined) ? Number(authTgid) : bodyTgid;
-    if (!tgid) return res.status(401).json({ ok:false, message:'Auth required' });
-    const result = await db.claimSponsorTask(tgid, taskId);
-    if (!result.ok) return res.status(400).json(result);
-
-    if (result.pending) {
-      try {
-        const task = await db.getSponsorTaskById(taskId);
-        const profile = await fetchTelegramProfile(tgid);
-        const displayName = (profile && profile.displayName) || `Игрок ${tgid}`;
-        const uname = profile && profile.username ? `@${profile.username}` : '';
-        const lines = [
-          '📝 Новая заявка по спонсорскому заданию',
-          `Игрок: ${displayName} ${uname} (ID: ${tgid})`,
-          `Задание: ${task ? task.title : taskId}`,
-          task && task.url ? `Ссылка: ${task.url}` : null,
-          `Награда: ${task ? task.reward : ''} SCube`
-        ].filter(Boolean);
-        await bot.telegram.sendMessage(WITHDRAW_ADMIN_CHAT, lines.join('\n'), {
-          reply_markup: { inline_keyboard: [[
-            { text:'✅ Одобрить', callback_data: `st:approve:${taskId}:${tgid}` },
-            { text:'🚫 Отклонить', callback_data: `st:reject:${taskId}:${tgid}` }
-          ]]} }
-        );
-      } catch (e) { console.warn('notify admin sponsor claim failed', e); }
-    }
-
-    res.json(result);
-  } catch (err) {
-    console.error('claim sponsor task failed', err);
-    res.status(500).json({ ok:false, message:'Internal error' });
-  }
-});
-
-// Admin sponsor tasks management
-app.post('/api/admin/sponsor-tasks', async (req, res) => {
-  try {
-    const authTgid = getAuthTgid(req);
-    if (!isAuthorizedAdmin(authTgid)) return res.status(403).json({ ok:false, message:'Forbidden' });
-    const { title, url, reward, verifyType } = req.body || {};
-    if (!title || !url || !reward) return res.status(400).json({ ok:false, message:'Введите title, url, reward' });
-    const result = await db.createSponsorTask(title, url, reward, verifyType);
-    res.json(result);
-  } catch (err) { console.error('create sponsor task failed', err); res.status(500).json({ ok:false, message:'Internal error' }); }
-});
-
-app.patch('/api/admin/sponsor-tasks/:id', async (req, res) => {
-  try {
-    const authTgid = getAuthTgid(req);
-    if (!isAuthorizedAdmin(authTgid)) return res.status(403).json({ ok:false, message:'Forbidden' });
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ ok:false, message:'Invalid id' });
-    const result = await db.updateSponsorTask(id, req.body || {});
-    res.json(result);
-  } catch (err) { console.error('update sponsor task failed', err); res.status(500).json({ ok:false, message:'Internal error' }); }
 });
 
 // API endpoints
