@@ -401,6 +401,31 @@ bot.on('callback_query', async (ctx) => {
     return;
   }
 
+  // SubGram re-check
+  if (data === 'sg:check') {
+    try {
+      const userId = ctx.from && ctx.from.id;
+      const status = await subgram.checkUserSubscriptions(userId);
+      if (status && status.subscribed) {
+        try { await ctx.answerCbQuery('Подписки подтверждены'); } catch(e){}
+        const cq = ctx.callbackQuery; const msg = cq && cq.message;
+        if (msg) {
+          const newText = '✅ Подписки подтверждены. Спасибо! Можете продолжать играть.';
+          try {
+            if (msg.text) await ctx.telegram.editMessageText(msg.chat.id, msg.message_id, undefined, newText, { reply_markup: null });
+            else await ctx.telegram.editMessageCaption(msg.chat.id, msg.message_id, undefined, newText, { reply_markup: null });
+          } catch(e){}
+        }
+      } else {
+        try { await ctx.answerCbQuery('Ещё не все подписки подтверждены', { show_alert:true }); } catch(e){}
+      }
+    } catch (err) {
+      console.warn('sg:check failed', err);
+      try { await ctx.answerCbQuery('Ошибка проверки', { show_alert:true }); } catch(e){}
+    }
+    return;
+  }
+
   // Sponsor task moderation
   if (data.startsWith('st:')) {
     const parts = data.split(':'); // st:approve:taskId:tgid or st:reject:taskId:tgid
@@ -551,7 +576,7 @@ bot.start(async (ctx) => {
   const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}${refQuery}`;
 
   try {
-    await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми ��нопку, чтобы открыть MiniApp.`, {
+    await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, {
       reply_markup: {
         inline_keyboard: [[{ text: 'Play', web_app: { url: webAppUrl } }]]
       }
@@ -559,6 +584,28 @@ bot.start(async (ctx) => {
   } catch (err) {
     console.error('Failed to send welcome message in /start', err);
     try { await ctx.reply('Добро пожаловать!'); } catch (e) { console.error('Fallback reply failed', e); }
+  }
+
+  // Send SubGram sponsors if not subscribed
+  try {
+    const cfg = subgram.getConfig();
+    if (cfg && cfg.enabled && tgid) {
+      const status = await subgram.checkUserSubscriptions(tgid);
+      if (status && status.enabled && status.subscribed === false) {
+        const links = Array.isArray(status.links) && status.links.length
+          ? status.links
+          : (Array.isArray(status.sponsors) ? status.sponsors.map(s=>s && s.link).filter(Boolean) : []);
+        if (links && links.length) {
+          const kb = links.slice(0, 8).map((link, idx)=> [{ text: `Подписаться ${idx+1}`, url: link }]);
+          const botUrl = cfg.botUrl || 'https://t.me/SubGramAppBot';
+          kb.push([{ text: 'Открыть SubGram', url: botUrl }, { text: '✅ Проверить', callback_data: 'sg:check' }]);
+          const text = '🔔 Подпишитесь на спонсоров, чтобы продолжить игру и сохранить баланс. После подписки нажмите «Проверить».\nЕсли отписаться в течение 7 дней, баланс может быть обнулён.';
+          await ctx.reply(text, { reply_markup: { inline_keyboard: kb } });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to send SubGram sponsors on /start', e);
   }
 });
 
