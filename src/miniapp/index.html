@@ -270,6 +270,27 @@
       <div id="ad-countdown-badge" class="ad-countdown-badge">Реклама через 3</div>
     </div>
 
+    <div id="subgram-gate" class="subgram-gate hidden">
+      <div class="subgram-gate-inner">
+        <span>⚠️ Требуется подписка на спонсоров</span>
+        <button id="subgram-open" class="small-btn">Открыть SubGram</button>
+        <button id="subgram-recheck" class="small-btn">Проверить</button>
+      </div>
+    </div>
+
+    <div id="subgram-blocker" class="subgram-blocker hidden" aria-modal="true" role="dialog">
+      <div class="subgram-blocker-dialog">
+        <h3 class="subgram-blocker-title">Подпишитесь на спонсоров, чтобы продолжить игру</h3>
+        <p class="subgram-blocker-text">Пожалуйста подпишитесь на все каналы/боты из списка ниже. Если вы отпишетесь в течение недели — вы потеряете начисленные SCube.</p>
+        <ul id="subgram-blocker-links" class="subgram-links-list"></ul>
+        <div class="subgram-blocker-actions">
+          <button id="subgram-blocker-open" class="subgram-open-btn">Открыть SubGram</button>
+          <button id="subgram-blocker-recheck" class="subgram-recheck-btn">Проверить подписки</button>
+        </div>
+        <p class="subgram-blocker-note">Окно нельзя закрыть до подтверждения подписки.</p>
+      </div>
+    </div>
+
     <div id="confirm-modal" class="confirm-modal hidden">
       <div class="confirm-box">
         <div id="confirm-message">Confirm?</div>
