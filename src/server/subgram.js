@@ -95,12 +95,37 @@ function normalizeSponsor(entry, fallbackLink) {
   };
 }
 
+const REQUEST_OP_ENDPOINT = (process.env.SUBGRAM_REQUEST_OP_URL || 'https://api.subgram.ru/request-op/').trim();
+
+async function requestOp(userId, chatId, opts = {}) {
+  const numericId = Number(userId);
+  const numericChat = chatId !== undefined && chatId !== null ? Number(chatId) : null;
+  if (!Number.isFinite(numericId) || numericId <= 0) {
+    throw new Error('Invalid user id');
+  }
+  const payload = Object.assign({}, opts);
+  // include both common variants to be tolerant
+  payload.UserId = numericId;
+  payload.user_id = numericId;
+  if (Number.isFinite(numericChat)) { payload.ChatId = numericChat; payload.chat_id = numericChat; }
+  payload.action = payload.action || 'subscribe';
+  if (!payload.MaxOP) payload.MaxOP = 3;
+
+  const { statusCode, body } = await requestJson(REQUEST_OP_ENDPOINT, payload);
+  if (statusCode !== 200 || !body) {
+    const message = body && body.message ? body.message : `SubGram request-op responded with ${statusCode}`;
+    throw new Error(message);
+  }
+  return body;
+}
+
 async function checkUserSubscriptions(userId) {
   if (!ENABLED) {
     return {
       enabled: false,
       subscribed: true,
       sponsors: [],
+      links: [],
       error: null,
       temporaryBypass: false,
       recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
@@ -113,6 +138,7 @@ async function checkUserSubscriptions(userId) {
       enabled: true,
       subscribed: false,
       sponsors: [],
+      links: [],
       error: 'Некорректный идентификатор пользователя',
       temporaryBypass: false,
       recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
@@ -120,45 +146,65 @@ async function checkUserSubscriptions(userId) {
   }
 
   try {
-    const payload = {
-      user_id: numericId,
-      links: REQUIRED_LINKS
-    };
+    // Prefer dynamic request-op to get randomized links assigned to user
+    try {
+      const reqBody = await requestOp(numericId, numericId);
+      const status = reqBody && reqBody.status ? String(reqBody.status).toLowerCase() : null;
+      const code = reqBody && reqBody.code ? Number(reqBody.code) : null;
+      const links = Array.isArray(reqBody.links) ? reqBody.links.slice() : [];
+      const sponsorsData = reqBody.additional && Array.isArray(reqBody.additional.sponsors) ? reqBody.additional.sponsors : [];
+      const sponsors = sponsorsData.map((s) => normalizeSponsor(s, s && s.link ? s.link : null)).filter(Boolean);
+      const subscribed = (status === 'ok' && code === 200) ? true : (links.length === 0 ? true : sponsors.every((it) => it.status === 'subscribed'));
+      return {
+        enabled: true,
+        subscribed,
+        sponsors,
+        links,
+        error: null,
+        temporaryBypass: false,
+        recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
+      };
+    } catch (opErr) {
+      // fallback to older get-user-subscriptions endpoint using REQUIRED_LINKS when request-op fails
+      const payload = {
+        user_id: numericId,
+        links: REQUIRED_LINKS
+      };
 
-    const { statusCode, body } = await requestJson(API_ENDPOINT, payload);
-    if (statusCode !== 200 || !body) {
-      const message = body && body.message ? body.message : `SubGram ответил со статусом ${statusCode}`;
-      throw new Error(message);
-    }
-
-    if (body.status && String(body.status).toLowerCase() !== 'ok') {
-      throw new Error(body.message || 'SubGram вернул ошибку');
-    }
-
-    const sponsorsData = body.additional && Array.isArray(body.additional.sponsors) ? body.additional.sponsors : [];
-    const sponsorsMap = new Map();
-    sponsorsData.forEach((entry) => {
-      if (entry && entry.link) {
-        sponsorsMap.set(String(entry.link).trim(), entry);
+      const { statusCode, body } = await requestJson(API_ENDPOINT, payload);
+      if (statusCode !== 200 || !body) {
+        const message = body && body.message ? body.message : `SubGram responded with status ${statusCode}`;
+        throw new Error(message);
       }
-    });
 
-    const sponsors = REQUIRED_LINKS.map((link) => normalizeSponsor(sponsorsMap.get(link), link)).filter(Boolean);
-    const subscribed = sponsors.length === 0 ? true : sponsors.every((item) => item.status === 'subscribed');
+      if (body.status && String(body.status).toLowerCase() !== 'ok') {
+        // allow body.status == 'warning' and return that info
+      }
 
-    return {
-      enabled: true,
-      subscribed,
-      sponsors,
-      error: null,
-      temporaryBypass: false,
-      recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
-    };
+      const sponsorsData = body.additional && Array.isArray(body.additional.sponsors) ? body.additional.sponsors : [];
+      const sponsorsMap = new Map();
+      sponsorsData.forEach((entry) => {
+        if (entry && entry.link) sponsorsMap.set(String(entry.link).trim(), entry);
+      });
+      const links = REQUIRED_LINKS.slice();
+      const sponsors = links.map((link) => normalizeSponsor(sponsorsMap.get(link), link)).filter(Boolean);
+      const subscribed = sponsors.length === 0 ? true : sponsors.every((item) => item.status === 'subscribed');
+      return {
+        enabled: true,
+        subscribed,
+        sponsors,
+        links,
+        error: null,
+        temporaryBypass: false,
+        recheckAfterSeconds: DEFAULT_RECHECK_SECONDS
+      };
+    }
   } catch (error) {
     return {
       enabled: true,
       subscribed: true,
       sponsors: [],
+      links: [],
       error: error && error.message ? error.message : 'Не удалось проверить подписки SubGram',
       temporaryBypass: true,
       recheckAfterSeconds: Math.max(DEFAULT_RECHECK_SECONDS, 180)
