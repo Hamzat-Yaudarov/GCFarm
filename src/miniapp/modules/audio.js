@@ -29,8 +29,8 @@ function resumeOnFirstInteraction(){
   if (initialized) return;
   initialized = true;
   const handler = ()=>{ tryPlay(); cleanup(); };
-  const cleanup = ()=>{ ['click','touchstart','keydown'].forEach(ev=> document.removeEventListener(ev, handler, { passive:true })); };
-  ['click','touchstart','keydown'].forEach(ev=> document.addEventListener(ev, handler, { passive:true }));
+  const cleanup = ()=>{ ['pointerdown','click','touchstart','touchend','keydown','mousedown'].forEach(ev=> document.removeEventListener(ev, handler, { passive:true })); };
+  ['pointerdown','click','touchstart','touchend','keydown','mousedown'].forEach(ev=> document.addEventListener(ev, handler, { passive:true }));
 }
 
 function setTrack(key){
