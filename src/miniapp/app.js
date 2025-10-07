@@ -12,6 +12,7 @@ import { initAdmin } from './modules/admin.js';
 import { loadCustomTasks } from './modules/customTasks.js';
 
 showInitialLoading();
+const __initialHideTimeout = setTimeout(()=>{ try{ hideInitialLoading(); }catch(e){} }, 8000);
 await initAuth();
 
 const tabsApi = initTabs(async (tab)=>{
@@ -45,6 +46,6 @@ try { await loadDailyStreak(getTgid); } catch(e){}
 try { await loadSubgramStatus(getTgid); } catch(e){}
 try { await loadCustomTasks(getTgid); } catch(e){}
 
-await loadUser(getTgid, { onInitialReady: ()=>{ hideInitialLoading(); initOnboarding(); maybeShowOnboarding(); setTimeout(()=>{ try { home.triggerInitialInterstitial(); } catch(e){} }, 4000); } });
+await loadUser(getTgid, { onInitialReady: ()=>{ clearTimeout(__initialHideTimeout); hideInitialLoading(); initOnboarding(); maybeShowOnboarding(); setTimeout(()=>{ try { home.triggerInitialInterstitial(); } catch(e){} }, 4000); } });
 
 setInterval(()=> loadUser(getTgid), 5000);
