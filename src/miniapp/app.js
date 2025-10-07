@@ -60,6 +60,9 @@ showInitialLoading();
       setTimeout(()=>{ try { home.triggerInitialInterstitial(); } catch(e){} }, 4000);
     } });
 
+    // Ensure loader is hidden even if loadUser returned without calling onInitialReady
+    try { hideInitialLoading(); } catch(e){}
+
     setInterval(()=> loadUser(getTgid), 5000);
   } catch (err) {
     console.error('App initialization error', err);
