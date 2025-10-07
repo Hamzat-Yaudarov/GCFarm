@@ -7,6 +7,7 @@ import { initHome } from './modules/home.js';
 import { initUpgrades, initWithdrawals } from './modules/store.js';
 import { initGames } from './modules/games.js';
 import { loadUser } from './modules/user.js';
+import { initAdmin } from './modules/admin.js';
 
 showInitialLoading();
 await initAuth();
@@ -29,6 +30,7 @@ const home = initHome(getTgid, ()=>loadUser(getTgid), (mode)=> leaderboard.load(
 initUpgrades(getTgid, ()=> loadUser(getTgid));
 initWithdrawals(getTgid, ()=> loadUser(getTgid));
 initGames(getTgid, ()=> loadUser(getTgid));
+initAdmin();
 
 setupAdsgramTask(0, false, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); });
 try { await loadDailyStreak(getTgid); } catch(e){}

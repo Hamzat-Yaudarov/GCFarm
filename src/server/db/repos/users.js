@@ -18,6 +18,8 @@ function mapUser(row) {
     name: row.name,
     scube: Number(row.scube),
     gcube: Number(row.gcube),
+    vp: Number(row.vp || 0),
+    tickets: Number(row.tickets || 0),
     stars: Number(row.stars || 0),
     energy: Number(row.energy),
     energy_capacity: Number(row.energy_capacity),
@@ -39,8 +41,8 @@ async function setReferrer(tgid, referrer) {
     await client.query('BEGIN');
     if (Number(tgid) === Number(referrer)) { await client.query('ROLLBACK'); return { ok:false, message: 'Нельзя быть своим рефералом' }; }
     // ensure users exist
-    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [tgid, `Player ${tgid}`]);
-    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
+    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy, vp, tickets) VALUES ($1,$2,50,50,0,0,current_date,current_date,false,0,0) ON CONFLICT (tgid) DO NOTHING', [tgid, `Player ${tgid}`]);
+    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy, vp, tickets) VALUES ($1,$2,50,50,0,0,current_date,current_date,false,0,0) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
 
     // set only if not set and only for fresh accounts (first visit)
     const res = await client.query('SELECT referrer_tgid, first_seen_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
@@ -75,8 +77,8 @@ async function ensureUser(tgid, name) {
   try {
     // Try to insert a fresh user and detect if it is a brand new account
     const insertRes = await client.query(
-      `INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy)
-       VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)
+      `INSERT INTO users (tgid, name, scube, gcube, vp, tickets, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy)
+       VALUES ($1,$2,0,0,0,0,0,50,50,0,0,current_date,current_date,false)
        ON CONFLICT (tgid) DO NOTHING
        RETURNING tgid`,
       [tgid, name]
@@ -126,7 +128,7 @@ async function getOrCreateUser(tgid) {
       return await buildUser(user);
     }
 
-    await client.query('INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
+    await client.query('INSERT INTO users (tgid, name, scube, gcube, vp, tickets, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,0,0,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
     return await getOrCreateUser(tgid);
   } finally {
     client.release();
@@ -212,7 +214,7 @@ async function exchange(tgid, arg1, arg2, arg3) {
     }
 
     // Final validation
-    const valid = ['scube','gcube','stars'];
+    const valid = ['scube','gcube','stars','vp','tickets'];
     if (!from || !to || !valid.includes(from) || !valid.includes(to) || from === to) {
       await client.query('ROLLBACK');
       return { ok:false, message: 'Invalid currencies' };
@@ -221,21 +223,25 @@ async function exchange(tgid, arg1, arg2, arg3) {
     if (!amount || amount <= 0) { await client.query('ROLLBACK'); return { ok:false, message: 'Invalid amount' }; }
 
     // lock user balances
-    const res = await client.query('SELECT scube, gcube, stars FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, gcube, stars, vp, tickets FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const user = res.rows[0];
     let scube = Number(user.scube || 0);
     let gcube = Number(user.gcube || 0);
     let stars = Number(user.stars || 0);
+    let vp = Number(user.vp || 0);
+    let tickets = Number(user.tickets || 0);
 
-    const RATES = { scube: 1, gcube: 50, stars: 60 };
+    const RATES = { scube: 1, gcube: 50, stars: 60, vp: 1, tickets: 1 };
     const fromRate = RATES[from];
     const toRate = RATES[to];
 
     // check availability of source units
-    if (from === 'scube' && scube < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
+    if (from === 'scube' && scube < amount) { await client.query('ROLLBACK'); return { ok:false, message: '��едостаточно SCube' }; }
     if (from === 'gcube' && gcube < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно GCube' }; }
     if (from === 'stars' && stars < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно Stars' }; }
+    if (from === 'vp' && vp < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно VP' }; }
+    if (from === 'tickets' && tickets < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно билетов' }; }
 
     const scubeValue = amount * fromRate; // how many scube units provided
     const targetUnits = Math.floor(scubeValue / toRate);
@@ -247,10 +253,10 @@ async function exchange(tgid, arg1, arg2, arg3) {
     const sourceDeduct = Math.ceil(scubeToConsume / fromRate);
 
     // perform deduction and addition
-    if (from === 'scube') scube -= sourceDeduct; else if (from === 'gcube') gcube -= sourceDeduct; else if (from === 'stars') stars -= sourceDeduct;
-    if (to === 'scube') scube += targetUnits; else if (to === 'gcube') gcube += targetUnits; else if (to === 'stars') stars += targetUnits;
+    if (from === 'scube') scube -= sourceDeduct; else if (from === 'gcube') gcube -= sourceDeduct; else if (from === 'stars') stars -= sourceDeduct; else if (from === 'vp') vp -= sourceDeduct; else if (from === 'tickets') tickets -= sourceDeduct;
+    if (to === 'scube') scube += targetUnits; else if (to === 'gcube') gcube += targetUnits; else if (to === 'stars') stars += targetUnits; else if (to === 'vp') vp += targetUnits; else if (to === 'tickets') tickets += targetUnits;
 
-    await client.query('UPDATE users SET scube=$1, gcube=$2, stars=$3 WHERE tgid=$4', [scube, gcube, stars, tgid]);
+    await client.query('UPDATE users SET scube=$1, gcube=$2, stars=$3, vp=$4, tickets=$5 WHERE tgid=$6', [scube, gcube, stars, vp, tickets, tgid]);
     await client.query('COMMIT');
     return { ok:true, scube, gcube, stars, exchanged: { from, to, amount: sourceDeduct, received: targetUnits } };
   } catch (err) {
