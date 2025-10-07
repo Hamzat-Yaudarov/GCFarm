@@ -22,7 +22,7 @@ export async function loadUser(getTgid, { onInitialReady } = {}){
 
   if (!tgid){ if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").'; callInitialOnce(); return; }
   try {
-    const res = await fetch(`${apiBase}/user/${tgid}`);
+    const res = await fetch(`${apiBase}/user/${tgid}`, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
     if (!res.ok) {
       let body=null; try { body = await res.json(); } catch(e){}
       const msg=(body && (body.error || body.message)) || `Server returned ${res.status}`;

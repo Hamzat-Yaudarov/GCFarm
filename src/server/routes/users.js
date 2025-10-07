@@ -1,4 +1,13 @@
 function attachUserRoutes(app, { db, auth }){
+  // Ensure user API responses are not cached by proxies or the browser.
+  // Some reverse proxies may respond with 304 Not Modified when the client
+  // sends conditional requests; force dynamic responses to always be fresh.
+  app.use('/api/user', (req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+  });
   const { getAuthTgid } = auth;
   app.get('/api/user/:tgid', async (req, res) => {
     const tgid = parseInt(req.params.tgid, 10);
