@@ -9,14 +9,13 @@ export function initAdmin(getTgid){
   const header = document.querySelector('.game-header .balances');
   if (header) header.appendChild(adminBtn);
 
-  const navBtn = document.getElementById('admin-tab-btn');
   const section = document.getElementById('admin');
 
   async function checkAdmin(){
     try{
       const res = await fetch(`${apiBase}/admin/me`);
       const js = await res.json();
-      if (js && js.ok && js.isAdmin){ if (navBtn) navBtn.classList.remove('hidden'); if (adminBtn) adminBtn.style.display='inline-block'; } else { if (navBtn) navBtn.classList.add('hidden'); if (adminBtn) adminBtn.style.display='none'; }
+      if (js && js.ok && js.isAdmin){ if (adminBtn) adminBtn.style.display='inline-block'; } else { if (adminBtn) adminBtn.style.display='none'; }
     } catch(e){ /* ignore */ }
   }
 
@@ -44,6 +43,9 @@ export function initAdmin(getTgid){
     const reqWrap = form.querySelector('#task-required-wrap');
     function updateVis(){ const t = typeSel.value; linkWrap.style.display = (t==='subscribe')?'block':'none'; reqWrap.style.display = (t!=='subscribe')?'block':'none'; }
     typeSel.addEventListener('change', updateVis); updateVis();
+    const toggle = document.getElementById('admin-task-toggle');
+    const wrap = document.getElementById('admin-task-wrap');
+    if (toggle && wrap){ toggle.addEventListener('click', ()=>{ wrap.classList.toggle('hidden'); }); }
     form.addEventListener('submit', async (e)=>{
       e.preventDefault();
       const payload = {
@@ -59,9 +61,13 @@ export function initAdmin(getTgid){
     });
   }
 
-  function showAdmin(){ if (!section) return; const tabs = window.__appTabs; if (tabs) { tabs.show('admin'); } }
+  function showAdmin(){ if (!section) return; const tabs = window.__appTabs; if (tabs) { tabs.show('admin'); }
+    const bottomNav = document.querySelector('.tabs-bottom'); if (bottomNav) bottomNav.style.display='none';
+  }
 
   if (adminBtn) adminBtn.addEventListener('click', showAdmin);
+
+  const backBtn = document.getElementById('admin-back'); if (backBtn) backBtn.addEventListener('click', ()=>{ const bottomNav = document.querySelector('.tabs-bottom'); if (bottomNav) bottomNav.style.display='flex'; const tabs = window.__appTabs; if (tabs) tabs.show('home'); });
 
   return { checkAdmin, loadStats, setupForm };
 }

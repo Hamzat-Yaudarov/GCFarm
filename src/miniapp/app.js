@@ -36,7 +36,6 @@ initGames(getTgid, ()=> loadUser(getTgid));
 const admin = initAdmin(getTgid);
 admin.checkAdmin();
 admin.setupForm();
-const backBtn = document.getElementById('admin-back'); if (backBtn) backBtn.addEventListener('click', ()=> window.__appTabs && window.__appTabs.show('home'));
 
 setupAdsgramTask(0, false, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); });
 try { await loadDailyStreak(getTgid); } catch(e){}
