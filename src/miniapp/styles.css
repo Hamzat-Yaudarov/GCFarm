@@ -369,6 +369,10 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .admin-tabs{display:flex;gap:8px;margin-bottom:8px}
 .admin-tab-btn{padding:8px 12px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:#cfeaf9;cursor:pointer}
 .admin-tab-btn.active{background:linear-gradient(90deg,#1b6b92,#11576f);border:1px solid rgba(255,255,255,0.08)}
+
+.admin-param-label{display:block;margin-bottom:8px}
+.admin-param-label input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:#fff}
+.hidden{display:none}
 .admin-section{background:linear-gradient(180deg,#072733,#071f26);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
 .admin-cards{display:flex;flex-wrap:wrap;gap:12px}
 .admin-card{flex:1 1 200px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#0b3a4a,#06313c);box-shadow:0 8px 20px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.03)}

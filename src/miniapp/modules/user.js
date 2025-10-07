@@ -18,14 +18,7 @@ export async function loadUser(getTgid, { onInitialReady } = {}){
   const avatarEl = document.getElementById('avatar');
 
   if (!tgid){ if (appMessage) appMessage.textContent = 'Откройте игру через кнопку в боте (нажмите /start и затем "Открыть игру").'; return; }
-  try { const res = await fetch(`${apiBase}/user/${tgid}`);
-    // Treat 304 (Not Modified) from cache as success for UI init: call onInitialReady and return
-    if (res.status === 304) {
-      try { if (appMessage) appMessage.textContent = ''; } catch(e){}
-      if (typeof onInitialReady === 'function') onInitialReady();
-      return;
-    }
-    if (!res.ok) { let body=null; try { body = await res.json(); } catch(e){} const msg=(body && (body.error || body.message)) || `Server returned ${res.status}`; if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg; return; }
+  try { const res = await fetch(`${apiBase}/user/${tgid}`); if (!res.ok) { let body=null; try { body = await res.json(); } catch(e){} const msg=(body && (body.error || body.message)) || `Server returned ${res.status}`; if (appMessage) appMessage.textContent = 'Не удалось загрузить данные пользователя: ' + msg; return; }
     const user = await res.json(); if (appMessage) appMessage.textContent='';
     const vpEl = document.getElementById('vp');
     const ticketsEl = document.getElementById('tickets');

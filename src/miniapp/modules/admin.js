@@ -1,7 +1,5 @@
 import { apiBase } from './state.js';
 
-import { apiBase } from './state.js';
-
 export function initAdmin(getTgid){
   const ADMIN_IDS = new Set(['6910097562','7972065986']);
   const adminBtn = document.getElementById('admin-panel-btn');
@@ -77,23 +75,28 @@ export function initAdmin(getTgid){
   if (adminBackBtn) adminBackBtn.addEventListener('click', ()=>{ try { if (window.__appTabs) window.__appTabs.showTab('home'); } catch(e){ console.warn(e); } });
 
   const taskTypeEl = document.getElementById('admin-task-type');
-  const paramLink = document.getElementById('admin-param-link');
-  const paramCount = document.getElementById('admin-param-count');
-  const paramAmount = document.getElementById('admin-param-amount');
-  const paramsWrap = document.getElementById('admin-task-params-wrap');
+  const paramsLinkInput = document.getElementById('admin-task-link');
+  const paramsNumberInput = document.getElementById('admin-task-number');
+  const paramsLinkLabel = document.getElementById('admin-task-link-label');
+  const paramsNumberLabel = document.getElementById('admin-task-number-label');
 
-  function updateParamVisibility(){
+  function updateParamsVisibility(){
     const t = (taskTypeEl && taskTypeEl.value) || '';
-    if (paramLink) paramLink.parentElement.classList.add('hidden');
-    if (paramCount) paramCount.parentElement.classList.add('hidden');
-    if (paramAmount) paramAmount.parentElement.classList.add('hidden');
-
-    if (t === 'subscribe') { if (paramLink) paramLink.parentElement.classList.remove('hidden'); }
-    else if (t === 'referrals') { if (paramCount) paramCount.parentElement.classList.remove('hidden'); }
-    else if (t === 'earn_scube') { if (paramAmount) paramAmount.parentElement.classList.remove('hidden'); }
+    if (!paramsLinkInput || !paramsNumberInput) return;
+    if (t === 'subscribe') {
+      paramsLinkLabel.classList.remove('hidden');
+      paramsNumberLabel.classList.add('hidden');
+    } else if (t === 'referrals' || t === 'earn_scube') {
+      paramsLinkLabel.classList.add('hidden');
+      paramsNumberLabel.classList.remove('hidden');
+      paramsNumberInput.type = 'number';
+    } else {
+      paramsLinkLabel.classList.remove('hidden');
+      paramsNumberLabel.classList.add('hidden');
+    }
   }
-  if (taskTypeEl) taskTypeEl.addEventListener('change', updateParamVisibility);
-  updateParamVisibility();
+  if (taskTypeEl) taskTypeEl.addEventListener('change', updateParamsVisibility);
+  updateParamsVisibility();
 
   if (form) {
     form.addEventListener('submit', async (e)=>{
@@ -106,17 +109,20 @@ export function initAdmin(getTgid){
       let params = {};
       try {
         if (task_type === 'subscribe') {
-          const v = paramLink ? String(paramLink.value || '').trim() : '';
+          const raw = (paramsLinkInput || {}).value || '';
+          const v = String(raw || '').trim();
           if (!v) { feedback.textContent = 'Укажите ссылку или юзернейм'; return; }
           if (/^[{\[]/.test(v) || /[}\]]$/.test(v)) { feedback.textContent = 'JSON недопустим в этом поле — вставьте только ссылку или юзернейм'; return; }
           if (v.split(' ').length > 1) { feedback.textContent = 'Укажите только одну ссылку или юзернейм без пробелов'; return; }
           params = { link: v };
         } else if (task_type === 'referrals') {
-          const n = paramCount ? parseInt(String(paramCount.value || '').trim() || '0', 10) : 0;
+          const raw = (paramsNumberInput || {}).value || '';
+          const n = parseInt(String(raw || '').trim() || '0', 10);
           if (!Number.isFinite(n) || n <= 0) { feedback.textContent = 'Укажите корректное целое количество рефералов'; return; }
           params = { count: n };
         } else if (task_type === 'earn_scube') {
-          const n = paramAmount ? parseInt(String(paramAmount.value || '').trim() || '0', 10) : 0;
+          const raw = (paramsNumberInput || {}).value || '';
+          const n = parseInt(String(raw || '').trim() || '0', 10);
           if (!Number.isFinite(n) || n <= 0) { feedback.textContent = 'Укажите корректное количество SCube'; return; }
           params = { amount: n };
         } else {
@@ -127,7 +133,7 @@ export function initAdmin(getTgid){
       try {
         const res = await fetch(`${apiBase}/admin/custom-tasks`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, reward_type, reward_amount, task_type, params }) });
         if (!res.ok) { const body = await res.json().catch(()=>null); feedback.textContent = (body && body.message) ? body.message : `Ошибка: ${res.status}`; return; }
-        const js = await res.json(); if (js && js.ok) { feedback.textContent = 'Задание создано (id: ' + js.id + ')'; renderStats(); form.reset(); updateParamVisibility(); } else { feedback.textContent = 'Не удалось создать задание'; }
+        const js = await res.json(); if (js && js.ok) { feedback.textContent = 'Задание создано (id: ' + js.id + ')'; renderStats(); form.reset(); updateParamsVisibility(); } else { feedback.textContent = 'Не удалось создать задание'; }
       } catch (err){ feedback.textContent = 'Ошибка сети'; }
     });
   }
