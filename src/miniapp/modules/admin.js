@@ -61,13 +61,13 @@ export function initAdmin(getTgid){
     });
   }
 
-  function showAdmin(){ if (!section) return; const tabs = window.__appTabs; if (tabs) { tabs.show('admin'); }
+  function showAdmin(){ if (!section) return; const tabs = window.__appTabs; if (tabs && typeof tabs.showTab === 'function') { tabs.showTab('admin'); }
     const bottomNav = document.querySelector('.tabs-bottom'); if (bottomNav) bottomNav.style.display='none';
   }
 
   if (adminBtn) adminBtn.addEventListener('click', showAdmin);
 
-  const backBtn = document.getElementById('admin-back'); if (backBtn) backBtn.addEventListener('click', ()=>{ const bottomNav = document.querySelector('.tabs-bottom'); if (bottomNav) bottomNav.style.display='flex'; const tabs = window.__appTabs; if (tabs) tabs.show('home'); });
+  const backBtn = document.getElementById('admin-back'); if (backBtn) backBtn.addEventListener('click', ()=>{ const bottomNav = document.querySelector('.tabs-bottom'); if (bottomNav) bottomNav.style.display='flex'; const tabs = window.__appTabs; if (tabs && typeof tabs.showTab === 'function') tabs.showTab('home'); });
 
   return { checkAdmin, loadStats, setupForm };
 }
