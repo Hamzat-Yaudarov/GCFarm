@@ -26,7 +26,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .balances{margin-left:12px;display:flex;flex-direction:column}
 .balance-s,.balance-g{font-size:14px}
 .balance-stars{font-size:14px}
-.header-glow{margin-left:auto;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#ffd54b,#ffb300 68%);box-shadow:0 0 32px rgba(255,213,75,0.4);animation:orbFloat 8s ease-in-out infinite}
+.header-glow{margin-left:auto;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#ffd54b,#ffb300 68%);box-shadow:0 0 32px rgba(255,213,75,0.4);animation:orbFloat 8s ease-in-out infinite;pointer-events:none}
 .hero-intro{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;margin:0 18px 12px;border-radius:14px;background:linear-gradient(180deg,rgba(8,23,39,0.95),rgba(5,18,32,0.98));border:1px solid rgba(255,255,255,0.03);position:relative;overflow:hidden}
 .hero-intro::after{content:"";position:absolute;inset:-20%;background:radial-gradient(circle at 18% 22%,rgba(255,213,75,0.18),transparent 65%);animation:heroGlow 7s ease-in-out infinite}
 .hero-content{position:relative;z-index:1;display:flex;flex-direction:column;gap:6px}
@@ -271,7 +271,7 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .confirm-btn{padding:8px 12px;border-radius:8px;border:none;background:#2b6d91;color:#fff;cursor:pointer}
 .confirm-btn.primary{background:#3a8f5a}
 
-.withdraw-modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:1200;padding:16px;overflow-y:auto}
+.withdraw-modal{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:2200;padding:16px;overflow-y:auto}
 .withdraw-modal.hidden{display:none}
 .withdraw-dialog{width:100%;max-width:420px;background:#071429;padding:18px;border-radius:14px;border:1px solid rgba(255,255,255,0.05);box-shadow:0 18px 40px rgba(0,0,0,0.45);display:flex;flex-direction:column;gap:16px;max-height:calc(100vh - 32px);overflow-y:auto}
 .withdraw-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -384,6 +384,8 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 .result-banner.lose{background:linear-gradient(180deg,#4e1b1b,#2a0e0e);box-shadow:0 0 24px rgba(255,94,94,0.28);color:#ffd0d0;border-color:rgba(255,94,94,0.35)}
 .result-banner.draw{background:linear-gradient(180deg,#3b3b3b,#1e1e1e);box-shadow:0 0 24px rgba(180,180,180,0.2);color:#eee;border-color:rgba(200,200,200,0.2)}
 @keyframes bannerPop{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}
+/* ensure task card decorative overlay does not block clicks */
+.adsgram-task-card::before{pointer-events:none}
 
 /* Store floating button */
 .store-fab{position:fixed;top:84px;right:14px;z-index:950;padding:12px;border-radius:8px;background:#0f2536;color:#fff;border:1px solid rgba(255,255,255,0.06);font-weight:800;box-shadow:0 10px 26px rgba(0,0,0,0.35);transition:transform .12s ease,opacity .2s ease;display:flex;flex-direction:column;align-items:center;justify-content:center;width:76px;text-align:center;line-height:1.1}
