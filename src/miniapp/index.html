@@ -33,6 +33,9 @@
       <div class="player-avatar" id="avatar">A</div>
       <div class="balances">
         <div class="balance-s">💎 SCube: <span id="scube">0</span></div>
+        <div class="balance-vp">⭐ VP: <span id="vp">0</span></div>
+        <div class="balance-tickets">🎟️ Билеты: <span id="tickets">0</span></div>
+        <button id="admin-panel-btn" class="admin-entry-btn hidden" title="Admin panel">⚙️</button>
       </div>
       <div class="header-glow" aria-hidden="true"></div>
     </header>
@@ -67,7 +70,7 @@
             </div>
           </div>
           <div class="ad-block">
-            <p class="ad-caption">🎬 Усиль прогресс, смотри рекламу и восполняй энергию м��новенно.</p>
+            <p class="ad-caption">🎬 Усиль прогресс, смотри рекламу и восполняй энергию мгновенно.</p>
             <div class="ad-buttons">
               <button id="watch-ad" class="watch-ad">🎥 Смотреть рекламу (+20 SCube)</button>
               <button id="refill-btn" class="watch-ad secondary">⚡ Восполнить энергию полностью</button>
@@ -92,7 +95,7 @@
               <div class="card-header">
                 <span class="card-icon">📈</span>
                 <div class="card-text">
-                  <div class="upgrade-title">Увеличение дн��вного лимита +50</div>
+                  <div class="upgrade-title">Увеличение дневного лимита +50</div>
                   <div class="upgrade-subtitle">Повышай пределы заработка</div>
                 </div>
               </div>
@@ -200,7 +203,7 @@
       <section class="tab-content hidden" id="leaderboard">
         <div class="leader-container">
           <h3>🏆 Рейтинг</h3>
-          <p class="leader-hint">✨ Выбирай таблицу и смотри, кто впереди ко��анды.</p>
+          <p class="leader-hint">✨ Выбирай таблицу и смотри, кто впереди команды.</p>
           <div class="leader-personal" id="leader-personal" aria-live="polite">
             <div class="leader-personal-cards">
               <div class="leader-personal-card" id="leader-personal-rank">
@@ -253,6 +256,44 @@
         </div>
       </section>
 
+      <section class="tab-content hidden" id="admin">
+        <div class="admin-container">
+          <h3>🔐 Панель администратора</h3>
+          <p class="section-hint">Только для администраторов.</p>
+          <div class="admin-tabs">
+            <button id="admin-tab-stats" class="admin-tab-btn active">Статистика</button>
+            <button id="admin-tab-custom" class="admin-tab-btn">Кастомные задания</button>
+          </div>
+          <div id="admin-stats" class="admin-section">
+            <h4>Общая статистика</h4>
+            <div id="admin-stats-content">Загрузка…</div>
+          </div>
+          <div id="admin-custom" class="admin-section hidden">
+            <h4>Создать кастомное задание</h4>
+            <form id="admin-create-task-form">
+              <label>Название<br><input id="admin-task-name" required /></label>
+              <label>Тип награды<br>
+                <select id="admin-reward-type">
+                  <option value="scube">SCube</option>
+                  <option value="vp">VP</option>
+                  <option value="tickets">Билеты</option>
+                </select>
+              </label>
+              <label>Количество награды<br><input id="admin-reward-amount" type="number" min="0" value="0" required /></label>
+              <label>Тип задания<br>
+                <select id="admin-task-type">
+                  <option value="subscribe">Подписаться на канал/чат</option>
+                  <option value="referrals">Пригласить рефералов</option>
+                  <option value="earn_scube">Заработать SCube</option>
+                </select>
+              </label>
+              <label>Параметры (JSON)<br><textarea id="admin-task-params" placeholder='{"links": ["@channel1","https://t.me/chan2"]}'></textarea></label>
+              <div><button type="submit" id="admin-create-task">Создать задание</button></div>
+            </form>
+            <div id="admin-create-feedback"></div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <nav class="tabs-bottom">
@@ -261,7 +302,7 @@
       <button class="tab-button" data-tab="tasks">🧾 Задания</button>
       <button class="tab-button" data-tab="leaderboard">🏆 Рейтинг</button>
       <button class="tab-button" data-tab="referrals">🤝 Рефералы</button>
-      <button id="admin-tab-button" class="tab-button hidden" data-tab="admin">🛠️ Админ</button>
+      <button class="tab-button admin-tab-button hidden" data-tab="admin">🔐 Admin</button>
     </nav>
 
     <button id="store-fab" class="store-fab"><span class="store-icon">🛒</span><span class="store-label">Магазин</span></button>
@@ -272,64 +313,6 @@
     </div>
 
     <div id="subgram-gate" class="subgram-gate hidden">
-
-    <!-- Admin panel overlay -->
-    <div id="admin-panel" class="admin-panel hidden" role="dialog" aria-modal="true">
-      <div class="admin-panel-inner">
-        <div class="admin-panel-header">
-          <h3>Админ-панель</h3>
-          <button id="admin-back" class="small-btn">← Вернуться</button>
-        </div>
-        <div class="admin-panel-tabs">
-          <button id="admin-tab-stats" class="tab-button">Статистика</button>
-          <button id="admin-tab-tasks" class="tab-button">Кастомные задания</button>
-        </div>
-        <div id="admin-tab-content-stats" class="admin-tab-content">
-          <h4>Общая статистика</h4>
-          <div id="admin-stats-area">Загрузка…</div>
-        </div>
-        <div id="admin-tab-content-tasks" class="admin-tab-content hidden">
-          <h4>Создать задание</h4>
-          <div class="admin-form-row">
-            <label>Название</label>
-            <input id="admin-task-name" type="text" />
-          </div>
-          <div class="admin-form-row">
-            <label>Тип задания</label>
-            <select id="admin-task-type">
-              <option value="subscribe">Подписка (канал/чат)</option>
-              <option value="refer">Пригласить рефералов</option>
-              <option value="earn_scube">Заработать SCube</option>
-            </select>
-          </div>
-          <div class="admin-form-row">
-            <label>Тип награды</label>
-            <select id="admin-reward-type">
-              <option value="scube">SCube</option>
-              <option value="vp">VP</option>
-              <option value="tickets">Билеты</option>
-            </select>
-          </div>
-          <div class="admin-form-row">
-            <label>Количество</label>
-            <input id="admin-reward-amount" type="number" value="1" />
-          </div>
-          <div class="admin-form-row">
-            <label>Параметры (JSON)</label>
-            <textarea id="admin-task-params" placeholder='{"channels":["@channel1"]}'></textarea>
-          </div>
-          <div class="admin-form-actions">
-            <button id="admin-create-task" class="small-btn">Создать</button>
-            <div id="admin-create-result" class="task-feedback"></div>
-          </div>
-          <hr />
-          <div>
-            <h4>Список заданий</h4>
-            <div id="admin-tasks-list">Загрузка…</div>
-          </div>
-        </div>
-      </div>
-    </div>
       <div class="subgram-gate-inner">
         <span>⚠️ Требуется подписка на спонсоров</span>
         <button id="subgram-open" class="small-btn">Открыть SubGram</button>
@@ -366,7 +349,7 @@
           <section class="onb-slide onb-slide-active">
             <h2 id="onb-title" class="onb-title"><strong>ДОБРО ПОЖАЛОВАТЬ В BGGCube!</strong></h2>
             <p class="onb-text">Здесь ты добываешь SCube и обмениваешь их на GCube.</p>
-            <p class="onb-text">Начисление GCube ид��т по твоему игровому ID — без паролей.</p>
+            <p class="onb-text">Начисление GCube идёт по твоему игровому ID — без паролей.</p>
           </section>
           <section class="onb-slide">
             <h2 class="onb-title">Как добывать SCube?</h2>

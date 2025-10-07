@@ -214,7 +214,7 @@ async function exchange(tgid, arg1, arg2, arg3) {
     }
 
     // Final validation
-    const valid = ['scube','gcube','stars','vp','tickets'];
+    const valid = ['scube','gcube','stars'];
     if (!from || !to || !valid.includes(from) || !valid.includes(to) || from === to) {
       await client.query('ROLLBACK');
       return { ok:false, message: 'Invalid currencies' };
@@ -223,25 +223,21 @@ async function exchange(tgid, arg1, arg2, arg3) {
     if (!amount || amount <= 0) { await client.query('ROLLBACK'); return { ok:false, message: 'Invalid amount' }; }
 
     // lock user balances
-    const res = await client.query('SELECT scube, gcube, stars, vp, tickets FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, gcube, stars FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const user = res.rows[0];
     let scube = Number(user.scube || 0);
     let gcube = Number(user.gcube || 0);
     let stars = Number(user.stars || 0);
-    let vp = Number(user.vp || 0);
-    let tickets = Number(user.tickets || 0);
 
-    const RATES = { scube: 1, gcube: 50, stars: 60, vp: 1, tickets: 1 };
+    const RATES = { scube: 1, gcube: 50, stars: 60 };
     const fromRate = RATES[from];
     const toRate = RATES[to];
 
     // check availability of source units
-    if (from === 'scube' && scube < amount) { await client.query('ROLLBACK'); return { ok:false, message: '��едостаточно SCube' }; }
+    if (from === 'scube' && scube < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
     if (from === 'gcube' && gcube < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно GCube' }; }
     if (from === 'stars' && stars < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно Stars' }; }
-    if (from === 'vp' && vp < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно VP' }; }
-    if (from === 'tickets' && tickets < amount) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно билетов' }; }
 
     const scubeValue = amount * fromRate; // how many scube units provided
     const targetUnits = Math.floor(scubeValue / toRate);
@@ -253,10 +249,10 @@ async function exchange(tgid, arg1, arg2, arg3) {
     const sourceDeduct = Math.ceil(scubeToConsume / fromRate);
 
     // perform deduction and addition
-    if (from === 'scube') scube -= sourceDeduct; else if (from === 'gcube') gcube -= sourceDeduct; else if (from === 'stars') stars -= sourceDeduct; else if (from === 'vp') vp -= sourceDeduct; else if (from === 'tickets') tickets -= sourceDeduct;
-    if (to === 'scube') scube += targetUnits; else if (to === 'gcube') gcube += targetUnits; else if (to === 'stars') stars += targetUnits; else if (to === 'vp') vp += targetUnits; else if (to === 'tickets') tickets += targetUnits;
+    if (from === 'scube') scube -= sourceDeduct; else if (from === 'gcube') gcube -= sourceDeduct; else if (from === 'stars') stars -= sourceDeduct;
+    if (to === 'scube') scube += targetUnits; else if (to === 'gcube') gcube += targetUnits; else if (to === 'stars') stars += targetUnits;
 
-    await client.query('UPDATE users SET scube=$1, gcube=$2, stars=$3, vp=$4, tickets=$5 WHERE tgid=$6', [scube, gcube, stars, vp, tickets, tgid]);
+    await client.query('UPDATE users SET scube=$1, gcube=$2, stars=$3 WHERE tgid=$4', [scube, gcube, stars, tgid]);
     await client.query('COMMIT');
     return { ok:true, scube, gcube, stars, exchanged: { from, to, amount: sourceDeduct, received: targetUnits } };
   } catch (err) {
@@ -482,6 +478,46 @@ async function creditScube(tgid, amount) {
 
 // Daily streak helpers
 function isSameDate(a, b){ return a && b && a.toISOString().slice(0,10) === b.toISOString().slice(0,10); }
+
+async function tryReserveVP(tgid, amount) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const res = await client.query('SELECT vp FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (!res.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
+    let vp = Number(res.rows[0].vp || 0);
+    if (vp < amount) { await client.query('ROLLBACK'); return { ok:false, message:'Недостаточно VP' }; }
+    vp -= amount;
+    await client.query('UPDATE users SET vp=$1 WHERE tgid=$2', [vp, tgid]);
+    await client.query('COMMIT');
+    return { ok:true, vp };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function creditVP(tgid, amount) {
+  const client = await pool.connect();
+  try { await client.query('UPDATE users SET vp = vp + $1 WHERE tgid = $2', [amount, tgid]); return { ok:true }; } finally { client.release(); }
+}
+
+async function tryReserveTickets(tgid, amount) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const res = await client.query('SELECT tickets FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (!res.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
+    let tickets = Number(res.rows[0].tickets || 0);
+    if (tickets < amount) { await client.query('ROLLBACK'); return { ok:false, message:'Недостаточно билетов' }; }
+    tickets -= amount;
+    await client.query('UPDATE users SET tickets=$1 WHERE tgid=$2', [tickets, tgid]);
+    await client.query('COMMIT');
+    return { ok:true, tickets };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function creditTickets(tgid, amount) {
+  const client = await pool.connect();
+  try { await client.query('UPDATE users SET tickets = tickets + $1 WHERE tgid = $2', [amount, tgid]); return { ok:true }; } finally { client.release(); }
+}
 function isYesterday(date){ if (!date) return false; const d = new Date(); d.setDate(d.getDate()-1); return date && date.toISOString().slice(0,10) === d.toISOString().slice(0,10); }
 
 async function getDailyStreak(tgid){
@@ -594,6 +630,10 @@ module.exports = {
   autoTick,
   tryReserveScube,
   creditScube,
+  tryReserveVP,
+  creditVP,
+  tryReserveTickets,
+  creditTickets,
   getDailyStreak,
   claimDailyReward,
   getLeaderboard

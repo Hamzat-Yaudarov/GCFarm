@@ -32,7 +32,7 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ DEFAULT now()`);
     // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
-    // Add VP and Tickets currencies
+    // New currencies: VP and Tickets
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vp BIGINT DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tickets BIGINT DEFAULT 0`);
     // For rating system
@@ -42,20 +42,24 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS complaints INTEGER DEFAULT 0`);
 
     // Helpful indexes
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_vp ON users (vp);`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_tickets ON users (tickets);`);
+
+    // Custom tasks table for admin-created tasks
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS custom_tasks (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        reward_type TEXT NOT NULL,
+        reward_amount BIGINT NOT NULL DEFAULT 0,
+        task_type TEXT NOT NULL,
+        params JSONB DEFAULT '{}'::jsonb,
+        created_by BIGINT,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+    `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clicks_total ON users (clicks_total)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_tasks_completed ON users (tasks_completed)`);
-
-    // Tasks table for custom admin-created tasks
-    await client.query(`CREATE TABLE IF NOT EXISTS tasks (
-      id BIGSERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      task_type TEXT NOT NULL,
-      params JSONB DEFAULT '{}',
-      reward_type TEXT NOT NULL,
-      reward_amount BIGINT NOT NULL DEFAULT 0,
-      active BOOLEAN DEFAULT true,
-      created_at TIMESTAMPTZ DEFAULT now()
-    );`);
 
     // referral stats per pair (referrer, referred)
     await client.query(`CREATE TABLE IF NOT EXISTS referral_stats (

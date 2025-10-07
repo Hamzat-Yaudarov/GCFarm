@@ -26,11 +26,13 @@ const leaderboard = initLeaderboard(getTgid);
 initDailyClaim(getTgid);
 initSubgramControls(getTgid);
 
+// Init admin UI (will show only for whitelisted admin IDs)
+initAdmin(getTgid);
+
 const home = initHome(getTgid, ()=>loadUser(getTgid), (mode)=> leaderboard.load(mode, true));
 initUpgrades(getTgid, ()=> loadUser(getTgid));
 initWithdrawals(getTgid, ()=> loadUser(getTgid));
 initGames(getTgid, ()=> loadUser(getTgid));
-initAdmin();
 
 setupAdsgramTask(0, false, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); });
 try { await loadDailyStreak(getTgid); } catch(e){}
