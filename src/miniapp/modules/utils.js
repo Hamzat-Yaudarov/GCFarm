@@ -100,6 +100,7 @@ export function rewardBurstNear(el){
 
 export const SoundManager = (function(){
   let ctx = null;
+  let sfxVolume = Math.min(1, Math.max(0, Number(localStorage.getItem('audio.sfxVolume') || 0.8)));
   function ensure() {
     try { if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { ctx = null; }
     return ctx;
@@ -107,7 +108,7 @@ export const SoundManager = (function(){
   function playTone(freq, type = 'sine', duration = 0.08, gain = 0.12) {
     const c = ensure(); if (!c) return;
     const o = c.createOscillator(); const g = c.createGain();
-    o.type = type; o.frequency.value = freq; g.gain.value = gain;
+    o.type = type; o.frequency.value = freq; g.gain.value = Math.max(0, Math.min(1, gain * sfxVolume));
     o.connect(g); g.connect(c.destination); o.start();
     g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + duration);
     setTimeout(()=>{ try{ o.stop(); }catch(e){} }, duration * 1000 + 20);
@@ -118,7 +119,10 @@ export const SoundManager = (function(){
     output() { playTone(720, 'sine', 0.10, 0.12); },
     gold() { playTone(1400, 'sine', 0.09, 0.14); playTone(1000, 'sine', 0.06, 0.1); },
     reward() { playTone(1600, 'sine', 0.12, 0.16); playTone(1200, 'sine', 0.08, 0.12); },
-    error() { playTone(240, 'sawtooth', 0.12, 0.14); }
+    error() { playTone(240, 'sawtooth', 0.12, 0.14); },
+    setSfxVolume(v){ sfxVolume = Math.min(1, Math.max(0, Number(v)||0)); try{ localStorage.setItem('audio.sfxVolume', String(sfxVolume)); }catch(e){} },
+    getSfxVolume(){ return sfxVolume; },
+    resume(){ try{ const c = ensure(); if (c && c.state === 'suspended') c.resume(); } catch(e){} }
   };
 })();
 

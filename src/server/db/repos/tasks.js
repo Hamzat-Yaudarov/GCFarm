@@ -2,7 +2,41 @@ const { pool } = require('../pool');
 
 function mapTask(row){ if (!row) return null; return { id: Number(row.id), name: row.name, type: row.type, reward_type: row.reward_type, reward_amount: Number(row.reward_amount||0), link: row.link || null, required_count: row.required_count!==null && row.required_count!==undefined ? Number(row.required_count) : null, active: Boolean(row.active), created_by: row.created_by ? Number(row.created_by) : null, created_at: row.created_at ? new Date(row.created_at) : null }; }
 
-async function createTask(payload){ const client = await pool.connect(); try { const { name, type, reward_type, reward_amount, link=null, required_count=null, created_by=null } = payload || {}; const res = await client.query(`INSERT INTO custom_tasks (name, type, reward_type, reward_amount, link, required_count, created_by, active) VALUES ($1,$2,$3,$4,$5,$6,$7,true) RETURNING *`, [name, type, reward_type, Math.max(0, parseInt(reward_amount||0,10)||0), link, (required_count!==null && required_count!==undefined) ? Number(required_count) : null, created_by]); return mapTask(res.rows[0]); } finally { client.release(); } }
+async function ensureCustomTasksSchema(client){
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS custom_tasks (
+      id BIGSERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      reward_type TEXT NOT NULL,
+      reward_amount BIGINT NOT NULL,
+      link TEXT,
+      required_count BIGINT,
+      created_by BIGINT,
+      active BOOLEAN DEFAULT true,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+  await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS type TEXT`);
+  await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS reward_type TEXT`);
+  await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS reward_amount BIGINT DEFAULT 0`);
+  await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS link TEXT`);
+  await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS required_count BIGINT`);
+  await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS created_by BIGINT`);
+  await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true`);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_custom_tasks_active ON custom_tasks (active)`);
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS task_completions (
+      task_id BIGINT NOT NULL REFERENCES custom_tasks(id) ON DELETE CASCADE,
+      tgid BIGINT NOT NULL,
+      completed_at TIMESTAMPTZ DEFAULT now(),
+      credited_at TIMESTAMPTZ,
+      PRIMARY KEY (task_id, tgid)
+    );
+  `);
+}
+
+async function createTask(payload){ const client = await pool.connect(); try { await ensureCustomTasksSchema(client); const { name, type, reward_type, reward_amount, link=null, required_count=null, created_by=null } = payload || {}; const res = await client.query(`INSERT INTO custom_tasks (name, type, reward_type, reward_amount, link, required_count, created_by, active) VALUES ($1,$2,$3,$4,$5,$6,$7,true) RETURNING *`, [name, type, reward_type, Math.max(0, parseInt(reward_amount||0,10)||0), link, (required_count!==null && required_count!==undefined) ? Number(required_count) : null, created_by]); return mapTask(res.rows[0]); } finally { client.release(); } }
 
 async function listTasks(includeInactive=false){ const client = await pool.connect(); try { const res = await client.query(`SELECT * FROM custom_tasks ${includeInactive?'':'WHERE active = true'} ORDER BY id DESC`); return res.rows.map(mapTask); } finally { client.release(); } }
 
