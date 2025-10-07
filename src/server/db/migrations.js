@@ -32,9 +32,6 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ DEFAULT now()`);
     // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
-    // New currencies: VP and Tickets
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vp BIGINT DEFAULT 0`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tickets BIGINT DEFAULT 0`);
     // For rating system
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS clicks_total BIGINT DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tasks_completed BIGINT DEFAULT 0`);
@@ -42,22 +39,6 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS complaints INTEGER DEFAULT 0`);
 
     // Helpful indexes
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_vp ON users (vp);`);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_tickets ON users (tickets);`);
-
-    // Custom tasks table for admin-created tasks
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS custom_tasks (
-        id BIGSERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        reward_type TEXT NOT NULL,
-        reward_amount BIGINT NOT NULL DEFAULT 0,
-        task_type TEXT NOT NULL,
-        params JSONB DEFAULT '{}'::jsonb,
-        created_by BIGINT,
-        created_at TIMESTAMPTZ DEFAULT now()
-      );
-    `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clicks_total ON users (clicks_total)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_tasks_completed ON users (tasks_completed)`);
 
@@ -116,18 +97,6 @@ async function init() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals (status);`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC);`);
     await client.query(`CREATE SEQUENCE IF NOT EXISTS withdrawal_success_seq START 1;`);
-
-    // Track upgrades purchases for analytics
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS upgrade_events (
-        id BIGSERIAL PRIMARY KEY,
-        tgid BIGINT NOT NULL,
-        upgrade_type TEXT NOT NULL,
-        cost BIGINT NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT now()
-      );
-    `);
-    await client.query(`CREATE INDEX IF NOT EXISTS idx_upgrade_events_created_at ON upgrade_events (created_at DESC);`);
   } finally {
     client.release();
   }

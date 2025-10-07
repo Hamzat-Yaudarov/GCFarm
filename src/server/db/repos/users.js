@@ -18,8 +18,6 @@ function mapUser(row) {
     name: row.name,
     scube: Number(row.scube),
     gcube: Number(row.gcube),
-    vp: Number(row.vp || 0),
-    tickets: Number(row.tickets || 0),
     stars: Number(row.stars || 0),
     energy: Number(row.energy),
     energy_capacity: Number(row.energy_capacity),
@@ -41,8 +39,8 @@ async function setReferrer(tgid, referrer) {
     await client.query('BEGIN');
     if (Number(tgid) === Number(referrer)) { await client.query('ROLLBACK'); return { ok:false, message: 'Нельзя быть своим рефералом' }; }
     // ensure users exist
-    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy, vp, tickets) VALUES ($1,$2,50,50,0,0,current_date,current_date,false,0,0) ON CONFLICT (tgid) DO NOTHING', [tgid, `Player ${tgid}`]);
-    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy, vp, tickets) VALUES ($1,$2,50,50,0,0,current_date,current_date,false,0,0) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
+    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [tgid, `Player ${tgid}`]);
+    await client.query('INSERT INTO users (tgid, name, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
 
     // set only if not set and only for fresh accounts (first visit)
     const res = await client.query('SELECT referrer_tgid, first_seen_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
@@ -77,8 +75,8 @@ async function ensureUser(tgid, name) {
   try {
     // Try to insert a fresh user and detect if it is a brand new account
     const insertRes = await client.query(
-      `INSERT INTO users (tgid, name, scube, gcube, vp, tickets, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy)
-       VALUES ($1,$2,0,0,0,0,0,50,50,0,0,current_date,current_date,false)
+      `INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy)
+       VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)
        ON CONFLICT (tgid) DO NOTHING
        RETURNING tgid`,
       [tgid, name]
@@ -128,7 +126,7 @@ async function getOrCreateUser(tgid) {
       return await buildUser(user);
     }
 
-    await client.query('INSERT INTO users (tgid, name, scube, gcube, vp, tickets, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,0,0,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
+    await client.query('INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false)', [tgid, `Player ${tgid}`]);
     return await getOrCreateUser(tgid);
   } finally {
     client.release();
@@ -264,7 +262,7 @@ async function exchange(tgid, arg1, arg2, arg3) {
 }
 
 // Buy upgrades
-// type: 'daily_limit' or 'auto_energy'
+// type: 'energy_capacity' or 'daily_limit' or 'auto_energy'
 async function buyUpgrade(tgid, type) {
   const client = await pool.connect();
   try {
@@ -274,13 +272,20 @@ async function buyUpgrade(tgid, type) {
     let { scube, energy_capacity, daily_limit_level, auto_energy } = res.rows[0];
     scube = Number(scube); energy_capacity = Number(energy_capacity); daily_limit_level = Number(daily_limit_level); auto_energy = Boolean(auto_energy);
 
-    if (type === 'daily_limit') {
+    if (type === 'energy_capacity') {
+      const cost = 100;
+      if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
+      scube -= cost;
+      energy_capacity += 25;
+      await client.query('UPDATE users SET scube=$1, energy_capacity=$2 WHERE tgid=$3', [scube, energy_capacity, tgid]);
+      await client.query('COMMIT');
+      return { ok:true, scube, energy_capacity };
+    } else if (type === 'daily_limit') {
       const cost = 90 + daily_limit_level * 10;
       if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
       scube -= cost;
       daily_limit_level += 1;
       await client.query('UPDATE users SET scube=$1, daily_limit_level=$2 WHERE tgid=$3', [scube, daily_limit_level, tgid]);
-      await client.query('INSERT INTO upgrade_events (tgid, upgrade_type, cost) VALUES ($1,$2,$3)', [tgid, 'daily_limit', cost]);
       await client.query('COMMIT');
       const new_daily_limit = DAILY_BASE + daily_limit_level * DAILY_INCREMENT;
       return { ok:true, scube, daily_limit_level, new_daily_limit };
@@ -291,7 +296,6 @@ async function buyUpgrade(tgid, type) {
       scube -= cost;
       auto_energy = true;
       await client.query('UPDATE users SET scube=$1, auto_energy=$2 WHERE tgid=$3', [scube, auto_energy, tgid]);
-      await client.query('INSERT INTO upgrade_events (tgid, upgrade_type, cost) VALUES ($1,$2,$3)', [tgid, 'auto_energy', cost]);
       await client.query('COMMIT');
       return { ok:true, scube, auto_energy };
     } else {
@@ -472,46 +476,6 @@ async function creditScube(tgid, amount) {
 
 // Daily streak helpers
 function isSameDate(a, b){ return a && b && a.toISOString().slice(0,10) === b.toISOString().slice(0,10); }
-
-async function tryReserveVP(tgid, amount) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const res = await client.query('SELECT vp FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
-    if (!res.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
-    let vp = Number(res.rows[0].vp || 0);
-    if (vp < amount) { await client.query('ROLLBACK'); return { ok:false, message:'Недостаточно VP' }; }
-    vp -= amount;
-    await client.query('UPDATE users SET vp=$1 WHERE tgid=$2', [vp, tgid]);
-    await client.query('COMMIT');
-    return { ok:true, vp };
-  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
-}
-
-async function creditVP(tgid, amount) {
-  const client = await pool.connect();
-  try { await client.query('UPDATE users SET vp = vp + $1 WHERE tgid = $2', [amount, tgid]); return { ok:true }; } finally { client.release(); }
-}
-
-async function tryReserveTickets(tgid, amount) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const res = await client.query('SELECT tickets FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
-    if (!res.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
-    let tickets = Number(res.rows[0].tickets || 0);
-    if (tickets < amount) { await client.query('ROLLBACK'); return { ok:false, message:'Недостаточно билетов' }; }
-    tickets -= amount;
-    await client.query('UPDATE users SET tickets=$1 WHERE tgid=$2', [tickets, tgid]);
-    await client.query('COMMIT');
-    return { ok:true, tickets };
-  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
-}
-
-async function creditTickets(tgid, amount) {
-  const client = await pool.connect();
-  try { await client.query('UPDATE users SET tickets = tickets + $1 WHERE tgid = $2', [amount, tgid]); return { ok:true }; } finally { client.release(); }
-}
 function isYesterday(date){ if (!date) return false; const d = new Date(); d.setDate(d.getDate()-1); return date && date.toISOString().slice(0,10) === d.toISOString().slice(0,10); }
 
 async function getDailyStreak(tgid){
@@ -624,10 +588,6 @@ module.exports = {
   autoTick,
   tryReserveScube,
   creditScube,
-  tryReserveVP,
-  creditVP,
-  tryReserveTickets,
-  creditTickets,
   getDailyStreak,
   claimDailyReward,
   getLeaderboard

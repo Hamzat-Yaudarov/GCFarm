@@ -41,7 +41,6 @@ const { attachGameRoutes } = require('./routes/games');
 const { attachWithdrawalRoutes } = require('./routes/withdrawals');
 const { attachSubgramRoutes } = require('./routes/subgram');
 const { attachAdsgramRoutes } = require('./routes/adsgram');
-const { attachAdminRoutes } = require('./routes/admin');
 
 attachMiniappRoutes(app, { BASE_URL, BOT_USERNAME, BOT_WEBAPP_PATH });
 attachAuthRoutes(app, { auth });
@@ -50,7 +49,6 @@ attachGameRoutes(app, { db, auth });
 attachWithdrawalRoutes(app, { db, auth, telegraf: { fetchTelegramProfile, notifyAdminWithdrawal } });
 attachSubgramRoutes(app, { subgram, auth });
 attachAdsgramRoutes(app, { db, ADSGRAM_SECRET, ADSGRAM_INTERSTITIAL_ID });
-attachAdminRoutes(app, { db, auth });
 
 // Start
 (async () => {

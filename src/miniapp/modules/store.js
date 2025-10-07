@@ -24,7 +24,7 @@ export function initUpgrades(getTgid, onAfterPurchase){
     btn.addEventListener('click', async ()=>{
       try { SoundManager.click(); } catch(e){}
       const type = btn.dataset.type; const tgid = getTgid(); if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'daily_limit' ? 'Увеличение дневного лимита (+50) за рассчитанную стоимость' : (type === 'auto_energy' ? 'Автоэнергия — пополнение энергии автоматически' : 'Покупка')));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();

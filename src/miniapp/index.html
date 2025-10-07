@@ -33,9 +33,6 @@
       <div class="player-avatar" id="avatar">A</div>
       <div class="balances">
         <div class="balance-s">💎 SCube: <span id="scube">0</span></div>
-        <div class="balance-vp">⭐ VP: <span id="vp">0</span></div>
-        <div class="balance-tickets">🎟️ Билеты: <span id="tickets">0</span></div>
-        <button id="admin-panel-btn" class="admin-entry-btn hidden" title="Admin panel">⚙️</button>
       </div>
       <div class="header-glow" aria-hidden="true"></div>
     </header>
@@ -45,7 +42,7 @@
       <section class="tab-content" id="home">
         <div class="cube-area">
           <div class="cube-aurora" aria-hidden="true"></div>
-          <button id="golden-cube" class="golden-cube" title="Нажми чтобы получит�� 1 SCube" aria-label="Золотой куб">🔶</button>
+          <button id="golden-cube" class="golden-cube" title="Нажми чтобы получить 1 SCube" aria-label="Золотой куб">🔶</button>
           <div class="cube-sparkles" aria-hidden="true"></div>
           <div class="resource-cards">
             <div class="resource-card energy-card">
@@ -154,7 +151,7 @@
               <div class="withdraw-method-icon" aria-hidden="true">💸</div>
               <div class="withdraw-method-content">
                 <h4 class="withdraw-method-title">Перевод ₽</h4>
-                <p class="withdraw-method-description">Перевод на н��мер телефона. Комиссия — 50 SCube за каждые 100 ₽.</p>
+                <p class="withdraw-method-description">Перевод на номер телефона. Комиссия — 50 SCube за каждые 100 ₽.</p>
               </div>
               <button class="withdraw-method-button" data-method="rub" type="button">Вывести как ₽</button>
             </article>
@@ -176,7 +173,7 @@
             </div>
             <div class="daily-streak-progress" id="daily-streak-progress"></div>
             <div class="daily-streak-actions">
-              <button id="daily-claim-btn" class="daily-claim-btn">���� Забрать награду</button>
+              <button id="daily-claim-btn" class="daily-claim-btn">🎁 Забрать награду</button>
               <span id="daily-note" class="daily-note"></span>
             </div>
           </div>
@@ -236,7 +233,7 @@
               <span class="card-title">Камень, ножницы, бумага</span>
             </button>
             <button class="game-card" data-game="ttt">
-              <span class="card-icon">⭕��</span>
+              <span class="card-icon">⭕❌</span>
               <span class="card-title">Крестики-нолики</span>
             </button>
           </div>
@@ -256,54 +253,6 @@
         </div>
       </section>
 
-      <section class="tab-content hidden" id="admin">
-        <div class="admin-container">
-          <div class="admin-header">
-            <div>
-              <h3>🔐 Панель администратора</h3>
-              <p class="section-hint">Только для администраторов.</p>
-            </div>
-            <div>
-              <button id="admin-back-btn" class="small-btn">↩️ Вернуться</button>
-            </div>
-          </div>
-          <div class="admin-tabs">
-            <button id="admin-tab-stats" class="admin-tab-btn active">Статистика</button>
-            <button id="admin-tab-custom" class="admin-tab-btn">Кастомные задания</button>
-          </div>
-          <div id="admin-stats" class="admin-section">
-            <h4>Общая статистика</h4>
-            <div id="admin-stats-content">Загрузка…</div>
-          </div>
-          <div id="admin-custom" class="admin-section hidden">
-            <h4>Создать кастомное задание</h4>
-            <form id="admin-create-task-form">
-              <label>Название<br><input id="admin-task-name" required /></label>
-              <label>Тип награды<br>
-                <select id="admin-reward-type">
-                  <option value="scube">SCube</option>
-                  <option value="vp">VP</option>
-                  <option value="tickets">Билеты</option>
-                </select>
-              </label>
-              <label>Количество награды<br><input id="admin-reward-amount" type="number" min="0" value="0" required /></label>
-              <label>Тип задания<br>
-                <select id="admin-task-type">
-                  <option value="subscribe">Подписаться на канал/чат</option>
-                  <option value="referrals">Пригласить рефералов</option>
-                  <option value="earn_scube">Заработать SCube</option>
-                </select>
-              </label>
-              <div id="admin-params-area">
-                <label id="admin-task-link-label" class="admin-param-label">Ссылка или юзернейм<br><input id="admin-task-link" type="text" placeholder="Например: @channel или https://t.me/channel" /></label>
-                <label id="admin-task-number-label" class="admin-param-label hidden">Число (n)<br><input id="admin-task-number" type="number" placeholder="Например: 3" /></label>
-              </div>
-              <div><button type="submit" id="admin-create-task">Создать задание</button></div>
-            </form>
-            <div id="admin-create-feedback"></div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <nav class="tabs-bottom">
@@ -312,7 +261,6 @@
       <button class="tab-button" data-tab="tasks">🧾 Задания</button>
       <button class="tab-button" data-tab="leaderboard">🏆 Рейтинг</button>
       <button class="tab-button" data-tab="referrals">🤝 Рефералы</button>
-      <button class="tab-button admin-tab-button hidden" data-tab="admin">🔐 Admin</button>
     </nav>
 
     <button id="store-fab" class="store-fab"><span class="store-icon">🛒</span><span class="store-label">Магазин</span></button>
@@ -333,7 +281,7 @@
     <div id="subgram-blocker" class="subgram-blocker hidden" aria-modal="true" role="dialog">
       <div class="subgram-blocker-dialog">
         <h3 class="subgram-blocker-title">Подпишитесь на спонсоров, чтобы продолжить игру</h3>
-        <p class="subgram-blocker-text">Пожалуйста подпишитесь на все каналы/боты из списка ниже. Если вы отпишетесь в течение недели — вам будет начислена жалоба. Множественные жалобы могут привести к тому, что заявки на вывод будут отклоняться без возврата средств. Окно нельзя закрыть до подтверждения подписки ��а всех спонсоров.</p>
+        <p class="subgram-blocker-text">Пожалуйста подпишитесь на все каналы/боты из списка ниже. Если вы отпишетесь в течение недели — вам будет начислена жалоба. Множественные жалобы могут привести к тому, что заявки на вывод будут отклоняться без возврата средств. Окно нельзя закрыть до подтверждения подписки на всех спонсоров.</p>
         <ul id="subgram-blocker-links" class="subgram-links-list"></ul>
         <div class="subgram-blocker-actions">
           <button id="subgram-blocker-open" class="subgram-open-btn">Открыть SubGram</button>
@@ -357,7 +305,7 @@
       <div class="onboarding-content">
         <div class="onboarding-slides" id="onb-slides">
           <section class="onb-slide onb-slide-active">
-            <h2 id="onb-title" class="onb-title"><strong>ДОБРО ПОЖАЛОВАТЬ �� BGGCube!</strong></h2>
+            <h2 id="onb-title" class="onb-title"><strong>ДОБРО ПОЖАЛОВАТЬ В BGGCube!</strong></h2>
             <p class="onb-text">Здесь ты добываешь SCube и обмениваешь их на GCube.</p>
             <p class="onb-text">Начисление GCube идёт по твоему игровому ID — без паролей.</p>
           </section>

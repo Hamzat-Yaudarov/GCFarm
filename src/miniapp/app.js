@@ -7,7 +7,6 @@ import { initHome } from './modules/home.js';
 import { initUpgrades, initWithdrawals } from './modules/store.js';
 import { initGames } from './modules/games.js';
 import { loadUser } from './modules/user.js';
-import { initAdmin } from './modules/admin.js';
 
 showInitialLoading();
 await initAuth();
@@ -25,9 +24,6 @@ const leaderboard = initLeaderboard(getTgid);
 
 initDailyClaim(getTgid);
 initSubgramControls(getTgid);
-
-// Init admin UI (will show only for whitelisted admin IDs)
-initAdmin(getTgid);
 
 const home = initHome(getTgid, ()=>loadUser(getTgid), (mode)=> leaderboard.load(mode, true));
 initUpgrades(getTgid, ()=> loadUser(getTgid));
