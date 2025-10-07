@@ -20,8 +20,8 @@ export function initAdmin(getTgid){
     if (!statsContent) return;
     statsContent.innerHTML = '<div class="admin-cards">Loading…</div>';
     try {
-      const res = await fetch(`${apiBase}/admin/stats`);
-      if (!res.ok) { statsContent.textContent = 'Не удалось загрузить статистику'; return; }
+      const res = await fetch(`${apiBase}/admin/stats`, { credentials: 'same-origin' });
+      if (!res.ok) { let body=null; try { body = await res.json(); } catch(e){} statsContent.textContent = (body && body.message) ? body.message : 'Не удалось загрузить статистику'; return; }
       const js = await res.json(); if (!js || !js.ok) { statsContent.textContent = 'Ошибка данных'; return; }
 
       const html = `
@@ -131,7 +131,7 @@ export function initAdmin(getTgid){
       } catch(e){ feedback.textContent = 'Ошибка обработки параметров'; return; }
 
       try {
-        const res = await fetch(`${apiBase}/admin/custom-tasks`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, reward_type, reward_amount, task_type, params }) });
+        const res = await fetch(`${apiBase}/admin/custom-tasks`, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, reward_type, reward_amount, task_type, params }) });
         if (!res.ok) { const body = await res.json().catch(()=>null); feedback.textContent = (body && body.message) ? body.message : `Ошибка: ${res.status}`; return; }
         const js = await res.json(); if (js && js.ok) { feedback.textContent = 'Задание создано (id: ' + js.id + ')'; renderStats(); form.reset(); updateParamsVisibility(); } else { feedback.textContent = 'Не удалось создать задание'; }
       } catch (err){ feedback.textContent = 'Ошибка сети'; }

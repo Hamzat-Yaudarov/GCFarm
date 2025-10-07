@@ -7,13 +7,14 @@ function attachAdminRoutes(app, { db, auth }){
 
   function requireAdmin(req, res){
     const tgid = getAuthTgid(req);
-    if (!tgid || !ADMIN_IDS.has(Number(tgid))) return null;
-    return Number(tgid);
+    if (!tgid) return { ok:false, code:401, message: 'Not authenticated' };
+    if (!ADMIN_IDS.has(Number(tgid))) return { ok:false, code:403, message: 'Forbidden' };
+    return { ok:true, tgid: Number(tgid) };
   }
 
   app.get('/api/admin/stats', async (req, res) => {
-    const admin = requireAdmin(req);
-    if (!admin) return res.status(403).json({ ok:false, message: 'Forbidden' });
+    const authRes = requireAdmin(req);
+    if (!authRes.ok) return res.status(authRes.code).json({ ok:false, message: authRes.message });
     try {
       const client = await pool.connect();
       try {
@@ -49,24 +50,25 @@ function attachAdminRoutes(app, { db, auth }){
           custom_tasks: Number((tasksRes.rows[0] || {}).custom_tasks || 0)
         });
       } finally { client.release(); }
-    } catch (err) { console.error('admin stats error', err); res.status(500).json({ ok:false, message: 'Internal error' }); }
+    } catch (err) { console.error('admin stats error', err); res.status(500).json({ ok:false, message: err && err.message ? err.message : 'Internal error' }); }
   });
 
   app.get('/api/admin/custom-tasks', async (req, res) => {
-    const admin = requireAdmin(req);
-    if (!admin) return res.status(403).json({ ok:false, message: 'Forbidden' });
+    const authRes = requireAdmin(req);
+    if (!authRes.ok) return res.status(authRes.code).json({ ok:false, message: authRes.message });
     try {
       const client = await pool.connect();
       try {
         const js = await client.query('SELECT id, name, reward_type, reward_amount, task_type, params, created_by, created_at FROM custom_tasks ORDER BY created_at DESC LIMIT 200');
         res.json({ ok:true, tasks: js.rows });
       } finally { client.release(); }
-    } catch (err) { console.error('admin list tasks error', err); res.status(500).json({ ok:false, message: 'Internal error' }); }
+    } catch (err) { console.error('admin list tasks error', err); res.status(500).json({ ok:false, message: err && err.message ? err.message : 'Internal error' }); }
   });
 
   app.post('/api/admin/custom-tasks', express.json(), async (req, res) => {
-    const admin = requireAdmin(req);
-    if (!admin) return res.status(403).json({ ok:false, message: 'Forbidden' });
+    const authRes = requireAdmin(req);
+    if (!authRes.ok) return res.status(authRes.code).json({ ok:false, message: authRes.message });
+    const adminTgid = authRes.tgid;
     let { name, reward_type, reward_amount, task_type, params } = req.body || {};
     if (!name || !reward_type || !task_type) return res.status(400).json({ ok:false, message: 'Invalid params' });
     const amount = Number(reward_amount) || 0;
@@ -111,10 +113,10 @@ function attachAdminRoutes(app, { db, auth }){
 
       const client = await pool.connect();
       try {
-        const ins = await client.query('INSERT INTO custom_tasks (name, reward_type, reward_amount, task_type, params, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [name, String(reward_type), amount, String(task_type), params ? params : {}, admin]);
+        const ins = await client.query('INSERT INTO custom_tasks (name, reward_type, reward_amount, task_type, params, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [name, String(reward_type), amount, String(task_type), params ? params : {}, adminTgid]);
         res.json({ ok:true, id: ins.rows[0].id });
       } finally { client.release(); }
-    } catch (err) { console.error('admin create task error', err); res.status(500).json({ ok:false, message: 'Internal error' }); }
+    } catch (err) { console.error('admin create task error', err); res.status(500).json({ ok:false, message: err && err.message ? err.message : 'Internal error' }); }
   });
 
 }
