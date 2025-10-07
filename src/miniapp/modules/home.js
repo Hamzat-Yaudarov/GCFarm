@@ -1,6 +1,5 @@
 import { apiBase } from './state.js';
 import { addAdCooldown, animateScube, animateGolden, sparkleAtElement, SoundManager } from './utils.js';
-import { runWithAdSilence } from './audio.js';
 
 export function initHome(getTgid, onUserChange, onLeaderboardChange){
   const scubeEl = document.getElementById('scube');
@@ -120,12 +119,12 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
       let result = null;
       try {
         if (interstitialInstance && typeof interstitialInstance.show === 'function') {
-          result = await runWithAdSilence(()=> interstitialInstance.show());
+          result = await interstitialInstance.show();
         } else if (AdController && typeof AdController.show === 'function') {
-          result = await runWithAdSilence(()=> AdController.show());
+          result = await AdController.show();
         } else if (AdController && typeof AdController.load === 'function') {
           const inst = await AdController.load();
-          if (inst && typeof inst.show === 'function') result = await runWithAdSilence(()=> inst.show());
+          if (inst && typeof inst.show === 'function') result = await inst.show();
         }
       } catch (err) {
         result = null;
@@ -184,7 +183,7 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
                 if (window.Adsgram && cfg.energyAdBlockId) {
                   try {
                     const controller = window.Adsgram.init({ blockId: cfg.energyAdBlockId });
-                    const result = await runWithAdSilence(()=> controller.show());
+                    const result = await controller.show();
                     if (result && result.done && !result.error) {
                       const refillRes = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });
                       if (refillRes.ok) {
@@ -264,7 +263,7 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
             const beforeRes = await fetch(`${apiBase}/user/${tgid}`);
             const before = beforeRes.ok ? await beforeRes.json() : null;
             const beforeScube = before ? Number(before.scube) : null;
-            const result = await runWithAdSilence(()=> controller.show());
+            const result = await controller.show();
             if (result && result.done && !result.error) {
               try { SoundManager.reward(); } catch(e){}
               const EXPECTED_REWARD = 20;
@@ -344,7 +343,7 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
         if (window.Adsgram && cfg.energyAdBlockId) {
           try {
             const controller = window.Adsgram.init({ blockId: cfg.energyAdBlockId });
-            const result = await runWithAdSilence(()=> controller.show());
+            const result = await controller.show();
             if (result && result.done && !result.error) {
               try { SoundManager.reward(); } catch(e){}
               const resRefill = await fetch(`${apiBase}/user/${tgid}/refill`, { method: 'POST' });

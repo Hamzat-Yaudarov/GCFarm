@@ -9,7 +9,6 @@ import { initGames } from './modules/games.js';
 import { loadUser } from './modules/user.js';
 import { initAdmin } from './modules/admin.js';
 import { loadCustomTasks } from './modules/customTasks.js';
-import { initAudio } from './modules/audio.js';
 
 showInitialLoading();
 await initAuth();
@@ -23,7 +22,6 @@ const tabsApi = initTabs(async (tab)=>{
 window.__appTabs = tabsApi;
 
 initRippleEffects();
-initAudio();
 
 const leaderboard = initLeaderboard(getTgid);
 
