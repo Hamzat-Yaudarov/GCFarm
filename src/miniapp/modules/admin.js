@@ -61,8 +61,11 @@ export function initAdmin(getTgid){
     });
   }
 
-  function showAdmin(){ if (!section) return; const tabs = window.__appTabs; if (tabs && typeof tabs.showTab === 'function') { tabs.showTab('admin'); }
+  function showAdmin(){ if (!section) return; const tabs = window.__appTabs; if (tabs && typeof tabs.showTab === 'function') { tabs.showTab('admin'); } else {
+      const all = document.querySelectorAll('.tab-content'); all.forEach(c=>{ if (c.id==='admin') c.classList.remove('hidden'); else c.classList.add('hidden'); });
+    }
     const bottomNav = document.querySelector('.tabs-bottom'); if (bottomNav) bottomNav.style.display='none';
+    try { loadStats(); } catch(e){}
   }
 
   if (adminBtn) adminBtn.addEventListener('click', showAdmin);
