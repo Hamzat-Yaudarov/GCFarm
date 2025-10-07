@@ -74,6 +74,20 @@ export function initAdmin(getTgid){
   const adminBackBtn = document.getElementById('admin-back-btn');
   if (adminBackBtn) adminBackBtn.addEventListener('click', ()=>{ try { if (window.__appTabs) window.__appTabs.showTab('home'); } catch(e){ console.warn(e); } });
 
+  const taskTypeEl = document.getElementById('admin-task-type');
+  const paramsInput = document.getElementById('admin-task-params');
+  const paramsLabel = document.getElementById('admin-task-params-label');
+  function updateParamsPlaceholder(){
+    const t = (taskTypeEl && taskTypeEl.value) || '';
+    if (!paramsInput) return;
+    if (t === 'subscribe') { paramsLabel.textContent = 'Ссылка или юзернейм'; paramsInput.placeholder = 'Например: @channel или https://t.me/channel'; paramsInput.type = 'text'; }
+    else if (t === 'referrals') { paramsLabel.textContent = 'Количество рефералов (n)'; paramsInput.placeholder = 'Например: 3'; paramsInput.type = 'number'; }
+    else if (t === 'earn_scube') { paramsLabel.textContent = 'Количество SCube для выполнения (n)'; paramsInput.placeholder = 'Например: 20'; paramsInput.type = 'number'; }
+    else { paramsLabel.textContent = 'Параметры'; paramsInput.placeholder = ''; paramsInput.type = 'text'; }
+  }
+  if (taskTypeEl) taskTypeEl.addEventListener('change', updateParamsPlaceholder);
+  updateParamsPlaceholder();
+
   if (form) {
     form.addEventListener('submit', async (e)=>{
       e.preventDefault(); if (!isAdmin(getTgid())) { feedback.textContent = 'Доступ запрещён'; return; }
@@ -82,13 +96,33 @@ export function initAdmin(getTgid){
       const reward_type = (document.getElementById('admin-reward-type') || {}).value || 'scube';
       const reward_amount = Number((document.getElementById('admin-reward-amount') || {}).value || 0);
       const task_type = (document.getElementById('admin-task-type') || {}).value || '';
-      const paramsText = (document.getElementById('admin-task-params') || {}).value || '';
       let params = {};
-      try { if (paramsText && paramsText.trim()) params = JSON.parse(paramsText); } catch(e){ feedback.textContent = 'Неверный JSON в параметрах'; return; }
+      try {
+        const raw = (document.getElementById('admin-task-params') || {}).value || '';
+        if (task_type === 'subscribe') {
+          const v = String(raw || '').trim();
+          if (!v) { feedback.textContent = 'Укажите ссылку или юзернейм'; return; }
+          if (/^[{\[]/.test(v) || /[}\]]$/.test(v)) { feedback.textContent = 'JSON недопустим в этом поле — вставьте только ссылку или юзернейм'; return; }
+          if (v.split(' ').length > 1) { feedback.textContent = 'Укажите только одну ссылку или юзернейм без пробелов'; return; }
+          params = { link: v };
+        } else if (task_type === 'referrals') {
+          const n = parseInt(String(raw || '').trim() || '0', 10);
+          if (!Number.isFinite(n) || n <= 0) { feedback.textContent = 'Укажите корректное целое количество рефералов'; return; }
+          params = { count: n };
+        } else if (task_type === 'earn_scube') {
+          const n = parseInt(String(raw || '').trim() || '0', 10);
+          if (!Number.isFinite(n) || n <= 0) { feedback.textContent = 'Укажите корректное количество SCube'; return; }
+          params = { amount: n };
+        } else {
+          // generic freeform
+          params = {};
+        }
+      } catch(e){ feedback.textContent = 'Ошибка обработки параметров'; return; }
+
       try {
         const res = await fetch(`${apiBase}/admin/custom-tasks`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name, reward_type, reward_amount, task_type, params }) });
         if (!res.ok) { const body = await res.json().catch(()=>null); feedback.textContent = (body && body.message) ? body.message : `Ошибка: ${res.status}`; return; }
-        const js = await res.json(); if (js && js.ok) { feedback.textContent = 'Задание создано (id: ' + js.id + ')'; renderStats(); form.reset(); } else { feedback.textContent = 'Не удалось создать задание'; }
+        const js = await res.json(); if (js && js.ok) { feedback.textContent = 'Задание создано (id: ' + js.id + ')'; renderStats(); form.reset(); updateParamsPlaceholder(); } else { feedback.textContent = 'Не удалось создать задание'; }
       } catch (err){ feedback.textContent = 'Ошибка сети'; }
     });
   }

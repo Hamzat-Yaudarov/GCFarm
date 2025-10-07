@@ -24,7 +24,7 @@ export function initUpgrades(getTgid, onAfterPurchase){
     btn.addEventListener('click', async ()=>{
       try { SoundManager.click(); } catch(e){}
       const type = btn.dataset.type; const tgid = getTgid(); if (!tgid) return alert('tgid is required');
-      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'energy_capacity' ? 'Увеличение вместимости энергии (+25) за 100 SCube' : 'Увеличение дневного лимита (+50) за рассчитанную стоимость'));
+      const confirmed = await showConfirm('Подтвердите покупку: ' + (type === 'daily_limit' ? 'Увеличение дневного лимита (+50) за рассчитанную стоимость' : (type === 'auto_energy' ? 'Автоэнергия — пополнение энергии автоматически' : 'Покупка')));
       if (!confirmed) return showStoreFeedback('Покупка отменена');
       const res = await fetch(`${apiBase}/user/${tgid}/buy-upgrade`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type }) });
       const json = await res.json();
@@ -67,7 +67,7 @@ export function initWithdrawals(getTgid, onAfterSubmit){
   }
   const buildWithdrawOption = (id, payoutLabel, baseCost, commission, extraNote) => ({ id, payoutLabel, baseCost, commission, totalCost: baseCost + commission, extraNote: extraNote || null });
   const WITHDRAW_METHODS = {
-    stars: { key: 'stars', title: 'Вывод как Telegram-звёзды', hint: 'Выберите нужный набор звёзд. Комиссия — 5 SCube на каждые 100 SCube.', options: [ buildWithdrawOption('stars-15','15 Stars',900,45,'Выплата: 15 Stars'), buildWithdrawOption('stars-25','25 Stars',1500,75,'Выплата: 25 Stars'), buildWithdrawOption('stars-50','50 Stars',3000,150,'Выплата: 50 Stars'), buildWithdrawOption('stars-100','100 Stars',6000,300,'Выплата: 100 Stars') ], fields: [] },
+    stars: { key: 'stars', title: 'Вывод как Telegram-звёзд��', hint: 'Выберите нужный набор звёзд. Комиссия — 5 SCube на каждые 100 SCube.', options: [ buildWithdrawOption('stars-15','15 Stars',900,45,'Выплата: 15 Stars'), buildWithdrawOption('stars-25','25 Stars',1500,75,'Выплата: 25 Stars'), buildWithdrawOption('stars-50','50 Stars',3000,150,'Выплата: 50 Stars'), buildWithdrawOption('stars-100','100 Stars',6000,300,'Выплата: 100 Stars') ], fields: [] },
     gcubes: { key: 'gcubes', title: 'Вывод как GCubes', hint: 'Укажите ID и ник из Blockman Go. Комиссия фиксированная — 50 SCube.', options: [ buildWithdrawOption('gcubes-60','60 GCubes',3000,50,'Выплата: 60 GCubes'), buildWithdrawOption('gcubes-300','300 GCubes',15000,50,'Выплата: 300 GCubes'), buildWithdrawOption('gcubes-600','600 GCubes',30000,50,'Выплата: 600 GCubes') ], fields: [ { id:'blockmanId', label:'ID в Blockman Go', type:'text', placeholder:'Например, 123456789', required:true, minLength:3 }, { id:'blockmanNickname', label:'Ник в Blockman Go', type:'text', placeholder:'Введите ник', required:true, minLength:3 } ] },
     rub: { key:'rub', title:'Вывод в рублях', hint:'Перевод на номер телефона. Комиссия — 50 SCube на каждые 100 ₽.', options:[ buildWithdrawOption('rub-200','200 ₽',7600,100,'Перевод: 200 ₽'), buildWithdrawOption('rub-500','500 ₽',19000,250,'Перевод: 500 ₽'), buildWithdrawOption('rub-750','750 ₽',28500,375,'Перевод: 750 ₽'), buildWithdrawOption('rub-1000','1000 ₽',38000,500,'Перевод: 1000 ₽'), buildWithdrawOption('rub-1500','1500 ₽',57000,750,'Перевод: 1500 ₽'), buildWithdrawOption('rub-2000','2000 ₽',76000,1000,'Перевод: 2000 ₽') ], fields:[ { id:'payoutPhone', label:'Номер для перевода', type:'tel', placeholder:'+7XXXXXXXXXX', required:true, minLength:7 } ] }
   };

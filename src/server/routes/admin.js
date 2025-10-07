@@ -67,10 +67,48 @@ function attachAdminRoutes(app, { db, auth }){
   app.post('/api/admin/custom-tasks', express.json(), async (req, res) => {
     const admin = requireAdmin(req);
     if (!admin) return res.status(403).json({ ok:false, message: 'Forbidden' });
-    const { name, reward_type, reward_amount, task_type, params } = req.body || {};
+    let { name, reward_type, reward_amount, task_type, params } = req.body || {};
     if (!name || !reward_type || !task_type) return res.status(400).json({ ok:false, message: 'Invalid params' });
     const amount = Number(reward_amount) || 0;
     try {
+      // normalize and validate params for subscribe/referrals/earn_scube
+      if (task_type === 'subscribe') {
+        if (typeof params === 'string') {
+          params = { link: params.trim() };
+        } else if (typeof params === 'object' && params !== null) {
+          const hasLink = params.link && String(params.link).trim();
+          const hasUsername = params.username && String(params.username).trim();
+          if (!(hasLink || hasUsername)) return res.status(400).json({ ok:false, message: 'Для подписки укажите link или username' });
+          // ensure only one provided
+          if (hasLink && hasUsername) return res.status(400).json({ ok:false, message: 'Укажите либо link, либо username, не оба' });
+          // keep as-is
+        } else {
+          return res.status(400).json({ ok:false, message: 'Invalid params for subscribe task' });
+        }
+      } else if (task_type === 'referrals') {
+        if (typeof params === 'object' && params !== null && Number.isFinite(Number(params.count))) {
+          params = { count: Number(params.count) };
+        } else if (typeof params === 'string' && String(params).trim()) {
+          const n = parseInt(String(params).trim(), 10);
+          if (!Number.isFinite(n) || n <= 0) return res.status(400).json({ ok:false, message: 'Invalid referrals count' });
+          params = { count: n };
+        } else {
+          return res.status(400).json({ ok:false, message: 'Invalid params for referrals task' });
+        }
+      } else if (task_type === 'earn_scube') {
+        if (typeof params === 'object' && params !== null && Number.isFinite(Number(params.amount))) {
+          params = { amount: Number(params.amount) };
+        } else if (typeof params === 'string' && String(params).trim()) {
+          const n = parseInt(String(params).trim(), 10);
+          if (!Number.isFinite(n) || n <= 0) return res.status(400).json({ ok:false, message: 'Invalid amount for earn_scube' });
+          params = { amount: n };
+        } else {
+          return res.status(400).json({ ok:false, message: 'Invalid params for earn_scube task' });
+        }
+      } else {
+        params = params && typeof params === 'object' ? params : {};
+      }
+
       const client = await pool.connect();
       try {
         const ins = await client.query('INSERT INTO custom_tasks (name, reward_type, reward_amount, task_type, params, created_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id', [name, String(reward_type), amount, String(task_type), params ? params : {}, admin]);

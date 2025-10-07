@@ -264,7 +264,7 @@ async function exchange(tgid, arg1, arg2, arg3) {
 }
 
 // Buy upgrades
-// type: 'energy_capacity' or 'daily_limit' or 'auto_energy'
+// type: 'daily_limit' or 'auto_energy'
 async function buyUpgrade(tgid, type) {
   const client = await pool.connect();
   try {
@@ -274,16 +274,7 @@ async function buyUpgrade(tgid, type) {
     let { scube, energy_capacity, daily_limit_level, auto_energy } = res.rows[0];
     scube = Number(scube); energy_capacity = Number(energy_capacity); daily_limit_level = Number(daily_limit_level); auto_energy = Boolean(auto_energy);
 
-    if (type === 'energy_capacity') {
-      const cost = 100;
-      if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
-      scube -= cost;
-      energy_capacity += 25;
-      await client.query('UPDATE users SET scube=$1, energy_capacity=$2 WHERE tgid=$3', [scube, energy_capacity, tgid]);
-      await client.query('INSERT INTO upgrade_events (tgid, upgrade_type, cost) VALUES ($1,$2,$3)', [tgid, 'energy_capacity', cost]);
-      await client.query('COMMIT');
-      return { ok:true, scube, energy_capacity };
-    } else if (type === 'daily_limit') {
+    if (type === 'daily_limit') {
       const cost = 90 + daily_limit_level * 10;
       if (scube < cost) { await client.query('ROLLBACK'); return { ok:false, message: 'Недостаточно SCube' }; }
       scube -= cost;
