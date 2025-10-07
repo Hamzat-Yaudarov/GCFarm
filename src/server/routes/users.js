@@ -69,6 +69,16 @@ function attachUserRoutes(app, { db, auth }){
   app.get('/api/leaderboard', async (req, res) => {
     try { const by = (req.query.by === 'tasks') ? 'tasks' : 'clicks'; const viewerRaw = req.query.viewer; const viewerTgid = viewerRaw ? parseInt(viewerRaw, 10) : undefined; const leaderboard = await db.getLeaderboard(by, Number.isFinite(viewerTgid) ? viewerTgid : undefined); res.json({ ok: true, by, entries: leaderboard.entries, viewer: leaderboard.viewer || null }); } catch (err) { res.status(500).json({ ok:false, message: 'Internal error' }); }
   });
+
+  // Referrals stats
+  app.get('/api/user/:tgid/referrals', async (req, res) => {
+    const tgid = parseInt(req.params.tgid, 10);
+    if (!tgid) return res.status(400).json({ ok:false, message:'Invalid tgid' });
+    try {
+      const stats = await db.getReferralStats(tgid);
+      res.json(Object.assign({ ok:true }, stats || { invited:0, earned:0 }));
+    } catch(e){ res.status(500).json({ ok:false, message:'Internal error' }); }
+  });
 }
 
 module.exports = { attachUserRoutes };

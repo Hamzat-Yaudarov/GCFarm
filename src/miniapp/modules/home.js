@@ -310,12 +310,10 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
             }
           } catch (err) {
             console.warn('Ads show error', err);
-            const url = `/reward?userId=${tgid}`;
-            window.open(url, '_blank');
+            showStoreFeedback('Реклама недоступна');
           }
         } else {
-          const url = `/reward?userId=${tgid}`;
-          window.open(url, '_blank');
+          showStoreFeedback('Реклама недоступна');
         }
       } finally {
         adBusy = false;
@@ -360,7 +358,7 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
                 showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
               }
             } else {
-              showStoreFeedback('Реклама не была просмотрена полностью');
+              showStoreFeedback('Реклама не ��ыла просмотрена полностью');
             }
           } catch (e) {
             console.warn('Energy ad show error', e);

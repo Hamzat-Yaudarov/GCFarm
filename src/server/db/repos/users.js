@@ -28,12 +28,30 @@ function mapUser(row) {
     last_reset: row.last_reset,
     last_refill: row.last_refill,
     auto_energy: Boolean(row.auto_energy),
-    complaints: Number(row.complaints || 0)
+    complaints: Number(row.complaints || 0),
+    referrer_tgid: row.referrer_tgid !== null && row.referrer_tgid !== undefined ? Number(row.referrer_tgid) : null,
+    referral_earned: Number(row.referral_earned || 0),
+    referral_count: Number(row.referral_count || 0)
   };
 }
 
 async function setReferrer(tgid, referrer) {
-  return { ok:false, message: 'Рефералы отключены' };
+  if (!tgid || !referrer) return { ok:false, message: 'Invalid params' };
+  if (Number(tgid) === Number(referrer)) return { ok:false, message: 'Cannot refer yourself' };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const meRes = await client.query('SELECT referrer_tgid FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    if (!meRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message: 'User not found' }; }
+    const existing = meRes.rows[0].referrer_tgid;
+    if (existing) { await client.query('ROLLBACK'); return { ok:false, message: 'Referrer already set' }; }
+    // ensure referrer exists
+    await client.query('INSERT INTO users (tgid, name, scube, gcube, stars, energy, energy_capacity, daily_count, daily_limit_level, last_reset, last_refill, auto_energy) VALUES ($1,$2,0,0,0,50,50,0,0,current_date,current_date,false) ON CONFLICT (tgid) DO NOTHING', [referrer, `Player ${referrer}`]);
+    await client.query('UPDATE users SET referrer_tgid = $1 WHERE tgid = $2', [referrer, tgid]);
+    await client.query('UPDATE users SET referral_count = COALESCE(referral_count,0) + 1 WHERE tgid = $1', [referrer]);
+    await client.query('COMMIT');
+    return { ok:true };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
 async function ensureUser(tgid, name) {
@@ -100,7 +118,7 @@ async function handleClick(tgid) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT scube, energy, daily_count, daily_limit_level, energy_capacity FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, energy, daily_count, daily_limit_level, energy_capacity, referrer_tgid FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) {
       await client.query('ROLLBACK');
       throw new Error('User not found');
@@ -124,6 +142,17 @@ async function handleClick(tgid) {
     const newDaily = daily_count + 1;
 
     await client.query('UPDATE users SET scube = $1, energy = $2, daily_count = $3, clicks_total = clicks_total + 1 WHERE tgid = $4', [newScube, newEnergy, newDaily, tgid]);
+
+    // referral bonus: 10% to referrer (rounded down)
+    try {
+      const referrer = res.rows[0].referrer_tgid ? Number(res.rows[0].referrer_tgid) : null;
+      if (referrer) {
+        const bonus = Math.floor(1 * 0.1);
+        if (bonus > 0) {
+          await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [bonus, referrer]);
+        }
+      }
+    } catch(e){ console.warn('Referral credit failed', e); }
 
     await client.query('COMMIT');
     return { ok: true, scube: newScube, energy: newEnergy, daily_count: newDaily, daily_limit };
@@ -297,7 +326,7 @@ async function claimReward(tgid, amount, source, options = {}) {
       const diff = now - new Date(user.last_reward_at);
       if (diff < 10000) {
         await client.query('ROLLBACK');
-        return { ok:false, message: 'Слишком частые запросы награды', scube: previousScube };
+        return { ok:false, message: 'Слишком частые запрос�� награды', scube: previousScube };
       }
     }
 
@@ -324,6 +353,17 @@ async function claimReward(tgid, amount, source, options = {}) {
       await client.query('UPDATE users SET scube=$1, last_reward_at=$2 WHERE tgid=$3', [scube, now, tgid]);
     }
 
+    // referral bonus: credit 10% of awarded SCube to referrer
+    try {
+      const me = await client.query('SELECT referrer_tgid FROM users WHERE tgid = $1', [tgid]);
+      const referrer = me.rows.length ? me.rows[0].referrer_tgid : null;
+      if (referrer) {
+        const bonus = Math.floor(credit * 0.1);
+        if (bonus > 0) {
+          await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [bonus, referrer]);
+        }
+      }
+    } catch(e){ console.warn('Referral credit failed', e); }
 
     await client.query('COMMIT');
     return { ok:true, scube, credited: credit, duplicate: false, source: source || null };
@@ -560,6 +600,17 @@ async function getEffectiveEarned(tgid){
   } finally { client.release(); }
 }
 
+async function getReferralStats(tgid){
+  const client = await pool.connect();
+  try{
+    const invitedRes = await client.query('SELECT COUNT(*)::bigint AS c FROM users WHERE referrer_tgid = $1', [tgid]);
+    const meRes = await client.query('SELECT COALESCE(referral_earned,0) AS earned FROM users WHERE tgid = $1', [tgid]);
+    const invited = invitedRes.rows.length ? Number(invitedRes.rows[0].c || 0) : 0;
+    const earned = meRes.rows.length ? Number(meRes.rows[0].earned || 0) : 0;
+    return { invited, earned };
+  } finally { client.release(); }
+}
+
 async function getAdminStats(){
   const client = await pool.connect();
   try {
@@ -602,5 +653,7 @@ module.exports = {
   getLeaderboard,
   creditRewardGeneric,
   getEffectiveEarned,
-  getAdminStats
+  getAdminStats,
+  setReferrer,
+  getReferralStats
 };

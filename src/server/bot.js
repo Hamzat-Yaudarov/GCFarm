@@ -40,7 +40,7 @@ const { attachUserRoutes } = require('./routes/users');
 const { attachGameRoutes } = require('./routes/games');
 const { attachWithdrawalRoutes } = require('./routes/withdrawals');
 const { attachSubgramRoutes } = require('./routes/subgram');
-const { attachAdsgramRoutes } = require('./routes/adsgram');
+// AdsGram task routes removed
 const { attachAdminRoutes } = require('./routes/admin');
 const { attachCustomTaskRoutes } = require('./routes/tasks');
 
@@ -50,7 +50,7 @@ attachUserRoutes(app, { db, auth });
 attachGameRoutes(app, { db, auth });
 attachWithdrawalRoutes(app, { db, auth, telegraf: { fetchTelegramProfile, notifyAdminWithdrawal } });
 attachSubgramRoutes(app, { subgram, auth });
-attachAdsgramRoutes(app, { db, ADSGRAM_SECRET, ADSGRAM_INTERSTITIAL_ID });
+// AdsGram routes detached per configuration
 attachAdminRoutes(app, { db, auth });
 attachCustomTaskRoutes(app, { db, auth, telegraf: { bot } });
 
