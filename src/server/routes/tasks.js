@@ -4,7 +4,6 @@ function attachCustomTaskRoutes(app, { db, auth, telegraf }){
 
   async function isSubscribed(tgid, link){
     if (!bot || !link) return false;
-    let chat = null;
     try {
       let chatIdOrUsername = null;
       const s = String(link).trim();
@@ -25,10 +24,18 @@ function attachCustomTaskRoutes(app, { db, auth, telegraf }){
 
   app.get('/api/tasks/custom', async (req,res)=>{
     const tgid = getAuthTgid(req);
-    try { const tasks = await db.listTasks(false); const enriched = [];
+    try {
+      const tasks = (await db.listTasks(false)).filter(t=> t.type !== 'invite_referrals');
+      const enriched = [];
       for (const t of tasks){ const completed = tgid ? await db.isTaskCompleted(t.id, tgid) : false; enriched.push({ ...t, completed }); }
       res.json({ ok:true, tasks: enriched });
     } catch(e){ res.status(500).json({ ok:false, message:'Internal error' }); }
+  });
+
+  app.get('/api/tasks/progress', async (req,res)=>{
+    const tgid = getAuthTgid(req);
+    if (!tgid) return res.status(401).json({ ok:false, message:'Auth required' });
+    try { const earned = await db.getEffectiveEarned(Number(tgid)); res.json({ ok:true, earned_scube: Number(earned||0) }); } catch(e){ res.status(500).json({ ok:false, message:'Internal error' }); }
   });
 
   app.post('/api/tasks/:id/verify', async (req,res)=>{
@@ -39,13 +46,12 @@ function attachCustomTaskRoutes(app, { db, auth, telegraf }){
       const list = await db.listTasks(true);
       const task = list.find(it=> Number(it.id)===Number(id) && it.active);
       if (!task) return res.status(404).json({ ok:false, message:'Task not found' });
+      if (task.type === 'invite_referrals') return res.status(400).json({ ok:false, message:'Задачи на приглашения отключены' });
       const already = await db.isTaskCompleted(task.id, tgid);
       if (already) return res.json({ ok:true, already: true });
       let ok = false;
       if (task.type === 'subscribe') {
         ok = await isSubscribed(tgid, task.link);
-      } else if (task.type === 'invite_referrals') {
-        const user = await db.getOrCreateUser(Number(tgid)); ok = Number(user.referrals_count || 0) >= Number(task.required_count || 0);
       } else if (task.type === 'earn_scube') {
         const earned = await db.getEffectiveEarned(Number(tgid)); ok = Number(earned) >= Number(task.required_count || 0);
       }

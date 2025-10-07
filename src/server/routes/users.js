@@ -49,14 +49,6 @@ function attachUserRoutes(app, { db, auth }){
     if (!tgid) return res.status(400).json({ error: 'Invalid params' });
     try { const result = await db.refillToFull(tgid); res.json(result); } catch (err) { res.status(500).json({ error: 'Internal error' }); }
   });
-  app.post('/api/user/:tgid/set-referrer', async (req, res) => {
-    const tgid = parseInt(req.params.tgid, 10);
-    const { referrer } = req.body || {};
-    const authTgid = getAuthTgid(req);
-    if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ error: 'Auth mismatch' });
-    if (!tgid || !referrer) return res.status(400).json({ error: 'Invalid params' });
-    try { const result = await db.setReferrer(tgid, Number(referrer)); res.json(result); } catch (err) { res.status(500).json({ error: 'Internal error' }); }
-  });
   app.post('/api/user/:tgid/auto-tick', async (req, res) => {
     const tgid = parseInt(req.params.tgid, 10);
     const authTgid = getAuthTgid(req);

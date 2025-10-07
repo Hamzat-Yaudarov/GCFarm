@@ -24,11 +24,11 @@ function attachAdminRoutes(app, { db, auth }){
     const tgid = getAuthTgid(req);
     if (!isAdmin(tgid)) return res.status(403).json({ ok:false, message:'Forbidden' });
     const { name, type, reward_type, reward_amount, link, required_count } = req.body || {};
-    const validTypes = ['subscribe','invite_referrals','earn_scube'];
+    const validTypes = ['subscribe','earn_scube'];
     const validReward = ['scube','vp','tickets'];
     if (!name || !validTypes.includes(String(type||'').toLowerCase()) || !validReward.includes(String(reward_type||'').toLowerCase())) return res.status(400).json({ ok:false, message:'Invalid params' });
     if (String(type).toLowerCase()==='subscribe' && !link) return res.status(400).json({ ok:false, message:'Link required for subscribe task' });
-    if ((String(type).toLowerCase()==='invite_referrals' || String(type).toLowerCase()==='earn_scube') && (!Number.isFinite(Number(required_count)) || Number(required_count)<=0)) return res.status(400).json({ ok:false, message:'required_count must be > 0' });
+    if ((String(type).toLowerCase()==='earn_scube') && (!Number.isFinite(Number(required_count)) || Number(required_count)<=0)) return res.status(400).json({ ok:false, message:'required_count must be > 0' });
     try { const task = await db.createTask({ name: String(name).slice(0,128), type: String(type).toLowerCase(), reward_type: String(reward_type).toLowerCase(), reward_amount: Math.max(1, parseInt(reward_amount||0,10)||1), link: link ? String(link).slice(0,256) : null, required_count: (required_count!==undefined && required_count!==null) ? Number(required_count) : null, created_by: tgid ? Number(tgid) : null }); res.json({ ok:true, task }); } catch(e){ console.error('Failed to create custom task', e); res.status(500).json({ ok:false, message: (e && e.message) ? e.message : 'Internal error' }); }
   });
 }

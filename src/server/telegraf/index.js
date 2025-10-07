@@ -90,9 +90,7 @@ function setupStartCommand(bot, db, BASE_URL){
   bot.start(async (ctx) => {
     const user = ctx.from || {}; const first = user.first_name || ''; const last = user.last_name || ''; const uname = user.username ? `@${user.username}` : ''; const displayName = String((first + ' ' + last).trim() || uname || 'Игрок'); const tgid = user.id;
     let wasInserted = false; try { if (tgid) { const ensured = await db.ensureUser(tgid, displayName); wasInserted = ensured && ensured.inserted === true; } } catch (dbErr) { /* best effort, ignore */ }
-    let refQuery = ''; let refFromStart = null; try { const payload = ctx.startPayload; if (payload) { const m = String(payload).match(/ref[_-]?(\d+)/i) || String(payload).match(/^(\d+)$/); if (m && m[1]) { refFromStart = Number(m[1]); refQuery = `&ref=${refFromStart}`; } } } catch(e){}
-    if (wasInserted && tgid && refFromStart && Number(refFromStart) !== Number(tgid)) { try { await db.setReferrer(tgid, Number(refFromStart)); } catch(e){} }
-    const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}${refQuery}`;
+    const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}`;
     try { await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, { reply_markup: { inline_keyboard: [[{ text: 'Play', web_app: { url: webAppUrl } }]] } }); } catch (err) { try { await ctx.reply('Добро пожаловать!'); } catch (e) {} }
   });
 }

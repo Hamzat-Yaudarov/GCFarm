@@ -27,9 +27,6 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_streak INTEGER DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_reward DATE`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_energy_refill_at TIMESTAMPTZ`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_bonus BIGINT DEFAULT 0`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ DEFAULT now()`);
     // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vp BIGINT DEFAULT 0`);
@@ -43,14 +40,6 @@ async function init() {
     // Helpful indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clicks_total ON users (clicks_total)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_tasks_completed ON users (tasks_completed)`);
-
-    // referral stats per pair (referrer, referred)
-    await client.query(`CREATE TABLE IF NOT EXISTS referral_stats (
-      referrer BIGINT,
-      referred BIGINT,
-      click_count INTEGER DEFAULT 0,
-      PRIMARY KEY (referrer, referred)
-    );`);
 
     await client.query(`CREATE TABLE IF NOT EXISTS reward_events (
       context_id TEXT PRIMARY KEY,
