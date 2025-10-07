@@ -9,36 +9,60 @@ import { initGames } from './modules/games.js';
 import { loadUser } from './modules/user.js';
 import { initAdmin } from './modules/admin.js';
 
+// Show initial loading and ensure we always hide it on error or timeout
 showInitialLoading();
-await initAuth();
 
-const tabsApi = initTabs(async (tab)=>{
-  if (tab === 'leaderboard') leaderboard.load(leaderboard.mode);
-  if (tab === 'tasks') { setupAdsgramTask(0, true, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); }); try { await loadDailyStreak(getTgid); } catch(e){} }
-});
-// expose for store back button
-window.__appTabs = tabsApi;
+(async ()=>{
+  // Fallback: if initialization doesn't complete within this time, hide loader and show an error
+  const FALLBACK_MS = 12000;
+  const fallbackTimer = setTimeout(()=>{
+    try {
+      const loadingMessage = document.getElementById('loading-message');
+      if (loadingMessage) loadingMessage.textContent = 'Ошибка загрузки — попробуйте перезагрузить страницу';
+    } catch(e){}
+    try { hideInitialLoading(); } catch(e){}
+  }, FALLBACK_MS);
 
-initRippleEffects();
+  try {
+    await initAuth();
 
-const leaderboard = initLeaderboard(getTgid);
+    const tabsApi = initTabs(async (tab)=>{
+      if (tab === 'leaderboard') leaderboard.load(leaderboard.mode);
+      if (tab === 'tasks') { setupAdsgramTask(0, true, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); }); try { await loadDailyStreak(getTgid); } catch(e){} }
+    });
+    // expose for store back button
+    window.__appTabs = tabsApi;
 
-initDailyClaim(getTgid);
-initSubgramControls(getTgid);
+    initRippleEffects();
 
-// Init admin UI (will show only for whitelisted admin IDs)
-initAdmin(getTgid);
+    const leaderboard = initLeaderboard(getTgid);
 
-const home = initHome(getTgid, ()=>loadUser(getTgid), (mode)=> leaderboard.load(mode, true));
-initUpgrades(getTgid, ()=> loadUser(getTgid));
-initWithdrawals(getTgid, ()=> loadUser(getTgid));
-initGames(getTgid, ()=> loadUser(getTgid));
+    initDailyClaim(getTgid);
+    initSubgramControls(getTgid);
 
-setupAdsgramTask(0, false, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); });
-try { await loadDailyStreak(getTgid); } catch(e){}
-try { await loadSubgramStatus(getTgid); } catch(e){}
-try { await loadSponsorTasks(getTgid); } catch(e){}
+    // Init admin UI (will show only for whitelisted admin IDs)
+    initAdmin(getTgid);
 
-await loadUser(getTgid, { onInitialReady: ()=>{ hideInitialLoading(); initOnboarding(); maybeShowOnboarding(); setTimeout(()=>{ try { home.triggerInitialInterstitial(); } catch(e){} }, 4000); } });
+    const home = initHome(getTgid, ()=>loadUser(getTgid), (mode)=> leaderboard.load(mode, true));
+    initUpgrades(getTgid, ()=> loadUser(getTgid));
+    initWithdrawals(getTgid, ()=> loadUser(getTgid));
+    initGames(getTgid, ()=> loadUser(getTgid));
 
-setInterval(()=> loadUser(getTgid), 5000);
+    setupAdsgramTask(0, false, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); });
+    try { await loadDailyStreak(getTgid); } catch(e){}
+    try { await loadSubgramStatus(getTgid); } catch(e){}
+    try { await loadSponsorTasks(getTgid); } catch(e){}
+
+    await loadUser(getTgid, { onInitialReady: ()=>{
+      clearTimeout(fallbackTimer);
+      try { hideInitialLoading(); } catch(e){}
+      try { initOnboarding(); maybeShowOnboarding(); } catch(e){}
+      setTimeout(()=>{ try { home.triggerInitialInterstitial(); } catch(e){} }, 4000);
+    } });
+
+    setInterval(()=> loadUser(getTgid), 5000);
+  } catch (err) {
+    console.error('App initialization error', err);
+    try { hideInitialLoading(); } catch(e){}
+  }
+})();
