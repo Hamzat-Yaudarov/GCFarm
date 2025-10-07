@@ -115,6 +115,14 @@ async function init() {
         created_at TIMESTAMPTZ DEFAULT now()
       );
     `);
+    // Ensure columns exist for legacy tables before creating index
+    await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS type TEXT`);
+    await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS reward_type TEXT`);
+    await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS reward_amount BIGINT DEFAULT 0`);
+    await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS link TEXT`);
+    await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS required_count BIGINT`);
+    await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS created_by BIGINT`);
+    await client.query(`ALTER TABLE custom_tasks ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_custom_tasks_active ON custom_tasks (active)`);
 
     await client.query(`
