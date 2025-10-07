@@ -326,7 +326,7 @@ async function claimReward(tgid, amount, source, options = {}) {
       const diff = now - new Date(user.last_reward_at);
       if (diff < 10000) {
         await client.query('ROLLBACK');
-        return { ok:false, message: 'Слишком частые запрос�� награды', scube: previousScube };
+        return { ok:false, message: 'Слишком частые запросы награды', scube: previousScube };
       }
     }
 

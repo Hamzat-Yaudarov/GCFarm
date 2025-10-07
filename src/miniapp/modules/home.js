@@ -358,7 +358,7 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
                 showStoreFeedback('Сервер не отвечает при попытке восполнить энергию');
               }
             } else {
-              showStoreFeedback('Реклама не ��ыла просмотрена полностью');
+              showStoreFeedback('Реклама не была просмотрена полностью');
             }
           } catch (e) {
             console.warn('Energy ad show error', e);
