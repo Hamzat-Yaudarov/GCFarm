@@ -33,6 +33,8 @@
       <div class="player-avatar" id="avatar">A</div>
       <div class="balances">
         <div class="balance-s">💎 SCube: <span id="scube">0</span></div>
+        <div class="balance-s">🏅 VP: <span id="vp">0</span></div>
+        <div class="balance-s">🎟️ Билеты: <span id="tickets">0</span></div>
       </div>
       <div class="header-glow" aria-hidden="true"></div>
     </header>
@@ -67,7 +69,7 @@
             </div>
           </div>
           <div class="ad-block">
-            <p class="ad-caption">🎬 Усиль прогресс, смотри рекламу и восполняй энергию мгновенно.</p>
+            <p class="ad-caption">🎬 Усиль прогресс, смо��ри рекламу и восполняй энергию мгновенно.</p>
             <div class="ad-buttons">
               <button id="watch-ad" class="watch-ad">🎥 Смотреть рекламу (+20 SCube)</button>
               <button id="refill-btn" class="watch-ad secondary">⚡ Восполнить энергию полностью</button>
@@ -92,7 +94,7 @@
               <div class="card-header">
                 <span class="card-icon">📈</span>
                 <div class="card-text">
-                  <div class="upgrade-title">Увеличение дневного лимита +50</div>
+                  <div class="upgrade-title">Увеличение дневного л��мита +50</div>
                   <div class="upgrade-subtitle">Повышай пределы заработка</div>
                 </div>
               </div>
@@ -180,6 +182,8 @@
           <div class="tasks-illustration" aria-hidden="true"></div>
           <div class="task-reward-info">Награда за задание: <span id="task-reward-amount">15 SCube</span></div>
           <div id="ads-task-wrap" class="ads-task-wrap"></div>
+          <h4>🧩 Кастомные задания</h4>
+          <div id="custom-tasks-wrap" class="ads-task-wrap"></div>
           <div class="task-feedback" id="task-feedback"></div>
         </div>
       </section>
@@ -219,7 +223,7 @@
             <button id="leader-by-tasks" class="leader-btn">✅  Выполненные задания</button>
           </div>
           <ol id="leader-list" class="leader-list"></ol>
-          <div id="leader-empty" class="leader-empty hidden">Пока пусто</div>
+          <div id="leader-empty" class="leader-empty hidden">Пока ��усто</div>
         </div>
       </section>
 
@@ -253,6 +257,47 @@
         </div>
       </section>
 
+      <section class="tab-content hidden" id="admin">
+        <div class="withdrawals-container">
+          <div class="withdrawals-header">
+            <div class="withdrawals-legend">
+              <h3>🛠️ Админ-панель</h3>
+              <p class="section-hint">Только для администраторов.</p>
+            </div>
+            <button id="admin-back" class="withdraw-back-btn" type="button">← В пользовательскую часть</button>
+          </div>
+
+          <h4>📊 Статистика</h4>
+          <div id="admin-stats" class="admin-stats"></div>
+
+          <h4>➕ Кастомные задания</h4>
+          <form id="admin-task-form" class="withdraw-form">
+            <label class="withdraw-input-group"><span class="withdraw-input-label">Название</span><input id="task-name" class="withdraw-input" required /></label>
+            <label class="withdraw-input-group"><span class="withdraw-input-label">Тип задачи</span>
+              <select id="task-type" class="withdraw-input">
+                <option value="subscribe">Подписаться</option>
+                <option value="invite_referrals">Пригласить рефералов</option>
+                <option value="earn_scube">Заработать SCube</option>
+              </select>
+            </label>
+            <div id="task-link-wrap" class="withdraw-input-group"><span class="withdraw-input-label">Ссылка или @юзернейм</span><input id="task-link" class="withdraw-input" placeholder="https://t.me/Channel или @channel" /></div>
+            <div id="task-required-wrap" class="withdraw-input-group"><span class="withdraw-input-label">Количество</span><input id="task-required" type="number" min="1" class="withdraw-input" /></div>
+            <div class="withdraw-input-row">
+              <label class="withdraw-input-group"><span class="withdraw-input-label">Награда</span>
+                <select id="reward-type" class="withdraw-input">
+                  <option value="scube">SCube</option>
+                  <option value="vp">VP</option>
+                  <option value="tickets">Билеты</option>
+                </select>
+              </label>
+              <label class="withdraw-input-group"><span class="withdraw-input-label">Количество</span><input id="reward-amount" type="number" min="1" class="withdraw-input" required /></label>
+            </div>
+            <div id="admin-task-feedback" class="withdraw-modal-feedback"></div>
+            <button type="submit" class="withdraw-submit-btn">Создать задачу</button>
+          </form>
+        </div>
+      </section>
+
     </main>
 
     <nav class="tabs-bottom">
@@ -261,6 +306,7 @@
       <button class="tab-button" data-tab="tasks">🧾 Задания</button>
       <button class="tab-button" data-tab="leaderboard">🏆 Рейтинг</button>
       <button class="tab-button" data-tab="referrals">🤝 Рефералы</button>
+      <button id="admin-tab-btn" class="tab-button hidden" data-tab="admin">🛠️ Админ</button>
     </nav>
 
     <button id="store-fab" class="store-fab"><span class="store-icon">🛒</span><span class="store-label">Магазин</span></button>

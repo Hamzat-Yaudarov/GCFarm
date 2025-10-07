@@ -32,6 +32,8 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ DEFAULT now()`);
     // Add "stars" currency
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS stars BIGINT DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS vp BIGINT DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tickets BIGINT DEFAULT 0`);
     // For rating system
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS clicks_total BIGINT DEFAULT 0`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tasks_completed BIGINT DEFAULT 0`);
@@ -97,6 +99,33 @@ async function init() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals (status);`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC);`);
     await client.query(`CREATE SEQUENCE IF NOT EXISTS withdrawal_success_seq START 1;`);
+
+    // Admin custom tasks
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS custom_tasks (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        reward_type TEXT NOT NULL,
+        reward_amount BIGINT NOT NULL,
+        link TEXT,
+        required_count BIGINT,
+        created_by BIGINT,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_custom_tasks_active ON custom_tasks (active)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_completions (
+        task_id BIGINT NOT NULL REFERENCES custom_tasks(id) ON DELETE CASCADE,
+        tgid BIGINT NOT NULL,
+        completed_at TIMESTAMPTZ DEFAULT now(),
+        credited_at TIMESTAMPTZ,
+        PRIMARY KEY (task_id, tgid)
+      );
+    `);
   } finally {
     client.release();
   }

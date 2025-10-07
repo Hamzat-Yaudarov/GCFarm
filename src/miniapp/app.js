@@ -7,13 +7,16 @@ import { initHome } from './modules/home.js';
 import { initUpgrades, initWithdrawals } from './modules/store.js';
 import { initGames } from './modules/games.js';
 import { loadUser } from './modules/user.js';
+import { initAdmin } from './modules/admin.js';
+import { loadCustomTasks } from './modules/customTasks.js';
 
 showInitialLoading();
 await initAuth();
 
 const tabsApi = initTabs(async (tab)=>{
   if (tab === 'leaderboard') leaderboard.load(leaderboard.mode);
-  if (tab === 'tasks') { setupAdsgramTask(0, true, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); }); try { await loadDailyStreak(getTgid); } catch(e){} }
+  if (tab === 'tasks') { setupAdsgramTask(0, true, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); }); try { await loadDailyStreak(getTgid); } catch(e){} try { await loadCustomTasks(getTgid); } catch(e){} }
+  if (tab === 'admin') { try { await admin.loadStats(); } catch(e){} }
 });
 // expose for store back button
 window.__appTabs = tabsApi;
@@ -30,10 +33,15 @@ initUpgrades(getTgid, ()=> loadUser(getTgid));
 initWithdrawals(getTgid, ()=> loadUser(getTgid));
 initGames(getTgid, ()=> loadUser(getTgid));
 
+const admin = initAdmin(getTgid);
+admin.checkAdmin();
+admin.setupForm();
+const backBtn = document.getElementById('admin-back'); if (backBtn) backBtn.addEventListener('click', ()=> window.__appTabs && window.__appTabs.show('home'));
+
 setupAdsgramTask(0, false, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); });
 try { await loadDailyStreak(getTgid); } catch(e){}
 try { await loadSubgramStatus(getTgid); } catch(e){}
-try { await loadSponsorTasks(getTgid); } catch(e){}
+try { await loadCustomTasks(getTgid); } catch(e){}
 
 await loadUser(getTgid, { onInitialReady: ()=>{ hideInitialLoading(); initOnboarding(); maybeShowOnboarding(); setTimeout(()=>{ try { home.triggerInitialInterstitial(); } catch(e){} }, 4000); } });
 

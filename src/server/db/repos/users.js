@@ -19,6 +19,8 @@ function mapUser(row) {
     scube: Number(row.scube),
     gcube: Number(row.gcube),
     stars: Number(row.stars || 0),
+    vp: Number(row.vp || 0),
+    tickets: Number(row.tickets || 0),
     energy: Number(row.energy),
     energy_capacity: Number(row.energy_capacity),
     daily_count: Number(row.daily_count),
@@ -574,6 +576,79 @@ async function getLeaderboard(by = 'clicks', viewerTgid) {
   }
 }
 
+async function creditRewardGeneric(tgid, rewardType, amount, source = 'task', options = {}) {
+  const client = await pool.connect();
+  const col = String(rewardType || '').toLowerCase();
+  const valid = ['scube','vp','tickets','stars','gcube'];
+  if (!valid.includes(col)) return { ok:false, message:'Invalid reward type' };
+  const add = Math.max(0, Math.round(Number(amount) || 0));
+  try {
+    await client.query('BEGIN');
+    const userRes = await client.query('SELECT scube, vp, tickets, stars, gcube, referrer_tgid, tasks_completed FROM users WHERE tgid=$1 FOR UPDATE', [tgid]);
+    if (!userRes.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
+    const row = userRes.rows[0];
+    const now = new Date();
+    const next = {
+      scube: Number(row.scube || 0),
+      vp: Number(row.vp || 0),
+      tickets: Number(row.tickets || 0),
+      stars: Number(row.stars || 0),
+      gcube: Number(row.gcube || 0)
+    };
+    next[col] += add;
+    const sets = ['scube','vp','tickets','stars','gcube'].map((k,i)=> `${k}=$${i+1}`).join(', ');
+    const args = [next.scube, next.vp, next.tickets, next.stars, next.gcube, tgid];
+    // tasks_completed only for task source
+    if (source === 'task') {
+      await client.query(`UPDATE users SET ${sets}, last_reward_at=$7, tasks_completed = tasks_completed + 1 WHERE tgid=$6`, [...args, now]);
+    } else {
+      await client.query(`UPDATE users SET ${sets}, last_reward_at=$7 WHERE tgid=$6`, [...args, now]);
+    }
+    // referral bonus only from scube
+    if (col === 'scube' && row.referrer_tgid) {
+      const bonus = Math.floor(add * 0.1);
+      if (bonus > 0) { await client.query('UPDATE users SET scube = scube + $1, referral_bonus = COALESCE(referral_bonus, 0) + $1 WHERE tgid = $2', [bonus, row.referrer_tgid]); }
+    }
+    await client.query('COMMIT');
+    return { ok:true, balances: next };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+}
+
+async function getEffectiveEarned(tgid){
+  const client = await pool.connect();
+  try {
+    const u = await client.query('SELECT clicks_total FROM users WHERE tgid=$1', [tgid]);
+    const clicks = u.rows.length ? Number(u.rows[0].clicks_total || 0) : 0;
+    const ev = await client.query('SELECT COALESCE(SUM(amount),0) AS s FROM reward_events WHERE tgid=$1', [tgid]);
+    const ads = ev.rows.length ? Number(ev.rows[0].s || 0) : 0;
+    return clicks + ads;
+  } finally { client.release(); }
+}
+
+async function getAdminStats(){
+  const client = await pool.connect();
+  try {
+    const usersRow = await client.query('SELECT COUNT(*)::bigint AS c, COALESCE(SUM(scube),0) AS scube, COALESCE(SUM(vp),0) AS vp, COALESCE(SUM(tickets),0) AS tickets, COALESCE(SUM(gcube),0) AS gcube, COALESCE(SUM(stars),0) AS stars, COALESCE(SUM(clicks_total),0) AS clicks, COALESCE(SUM(tasks_completed),0) AS tasks FROM users');
+    const wd = await client.query('SELECT status, COUNT(*)::bigint AS c FROM withdrawals GROUP BY status');
+    const byStatus = {}; wd.rows.forEach(r=> byStatus[r.status||'unknown']= Number(r.c||0));
+    return {
+      users: Number(usersRow.rows[0].c||0),
+      totals: {
+        scube: Number(usersRow.rows[0].scube||0),
+        vp: Number(usersRow.rows[0].vp||0),
+        tickets: Number(usersRow.rows[0].tickets||0),
+        gcube: Number(usersRow.rows[0].gcube||0),
+        stars: Number(usersRow.rows[0].stars||0)
+      },
+      activity: {
+        clicks: Number(usersRow.rows[0].clicks||0),
+        tasks: Number(usersRow.rows[0].tasks||0)
+      },
+      withdrawals: byStatus
+    };
+  } finally { client.release(); }
+}
+
 module.exports = {
   sanitizeText,
   mapUser,
@@ -590,5 +665,8 @@ module.exports = {
   creditScube,
   getDailyStreak,
   claimDailyReward,
-  getLeaderboard
+  getLeaderboard,
+  creditRewardGeneric,
+  getEffectiveEarned,
+  getAdminStats
 };
