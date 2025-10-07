@@ -14,14 +14,44 @@ export function initAdmin(getTgid){
 
   function isAdmin(tgid){ if (!tgid) return false; return ADMIN_IDS.has(String(tgid)); }
 
+  function formatNumber(n){ return String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+
   async function renderStats(){
     if (!statsContent) return;
-    statsContent.textContent = 'Загрузка…';
+    statsContent.innerHTML = '<div class="admin-cards">Loading…</div>';
     try {
       const res = await fetch(`${apiBase}/admin/stats`);
       if (!res.ok) { statsContent.textContent = 'Не удалось загрузить статистику'; return; }
       const js = await res.json(); if (!js || !js.ok) { statsContent.textContent = 'Ошибка данных'; return; }
-      statsContent.innerHTML = `Пользователей: ${js.users} <br>Всего SCube: ${js.total_scube} <br>Всего VP: ${js.total_vp} <br>Всего билетов: ${js.total_tickets} <br>Кастомных заданий: ${js.custom_tasks}`;
+
+      const html = `
+        <div class="admin-cards">
+          <div class="admin-card">
+            <div class="admin-card-title">Игроков всего</div>
+            <div class="admin-card-value">${formatNumber(js.total_players)}</div>
+            <div class="admin-card-sub">Новых сегодня: ${formatNumber(js.new_players_today)}</div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-title">SCube (в системе)</div>
+            <div class="admin-card-value">${formatNumber(js.scube_on_users)}</div>
+            <div class="admin-card-sub">Заработано всего: ${formatNumber(js.scube_earned_total)} • Сегодня: ${formatNumber(js.scube_earned_today)}</div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-title">SCube потрачено на улучшения</div>
+            <div class="admin-card-value">${formatNumber(js.scube_spent_upgrades_total)}</div>
+            <div class="admin-card-sub">Сегодня: ${formatNumber(js.scube_spent_upgrades_today)}</div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-title">Валюта и билеты</div>
+            <div class="admin-card-value">VP: ${formatNumber(js.vp_total)} • 🎟️ ${formatNumber(js.tickets_total)}</div>
+            <div class="admin-card-sub">Кастомных заданий: ${formatNumber(js.custom_tasks)}</div>
+          </div>
+        </div>
+      `;
+      statsContent.innerHTML = html;
     } catch (e){ statsContent.textContent = 'Ошибка связи'; }
   }
 
@@ -38,8 +68,11 @@ export function initAdmin(getTgid){
   }
 
   if (adminBtn) adminBtn.addEventListener('click', ()=>{ try { if (window.__appTabs) window.__appTabs.showTab('admin'); renderStats(); } catch(e){ console.warn(e); } });
+  if (adminTabButton) adminTabButton.addEventListener('click', ()=>{ try { if (window.__appTabs) window.__appTabs.showTab('admin'); renderStats(); } catch(e){} });
   if (adminTabStatsBtn) adminTabStatsBtn.addEventListener('click', ()=> toggleSection('stats'));
   if (adminTabCustomBtn) adminTabCustomBtn.addEventListener('click', ()=> toggleSection('custom'));
+  const adminBackBtn = document.getElementById('admin-back-btn');
+  if (adminBackBtn) adminBackBtn.addEventListener('click', ()=>{ try { if (window.__appTabs) window.__appTabs.showTab('home'); } catch(e){ console.warn(e); } });
 
   if (form) {
     form.addEventListener('submit', async (e)=>{

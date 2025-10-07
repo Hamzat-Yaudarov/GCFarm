@@ -363,6 +363,28 @@ body{margin:0;background:linear-gradient(180deg,#061220,#07142a);color:#fff}
 /* button disabled visual */
 .btn-disabled{opacity:0.6;cursor:default}
 
+/* Admin panel styles */
+.admin-container{padding:12px;display:flex;flex-direction:column;gap:12px}
+.admin-header{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.admin-tabs{display:flex;gap:8px;margin-bottom:8px}
+.admin-tab-btn{padding:8px 12px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:#cfeaf9;cursor:pointer}
+.admin-tab-btn.active{background:linear-gradient(90deg,#1b6b92,#11576f);border:1px solid rgba(255,255,255,0.08)}
+.admin-section{background:linear-gradient(180deg,#072733,#071f26);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+.admin-cards{display:flex;flex-wrap:wrap;gap:12px}
+.admin-card{flex:1 1 200px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#0b3a4a,#06313c);box-shadow:0 8px 20px rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.03)}
+.admin-card-title{font-size:13px;color:#bfe8f6;margin-bottom:6px}
+.admin-card-value{font-size:20px;font-weight:700;color:#fff}
+.admin-card-sub{font-size:12px;color:#9fd5e8;margin-top:6px}
+
+.admin-create-form label{display:block;margin-bottom:8px}
+#admin-create-task{padding:10px 14px;border-radius:10px;background:#1a4b6a;color:#fff;border:none;cursor:pointer}
+#admin-create-feedback{margin-top:8px;color:#cfeaf9}
+
+/* admin entry button */
+.admin-entry-btn{background:transparent;border:none;color:#fff;padding:6px;border-radius:50%;cursor:pointer;margin-left:8px}
+
+@media(max-width:640px){.admin-cards{flex-direction:column}.admin-card{flex:1 1 auto}}
+
 /* scube pop animation */
 .scube-pop{animation:scubePop .6s ease}
 @keyframes scubePop{0%{transform:scale(1);color:#fff}40%{transform:scale(1.25);color:#ffd54b}100%{transform:scale(1);color:#fff}}

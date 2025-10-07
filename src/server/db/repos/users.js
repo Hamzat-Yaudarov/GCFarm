@@ -280,6 +280,7 @@ async function buyUpgrade(tgid, type) {
       scube -= cost;
       energy_capacity += 25;
       await client.query('UPDATE users SET scube=$1, energy_capacity=$2 WHERE tgid=$3', [scube, energy_capacity, tgid]);
+      await client.query('INSERT INTO upgrade_events (tgid, upgrade_type, cost) VALUES ($1,$2,$3)', [tgid, 'energy_capacity', cost]);
       await client.query('COMMIT');
       return { ok:true, scube, energy_capacity };
     } else if (type === 'daily_limit') {
@@ -288,6 +289,7 @@ async function buyUpgrade(tgid, type) {
       scube -= cost;
       daily_limit_level += 1;
       await client.query('UPDATE users SET scube=$1, daily_limit_level=$2 WHERE tgid=$3', [scube, daily_limit_level, tgid]);
+      await client.query('INSERT INTO upgrade_events (tgid, upgrade_type, cost) VALUES ($1,$2,$3)', [tgid, 'daily_limit', cost]);
       await client.query('COMMIT');
       const new_daily_limit = DAILY_BASE + daily_limit_level * DAILY_INCREMENT;
       return { ok:true, scube, daily_limit_level, new_daily_limit };
@@ -298,6 +300,7 @@ async function buyUpgrade(tgid, type) {
       scube -= cost;
       auto_energy = true;
       await client.query('UPDATE users SET scube=$1, auto_energy=$2 WHERE tgid=$3', [scube, auto_energy, tgid]);
+      await client.query('INSERT INTO upgrade_events (tgid, upgrade_type, cost) VALUES ($1,$2,$3)', [tgid, 'auto_energy', cost]);
       await client.query('COMMIT');
       return { ok:true, scube, auto_energy };
     } else {

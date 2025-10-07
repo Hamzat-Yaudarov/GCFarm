@@ -258,8 +258,15 @@
 
       <section class="tab-content hidden" id="admin">
         <div class="admin-container">
-          <h3>🔐 Панель администратора</h3>
-          <p class="section-hint">Только для администраторов.</p>
+          <div class="admin-header">
+            <div>
+              <h3>🔐 Панель администратора</h3>
+              <p class="section-hint">Только для администраторов.</p>
+            </div>
+            <div>
+              <button id="admin-back-btn" class="small-btn">↩️ Вернуться</button>
+            </div>
+          </div>
           <div class="admin-tabs">
             <button id="admin-tab-stats" class="admin-tab-btn active">Статистика</button>
             <button id="admin-tab-custom" class="admin-tab-btn">Кастомные задания</button>
@@ -323,7 +330,7 @@
     <div id="subgram-blocker" class="subgram-blocker hidden" aria-modal="true" role="dialog">
       <div class="subgram-blocker-dialog">
         <h3 class="subgram-blocker-title">Подпишитесь на спонсоров, чтобы продолжить игру</h3>
-        <p class="subgram-blocker-text">Пожалуйста подпишитесь на все каналы/боты из списка ниже. Если вы отпишетесь в течение недели — вам будет начислена жалоба. Множественные жалобы могут привести к тому, что заявки на вывод будут отклоняться без возврата средств. Окно нельзя закрыть до подтверждения подписки на всех спонсоров.</p>
+        <p class="subgram-blocker-text">Пожалуйста подпишитесь на все каналы/боты из списка ниже. Если вы отпишетесь в течение недели — вам будет начислена жалоба. Множественные жалобы могут привести к тому, что заявки на вывод будут отклон��ться без возврата средств. Окно нельзя закрыть до подтверждения подписки на всех спонсоров.</p>
         <ul id="subgram-blocker-links" class="subgram-links-list"></ul>
         <div class="subgram-blocker-actions">
           <button id="subgram-blocker-open" class="subgram-open-btn">Открыть SubGram</button>

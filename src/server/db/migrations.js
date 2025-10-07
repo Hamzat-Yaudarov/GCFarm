@@ -116,6 +116,18 @@ async function init() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON withdrawals (status);`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_withdrawals_created_at ON withdrawals (created_at DESC);`);
     await client.query(`CREATE SEQUENCE IF NOT EXISTS withdrawal_success_seq START 1;`);
+
+    // Track upgrades purchases for analytics
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS upgrade_events (
+        id BIGSERIAL PRIMARY KEY,
+        tgid BIGINT NOT NULL,
+        upgrade_type TEXT NOT NULL,
+        cost BIGINT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_upgrade_events_created_at ON upgrade_events (created_at DESC);`);
   } finally {
     client.release();
   }

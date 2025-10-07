@@ -17,11 +17,37 @@ function attachAdminRoutes(app, { db, auth }){
     try {
       const client = await pool.connect();
       try {
-        const u = await client.query('SELECT COUNT(*) AS users, COALESCE(SUM(scube),0) AS total_scube, COALESCE(SUM(vp),0) AS total_vp, COALESCE(SUM(tickets),0) AS total_tickets FROM users');
-        const t = await client.query('SELECT COUNT(*) AS custom_tasks FROM custom_tasks');
-        const usersRow = u.rows[0] || { users:0, total_scube:0, total_vp:0, total_tickets:0 };
-        const tasksRow = t.rows[0] || { custom_tasks: 0 };
-        res.json({ ok:true, users: Number(usersRow.users || 0), total_scube: Number(usersRow.total_scube || 0), total_vp: Number(usersRow.total_vp || 0), total_tickets: Number(usersRow.total_tickets || 0), custom_tasks: Number(tasksRow.custom_tasks || 0) });
+        // Total players
+        const usersRes = await client.query("SELECT COUNT(*) AS total_players, COALESCE(SUM(scube),0) AS total_scube_on_users, COALESCE(SUM(vp),0) AS total_vp, COALESCE(SUM(tickets),0) AS total_tickets FROM users");
+        const usersRow = usersRes.rows[0] || { total_players:0, total_scube_on_users:0 };
+        // New players today
+        const newTodayRes = await client.query("SELECT COUNT(*) AS new_today FROM users WHERE DATE(first_seen_at) = CURRENT_DATE");
+        const newToday = Number((newTodayRes.rows[0] || {}).new_today || 0);
+        // SCube earned total and today from reward_events
+        const earnedTotalRes = await client.query("SELECT COALESCE(SUM(amount),0) AS earned_total FROM reward_events");
+        const earnedTodayRes = await client.query("SELECT COALESCE(SUM(amount),0) AS earned_today FROM reward_events WHERE DATE(created_at) = CURRENT_DATE");
+        const earnedTotal = Number((earnedTotalRes.rows[0] || {}).earned_total || 0);
+        const earnedToday = Number((earnedTodayRes.rows[0] || {}).earned_today || 0);
+        // SCube spent on upgrades total and today
+        const spentTotalRes = await client.query("SELECT COALESCE(SUM(cost),0) AS spent_total FROM upgrade_events");
+        const spentTodayRes = await client.query("SELECT COALESCE(SUM(cost),0) AS spent_today FROM upgrade_events WHERE DATE(created_at) = CURRENT_DATE");
+        const spentTotal = Number((spentTotalRes.rows[0] || {}).spent_total || 0);
+        const spentToday = Number((spentTodayRes.rows[0] || {}).spent_today || 0);
+        // custom tasks count
+        const tasksRes = await client.query('SELECT COUNT(*) AS custom_tasks FROM custom_tasks');
+
+        res.json({ ok:true,
+          total_players: Number(usersRow.total_players || 0),
+          new_players_today: newToday,
+          scube_on_users: Number(usersRow.total_scube_on_users || 0),
+          vp_total: Number((usersRow.total_vp || 0)),
+          tickets_total: Number((usersRow.total_tickets || 0)),
+          scube_earned_total: earnedTotal,
+          scube_earned_today: earnedToday,
+          scube_spent_upgrades_total: spentTotal,
+          scube_spent_upgrades_today: spentToday,
+          custom_tasks: Number((tasksRes.rows[0] || {}).custom_tasks || 0)
+        });
       } finally { client.release(); }
     } catch (err) { console.error('admin stats error', err); res.status(500).json({ ok:false, message: 'Internal error' }); }
   });
