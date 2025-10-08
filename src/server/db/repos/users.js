@@ -47,7 +47,8 @@ async function setReferrer(tgid, referrer) {
     // Ensure referrer exists
     const refRes = await client.query('SELECT tgid FROM users WHERE tgid=$1 FOR UPDATE', [referrer]);
     if (!refRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Реферер не найден' }; }
-    await client.query('UPDATE users SET referror=$1, referral_tgid=$2 WHERE tgid=$3', [referrer, tgid, tgid]);
+    // Store referrer id correctly
+    await client.query('UPDATE users SET referror=$1, referral_tgid=$1 WHERE tgid=$2', [referrer, tgid]);
     await client.query('UPDATE users SET referral_count = COALESCE(referral_count,0) + 1 WHERE tgid=$1', [referrer]);
     await client.query('COMMIT');
     return { ok:true };
@@ -144,13 +145,17 @@ async function handleClick(tgid) {
     // Apply own updates
     await client.query('UPDATE users SET scube = $1, energy = $2, daily_count = $3, clicks_total = clicks_total + 1 WHERE tgid = $4', [newScube, newEnergy, newDaily, tgid]);
 
-    // Referral 10% accumulation to referrer, using referral_bonus as carry of tenths on child
+    // Referral 10% accumulation to referrer. referral_bonus stores leftover hundredths (0..99)
     const parentId = user.referror ? Number(user.referror) : null;
     if (parentId) {
-      let carry = Number(user.referral_bonus || 0);
-      carry += 10; // 1 SCube click -> +10 tenths
-      const toGrant = Math.floor(carry / 10);
-      const leftover = carry % 10;
+      const PERCENT = 10; // 10%
+      let carry = Number(user.referral_bonus || 0); // hundredths
+      // compute fractional units to add (in hundredths)
+      const deltaHundredths = Math.round((1 * PERCENT)); // for 1 SCube click, 10 hundredths
+      // since click grants 1 SCube, add deltaHundredths
+      carry += deltaHundredths;
+      const toGrant = Math.floor(carry / 100);
+      const leftover = carry % 100;
       if (toGrant > 0) {
         await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [toGrant, parentId]);
       }
@@ -360,10 +365,14 @@ async function claimReward(tgid, amount, source, options = {}) {
     if (source !== 'ad') {
       const parentId = user.referror ? Number(user.referror) : null;
       if (parentId) {
+        const PERCENT = 10; // 10%
+        // referral_bonus stored as hundredths
         let carry = Number(user.referral_bonus || 0);
-        carry += 10 * credit; // accumulate tenths
-        const toGrant = Math.floor(carry / 10);
-        const leftover = carry % 10;
+        // add credit * percent (in hundredths)
+        const delta = Math.round(credit * PERCENT);
+        carry += delta;
+        const toGrant = Math.floor(carry / 100);
+        const leftover = carry % 100;
         if (toGrant > 0) {
           await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [toGrant, parentId]);
         }
