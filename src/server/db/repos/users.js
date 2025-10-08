@@ -28,33 +28,12 @@ function mapUser(row) {
     last_reset: row.last_reset,
     last_refill: row.last_refill,
     auto_energy: Boolean(row.auto_energy),
-    complaints: Number(row.complaints || 0),
-    referrer: row.referrer ? Number(row.referrer) : null,
-    referral_earned: Number(row.referral_earned || 0)
+    complaints: Number(row.complaints || 0)
   };
 }
 
 async function setReferrer(tgid, referrer) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    if (!tgid || !referrer) { await client.query('ROLLBACK'); return { ok:false, message: 'Invalid params' }; }
-    if (Number(tgid) === Number(referrer)) { await client.query('ROLLBACK'); return { ok:false, message: 'Cannot refer yourself' }; }
-    // ensure users exist
-    const resFrom = await client.query('SELECT referrer FROM users WHERE tgid=$1 FOR UPDATE', [tgid]);
-    if (resFrom.rows.length && resFrom.rows[0].referrer) { await client.query('ROLLBACK'); return { ok:false, message: 'Referrer already set' }; }
-    const resRef = await client.query('SELECT tgid FROM users WHERE tgid=$1', [referrer]);
-    if (!resRef.rows.length) { await client.query('ROLLBACK'); return { ok:false, message: 'Referrer not found' }; }
-    // set referrer
-    await client.query('UPDATE users SET referrer=$1 WHERE tgid=$2', [referrer, tgid]);
-    await client.query('COMMIT');
-    return { ok:true };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
+  return { ok:false, message: 'Рефералы отключены' };
 }
 
 async function ensureUser(tgid, name) {
@@ -145,19 +124,6 @@ async function handleClick(tgid) {
     const newDaily = daily_count + 1;
 
     await client.query('UPDATE users SET scube = $1, energy = $2, daily_count = $3, clicks_total = clicks_total + 1 WHERE tgid = $4', [newScube, newEnergy, newDaily, tgid]);
-
-    // credit referral share (10% rounded down)
-    try {
-      const share = Math.floor(1 * 0.1);
-      if (share > 0) {
-        const refRes = await client.query('SELECT referrer FROM users WHERE tgid=$1 FOR UPDATE', [tgid]);
-        if (refRes.rows.length && refRes.rows[0].referrer) {
-          const referrer = refRes.rows[0].referrer;
-          await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [share, referrer]);
-          await client.query('INSERT INTO referral_events (from_tgid, to_tgid, amount, share) VALUES ($1,$2,$3,$4)', [tgid, referrer, 1, share]);
-        }
-      }
-    } catch (e) { /* non-fatal */ }
 
     await client.query('COMMIT');
     return { ok: true, scube: newScube, energy: newEnergy, daily_count: newDaily, daily_limit };
@@ -299,7 +265,7 @@ async function claimReward(tgid, amount, source, options = {}) {
   const { force = false, contextId = null } = options || {};
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT scube, last_reward_at, last_reward_ad_at, referrer FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, last_reward_at, last_reward_ad_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const user = res.rows[0];
     const now = new Date();
@@ -358,18 +324,6 @@ async function claimReward(tgid, amount, source, options = {}) {
       await client.query('UPDATE users SET scube=$1, last_reward_at=$2 WHERE tgid=$3', [scube, now, tgid]);
     }
 
-    // credit referral share
-    try {
-      const refRes = await client.query('SELECT referrer FROM users WHERE tgid=$1 FOR UPDATE', [tgid]);
-      if (refRes.rows.length && refRes.rows[0].referrer) {
-        const referrer = refRes.rows[0].referrer;
-        const share = Math.floor(credit * 0.1);
-        if (share > 0) {
-          await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [share, referrer]);
-          await client.query('INSERT INTO referral_events (from_tgid, to_tgid, amount, share) VALUES ($1,$2,$3,$4)', [tgid, referrer, credit, share]);
-        }
-      }
-    } catch (e) { /* non-fatal */ }
 
     await client.query('COMMIT');
     return { ok:true, scube, credited: credit, duplicate: false, source: source || null };
@@ -455,21 +409,8 @@ async function tryReserveScube(tgid, amount) {
 async function creditScube(tgid, amount) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    const res = await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2 RETURNING referrer', [amount, tgid]);
-    if (res.rows.length) {
-      const referrer = res.rows[0].referrer;
-      const share = Math.floor(Number(amount || 0) * 0.1);
-      if (referrer && share > 0) {
-        await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [share, referrer]);
-        await client.query('INSERT INTO referral_events (from_tgid, to_tgid, amount, share) VALUES ($1,$2,$3,$4)', [tgid, referrer, amount, share]);
-      }
-    }
-    await client.query('COMMIT');
+    await client.query('UPDATE users SET scube = scube + $1 WHERE tgid = $2', [amount, tgid]);
     return { ok:true };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
   } finally {
     client.release();
   }
@@ -523,39 +464,9 @@ async function claimDailyReward(tgid){
     const credited = rewards[((streak - 1) % 7 + 7) % 7];
     scube += credited;
     await client.query('UPDATE users SET scube=$1, login_streak=$2, last_login_reward=current_date WHERE tgid=$3', [scube, streak, tgid]);
-
-    // credit referral share
-    try {
-      const refRes = await client.query('SELECT referrer FROM users WHERE tgid=$1 FOR UPDATE', [tgid]);
-      if (refRes.rows.length && refRes.rows[0].referrer) {
-        const referrer = refRes.rows[0].referrer;
-        const share = Math.floor(credited * 0.1);
-        if (share > 0) {
-          await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [share, referrer]);
-          await client.query('INSERT INTO referral_events (from_tgid, to_tgid, amount, share) VALUES ($1,$2,$3,$4)', [tgid, referrer, credited, share]);
-        }
-      }
-    } catch (e) { /* non-fatal */ }
-
     await client.query('COMMIT');
     return { ok:true, scube, credited, streak };
   } catch (err){ await client.query('ROLLBACK'); throw err; } finally { client.release(); }
-}
-
-async function getReferrals(tgid) {
-  const client = await pool.connect();
-  try {
-    const res = await client.query('SELECT tgid, name, scube, referral_earned FROM users WHERE referrer = $1 ORDER BY tgid ASC', [tgid]);
-    return res.rows.map(r=>({ tgid: Number(r.tgid), name: r.name, scube: Number(r.scube||0), referral_earned: Number(r.referral_earned||0) }));
-  } finally { client.release(); }
-}
-
-async function getReferralStats(tgid) {
-  const client = await pool.connect();
-  try {
-    const total = await client.query('SELECT COUNT(*)::bigint AS c, COALESCE(SUM(referral_earned),0) AS earned FROM users WHERE referrer = $1', [tgid]);
-    return { referred: Number(total.rows[0].c || 0), earned: Number(total.rows[0].earned || 0) };
-  } finally { client.release(); }
 }
 
 async function getLeaderboard(by = 'clicks', viewerTgid) {
@@ -633,22 +544,6 @@ async function creditRewardGeneric(tgid, rewardType, amount, source = 'task', op
     } else {
       await client.query(`UPDATE users SET ${sets}, last_reward_at=$7 WHERE tgid=$6`, [...args, now]);
     }
-
-    // If rewarded SCube, credit referrer share
-    if (col === 'scube' && add > 0) {
-      try {
-        const refRes = await client.query('SELECT referrer FROM users WHERE tgid=$1 FOR UPDATE', [tgid]);
-        if (refRes.rows.length && refRes.rows[0].referrer) {
-          const referrer = refRes.rows[0].referrer;
-          const share = Math.floor(add * 0.1);
-          if (share > 0) {
-            await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [share, referrer]);
-            await client.query('INSERT INTO referral_events (from_tgid, to_tgid, amount, share) VALUES ($1,$2,$3,$4)', [tgid, referrer, add, share]);
-          }
-        }
-      } catch (e) { /* non-fatal */ }
-    }
-
     await client.query('COMMIT');
     return { ok:true, balances: next };
   } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
@@ -707,8 +602,5 @@ module.exports = {
   getLeaderboard,
   creditRewardGeneric,
   getEffectiveEarned,
-  getAdminStats,
-  setReferrer,
-  getReferrals,
-  getReferralStats
+  getAdminStats
 };
