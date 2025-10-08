@@ -17,6 +17,7 @@ function qs(name){
 // Try to get tgid from URL or Telegram initData
 export async function initAuth(){
   let tgid = qs('tgid');
+  const ref = qs('ref');
   if (!tgid && window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
     tgid = window.Telegram.WebApp.initDataUnsafe.user.id;
   }
@@ -35,4 +36,11 @@ export async function initAuth(){
       }
     }
   } catch (e) { console.warn('Auth exchange failed', e); }
+
+  // If referrer param present and we have tgid, try to set referrer
+  try {
+    if (ref && tgid) {
+      await fetch('/api/referrals/set', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ tgid: Number(tgid), referrer: Number(ref) }) });
+    }
+  } catch(e) { /* ignore */ }
 }

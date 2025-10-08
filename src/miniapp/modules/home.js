@@ -310,10 +310,12 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
             }
           } catch (err) {
             console.warn('Ads show error', err);
-            showStoreFeedback('Реклама недоступна');
+            const url = `/reward?userId=${tgid}`;
+            window.open(url, '_blank');
           }
         } else {
-          showStoreFeedback('Реклама недоступна');
+          const url = `/reward?userId=${tgid}`;
+          window.open(url, '_blank');
         }
       } finally {
         adBusy = false;

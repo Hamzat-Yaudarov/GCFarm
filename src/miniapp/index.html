@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GC Farm - MiniApp</title>
   <link rel="stylesheet" href="/miniapp/static/styles.css" />
-  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15539', rewardBlockId: '15541', energyAdBlockId: '15540' };</script>
+  <script>window.ADSGRAM_CONFIG = { interstitialBlockId: 'int-15539', rewardBlockId: '15541', taskBlockId: 'task-15542', energyAdBlockId: '15540', dailyRewardBlockId: '15734' };</script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <!-- AdsGram SDK removed from MiniApp (AdsGram tasks removed). -->
+  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
   <script src="/miniapp/config.js"></script>
 </head>
 <body>
@@ -164,7 +164,7 @@
       <section class="tab-content hidden" id="tasks">
         <div class="tasks-container">
           <h3>📝 Командные задания</h3>
-          <p class="section-hint">✅ Выполняй задания и забирай бонусы.</p>
+          <p class="section-hint">✅ Выполняй задания от AdsGram и забирай космические бонусы.</p>
           <div class="daily-streak-card" id="daily-streak-card" aria-live="polite">
             <div class="daily-streak-header">
               <div class="daily-streak-icon">📅</div>
@@ -181,32 +181,13 @@
           </div>
           <div class="tasks-illustration" aria-hidden="true"></div>
           <div class="task-reward-info">Награда за задание: <span id="task-reward-amount">15 SCube</span></div>
+          <div id="ads-task-wrap" class="ads-task-wrap"></div>
           <h4>🧩 Кастомные задания</h4>
           <div id="custom-tasks-wrap" class="ads-task-wrap"></div>
           <div class="task-feedback" id="task-feedback"></div>
         </div>
       </section>
 
-
-      <section class="tab-content hidden" id="referrals">
-        <div class="referrals-container">
-          <h3>👥 Рефералы</h3>
-          <p class="section-hint">Получай 10% SCube от добычи друзей: за клики по кубу и выполнение заданий.</p>
-          <div class="referral-info" id="referral-info"></div>
-          <div class="referral-code">
-            <div class="referral-code-line">Твой код: <strong id="referral-code">—</strong></div>
-            <div class="referral-link-line">
-              <input id="referral-link" class="referral-link-input" readonly />
-              <button id="copy-referral" class="small-btn" type="button">Копировать</button>
-            </div>
-            <div class="referral-actions">
-              <button id="share-referral" class="share-invite-btn" type="button">Поделиться</button>
-            </div>
-          </div>
-          <div class="referral-stats">Приглашено: <strong id="referrals-invited">0</strong></div>
-          <div class="referral-stats">Заработано с рефералов: <strong id="referrals-earned">0</strong> SCube</div>
-        </div>
-      </section>
 
       <section class="tab-content hidden" id="leaderboard">
         <div class="leader-container">
@@ -309,14 +290,32 @@
         </div>
       </section>
 
+      <!-- New referrals tab -->
+      <section class="tab-content hidden" id="referrals">
+        <div class="referrals-container">
+          <h3>🤝 Реферальная система</h3>
+          <p class="referral-info">Приглашай друзей и получай 10% от их заработка SCube (нажатия и задания).</p>
+          <div class="referral-code">
+            <div class="referral-code-line">
+              <input id="referral-link" class="referral-link-input" readonly />
+              <button id="copy-referral" class="small-btn copy-referral">Скопировать</button>
+              <button id="share-referral" class="small-btn">Поделиться</button>
+            </div>
+            <div class="referral-stats" id="referral-stats">Загрузка...</div>
+          </div>
+          <h4>Ваши рефералы</h4>
+          <ul id="referral-list"></ul>
+        </div>
+      </section>
+
     </main>
 
     <nav class="tabs-bottom">
       <button class="tab-button active" data-tab="home">🏠 Главная</button>
       <button class="tab-button" data-tab="games">🎮 Игры</button>
       <button class="tab-button" data-tab="tasks">🧾 Задания</button>
-      <button class="tab-button" data-tab="referrals">👥 Рефералы</button>
       <button class="tab-button" data-tab="leaderboard">🏆 Рейтинг</button>
+      <button class="tab-button" data-tab="referrals">🤝 Рефералы</button>
 
     </nav>
 
@@ -344,7 +343,7 @@
           <button id="subgram-blocker-open" class="subgram-open-btn">Открыть SubGram</button>
           <button id="subgram-blocker-recheck" class="subgram-recheck-btn">Проверить подписки</button>
         </div>
-        <p class="subgram-blocker-note">Окно нельзя закрыть до подтверждения подписки.</p>
+        <p class="subgram-blocker-note">Окно нельзя закрыть до подтверждения.</p>
       </div>
     </div>
 
@@ -369,7 +368,7 @@
           <section class="onb-slide">
             <h2 class="onb-title">Как добывать SCube?</h2>
             <p class="onb-text">1 — Нажимай на золотой куб на вкладке «Главная».</p>
-            <p class="onb-text">2 — Выполняй задания и приглашай друзей.</p>
+            <p class="onb-text">2 — Выполняй задания AdsGram.</p>
           </section>
           <section class="onb-slide">
             <h2 class="onb-title">Как вывести SCube?</h2>

@@ -90,18 +90,6 @@ function setupStartCommand(bot, db, BASE_URL){
   bot.start(async (ctx) => {
     const user = ctx.from || {}; const first = user.first_name || ''; const last = user.last_name || ''; const uname = user.username ? `@${user.username}` : ''; const displayName = String((first + ' ' + last).trim() || uname || 'Игрок'); const tgid = user.id;
     let wasInserted = false; try { if (tgid) { const ensured = await db.ensureUser(tgid, displayName); wasInserted = ensured && ensured.inserted === true; } } catch (dbErr) { /* best effort, ignore */ }
-
-    // Parse start payload for referral (format: ref_<referrerTgid>)
-    try {
-      const payload = ctx.startPayload || (ctx.message && ctx.message.text ? (ctx.message.text.split(' ')[1] || '') : '');
-      if (payload && String(payload).startsWith('ref_')) {
-        const refId = Number(String(payload).slice(4));
-        if (refId && tgid && refId !== tgid) {
-          try { await db.setReferrer(tgid, refId); } catch(e){ /* ignore */ }
-        }
-      }
-    } catch(e) { /* ignore */ }
-
     const webAppUrl = `${BASE_URL}/miniapp?tgid=${tgid || ''}`;
     try { await ctx.reply(`Привет, ${first || displayName}! Добро пожаловать в игру. Нажми кнопку, чтобы открыть MiniApp.`, { reply_markup: { inline_keyboard: [[{ text: 'Play', web_app: { url: webAppUrl } }]] } }); } catch (err) { try { await ctx.reply('Добро пожаловать!'); } catch (e) {} }
   });

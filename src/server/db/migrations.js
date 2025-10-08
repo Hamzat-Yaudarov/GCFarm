@@ -36,10 +36,10 @@ async function init() {
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS tasks_completed BIGINT DEFAULT 0`);
     // Complaints counter for SubGram unsubscribes
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS complaints INTEGER DEFAULT 0`);
-    // Referrals
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_tgid BIGINT`);
+
+    // Referral columns
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer BIGINT`);
     await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned BIGINT DEFAULT 0`);
-    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count BIGINT DEFAULT 0`);
 
     // Helpful indexes
     await client.query(`CREATE INDEX IF NOT EXISTS idx_users_clicks_total ON users (clicks_total)`);
@@ -50,6 +50,16 @@ async function init() {
       tgid BIGINT NOT NULL,
       amount BIGINT NOT NULL,
       source TEXT,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );`);
+
+    // Referral events log
+    await client.query(`CREATE TABLE IF NOT EXISTS referral_events (
+      id BIGSERIAL PRIMARY KEY,
+      from_tgid BIGINT NOT NULL,
+      to_tgid BIGINT NOT NULL,
+      amount BIGINT NOT NULL,
+      share BIGINT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT now()
     );`);
 

@@ -1,13 +1,4 @@
 function attachUserRoutes(app, { db, auth }){
-  // Ensure user API responses are not cached by proxies or the browser.
-  // Some reverse proxies may respond with 304 Not Modified when the client
-  // sends conditional requests; force dynamic responses to always be fresh.
-  app.use('/api/user', (req, res, next) => {
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
-    next();
-  });
   const { getAuthTgid } = auth;
   app.get('/api/user/:tgid', async (req, res) => {
     const tgid = parseInt(req.params.tgid, 10);
@@ -79,14 +70,25 @@ function attachUserRoutes(app, { db, auth }){
     try { const by = (req.query.by === 'tasks') ? 'tasks' : 'clicks'; const viewerRaw = req.query.viewer; const viewerTgid = viewerRaw ? parseInt(viewerRaw, 10) : undefined; const leaderboard = await db.getLeaderboard(by, Number.isFinite(viewerTgid) ? viewerTgid : undefined); res.json({ ok: true, by, entries: leaderboard.entries, viewer: leaderboard.viewer || null }); } catch (err) { res.status(500).json({ ok:false, message: 'Internal error' }); }
   });
 
-  // Referrals stats
-  app.get('/api/user/:tgid/referrals', async (req, res) => {
+  // Referrals
+  app.post('/api/referrals/set', async (req, res) => {
+    const { tgid, referrer } = req.body || {};
+    const authTgid = getAuthTgid(req);
+    if (authTgid && tgid && Number(authTgid) !== Number(tgid)) return res.status(403).json({ ok:false, message:'Auth mismatch' });
+    if (!tgid || !referrer) return res.status(400).json({ ok:false, message:'Invalid params' });
+    try { const result = await db.setReferrer(Number(tgid), Number(referrer)); res.json(result); } catch (err) { res.status(500).json({ ok:false, message:'Internal error' }); }
+  });
+
+  app.get('/api/referrals/:tgid', async (req, res) => {
     const tgid = parseInt(req.params.tgid, 10);
     if (!tgid) return res.status(400).json({ ok:false, message:'Invalid tgid' });
+    const authTgid = getAuthTgid(req);
+    if (authTgid && Number(authTgid)!==Number(tgid)) return res.status(403).json({ ok:false, message:'Auth mismatch' });
     try {
+      const list = await db.getReferrals(tgid);
       const stats = await db.getReferralStats(tgid);
-      res.json(Object.assign({ ok:true }, stats || { invited:0, earned:0 }));
-    } catch(e){ res.status(500).json({ ok:false, message:'Internal error' }); }
+      res.json({ ok:true, referrals: list, stats });
+    } catch (err) { res.status(500).json({ ok:false, message:'Internal error' }); }
   });
 }
 
