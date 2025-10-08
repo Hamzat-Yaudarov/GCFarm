@@ -9,13 +9,16 @@ import { initGames } from './modules/games.js';
 import { loadUser } from './modules/user.js';
 import { initAdmin } from './modules/admin.js';
 import { loadCustomTasks } from './modules/customTasks.js';
+import { loadReferrals, checkAndBindReferrer } from './modules/referrals.js';
 
 showInitialLoading();
 await initAuth();
+await checkAndBindReferrer(getTgid);
 
 const tabsApi = initTabs(async (tab)=>{
   if (tab === 'leaderboard') leaderboard.load(leaderboard.mode);
   if (tab === 'tasks') { setupAdsgramTask(0, true, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); }); try { await loadDailyStreak(getTgid); } catch(e){} try { await loadCustomTasks(getTgid); } catch(e){} }
+  if (tab === 'referrals') { try { await loadReferrals(getTgid); } catch(e){} }
   if (tab === 'admin') { try { await admin.loadStats(); } catch(e){} }
 });
 // expose for store back button

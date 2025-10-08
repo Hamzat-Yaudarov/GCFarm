@@ -71,7 +71,7 @@
           <div class="ad-block">
             <p class="ad-caption">🎬 Усиль прогресс, смотри рекламу и восполняй энергию мгновенно.</p>
             <div class="ad-buttons">
-              <button id="watch-ad" class="watch-ad">🎥 Смотреть рекламу (+20 SCube)</button>
+              <button id="watch-ad" class="watch-ad">�� Смотреть рекламу (+20 SCube)</button>
               <button id="refill-btn" class="watch-ad secondary">⚡ Восполнить энергию полностью</button>
             </div>
           </div>
@@ -215,6 +215,25 @@
         </div>
       </section>
 
+      <section class="tab-content hidden" id="referrals">
+        <div class="referrals-container">
+          <h3>👥 Рефералы</h3>
+          <p class="referral-info">Приглашайте друзей: получайте 10% от их добычи SCube за нажатия и задания.</p>
+          <div class="referral-code">
+            <div class="referral-code-line">Ваш ID: <strong id="referral-code">—</strong></div>
+            <div class="referral-link-line">
+              <input id="referral-link" class="referral-link-input" readonly />
+              <button id="copy-referral" class="small-btn copy-referral" type="button">Копировать</button>
+            </div>
+          </div>
+          <div class="referral-actions">
+            <button id="share-invite" class="share-invite-btn" type="button">📣 Поделиться приглашением</button>
+          </div>
+          <div class="referral-stats">Приглашено: <strong id="referral-count">0</strong></div>
+          <div class="referral-stats">Заработано с рефералов: <strong id="referral-earned">0</strong> SCube</div>
+        </div>
+      </section>
+
       <section class="tab-content hidden" id="games">
         <div class="games-container">
           <h3>🎮 Игры</h3>
@@ -252,7 +271,7 @@
               <h3>🛠️ Админ-панель</h3>
               <p class="section-hint">Только для администраторов.</p>
             </div>
-            <button id="admin-back" class="withdraw-back-btn" type="button">← В пользовательскую часть</button>
+            <button id="admin-back" class="withdraw-back-btn" type="button">← В пользовательскую част��</button>
           </div>
 
           <h4>📊 Статистика</h4>
@@ -296,6 +315,7 @@
       <button class="tab-button active" data-tab="home">🏠 Главная</button>
       <button class="tab-button" data-tab="games">🎮 Игры</button>
       <button class="tab-button" data-tab="tasks">🧾 Задания</button>
+      <button class="tab-button" data-tab="referrals">👥 Рефералы</button>
       <button class="tab-button" data-tab="leaderboard">🏆 Рейтинг</button>
 
     </nav>
@@ -318,7 +338,7 @@
     <div id="subgram-blocker" class="subgram-blocker hidden" aria-modal="true" role="dialog">
       <div class="subgram-blocker-dialog">
         <h3 class="subgram-blocker-title">Подпишитесь на спонсоров, чтобы продолжить игру</h3>
-        <p class="subgram-blocker-text">Пожалуйста подпишитесь на все каналы/боты из списка ниже. Если вы отпишетесь в течение недели — вам будет начислена жалоба. Множественные жалобы могут привести к тому, что заявки на вывод будут отклоняться без возврата средств. Окно нельзя закрыть до подтверждения подписки на всех спонсоров.</p>
+        <p class="subgram-blocker-text">Пожалуйс��а подпишитесь на все каналы/боты из списка ниже. Если вы отпишетесь в течение недели — вам будет начислена жалоба. Множественные жалобы могут привести к тому, что заявки на вывод будут отклоняться без возврата средств. Окно нельзя закрыть до подтверждения подписки на всех спонсоров.</p>
         <ul id="subgram-blocker-links" class="subgram-links-list"></ul>
         <div class="subgram-blocker-actions">
           <button id="subgram-blocker-open" class="subgram-open-btn">Открыть SubGram</button>
@@ -353,7 +373,7 @@
           </section>
           <section class="onb-slide">
             <h2 class="onb-title">Как вывести SCube?</h2>
-            <p class="onb-text">Вывод доступен в Магазине. Есть три варианта:</p>
+            <p class="onb-text">Вывод доступен в Магазине. Есть три вариант��:</p>
             <p class="onb-text">1 — В GCube.</p>
             <p class="onb-text">2 — В Telegram Stars.</p>
             <p class="onb-text">3 — В ₽ по номеру.</p>

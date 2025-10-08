@@ -123,6 +123,14 @@ async function init() {
         PRIMARY KEY (task_id, tgid)
       );
     `);
+
+    // Referrals: ensure columns exist
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referror BIGINT`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_count BIGINT DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_earned BIGINT DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_bonus BIGINT DEFAULT 0`);
+    await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_tgid BIGINT`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_users_referror ON users (referror)`);
   } finally {
     client.release();
   }

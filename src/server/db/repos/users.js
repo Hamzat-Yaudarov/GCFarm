@@ -33,7 +33,25 @@ function mapUser(row) {
 }
 
 async function setReferrer(tgid, referrer) {
-  return { ok:false, message: 'Рефералы отключены' };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (!tgid || !referrer || Number(tgid) === Number(referrer)) {
+      await client.query('ROLLBACK');
+      return { ok:false, message: 'Некорректный реферер' };
+    }
+    const curRes = await client.query('SELECT referror FROM users WHERE tgid=$1 FOR UPDATE', [tgid]);
+    if (!curRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'User not found' }; }
+    const already = curRes.rows[0].referror ? Number(curRes.rows[0].referror) : null;
+    if (already) { await client.query('ROLLBACK'); return { ok:false, message:'Реферер уже установлен' }; }
+    // Ensure referrer exists
+    const refRes = await client.query('SELECT tgid FROM users WHERE tgid=$1 FOR UPDATE', [referrer]);
+    if (!refRes.rows.length) { await client.query('ROLLBACK'); return { ok:false, message:'Реферер не найден' }; }
+    await client.query('UPDATE users SET referror=$1, referral_tgid=$2 WHERE tgid=$3', [referrer, tgid, tgid]);
+    await client.query('UPDATE users SET referral_count = COALESCE(referral_count,0) + 1 WHERE tgid=$1', [referrer]);
+    await client.query('COMMIT');
+    return { ok:true };
+  } catch (err){ await client.query('ROLLBACK'); throw err; } finally { client.release(); }
 }
 
 async function ensureUser(tgid, name) {
@@ -100,7 +118,7 @@ async function handleClick(tgid) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT scube, energy, daily_count, daily_limit_level, energy_capacity FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, energy, daily_count, daily_limit_level, energy_capacity, referror, referral_bonus FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) {
       await client.query('ROLLBACK');
       throw new Error('User not found');
@@ -123,7 +141,21 @@ async function handleClick(tgid) {
     const newEnergy = energy - 1;
     const newDaily = daily_count + 1;
 
+    // Apply own updates
     await client.query('UPDATE users SET scube = $1, energy = $2, daily_count = $3, clicks_total = clicks_total + 1 WHERE tgid = $4', [newScube, newEnergy, newDaily, tgid]);
+
+    // Referral 10% accumulation to referrer, using referral_bonus as carry of tenths on child
+    const parentId = user.referror ? Number(user.referror) : null;
+    if (parentId) {
+      let carry = Number(user.referral_bonus || 0);
+      carry += 10; // 1 SCube click -> +10 tenths
+      const toGrant = Math.floor(carry / 10);
+      const leftover = carry % 10;
+      if (toGrant > 0) {
+        await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [toGrant, parentId]);
+      }
+      await client.query('UPDATE users SET referral_bonus = $1 WHERE tgid = $2', [leftover, tgid]);
+    }
 
     await client.query('COMMIT');
     return { ok: true, scube: newScube, energy: newEnergy, daily_count: newDaily, daily_limit };
@@ -265,7 +297,7 @@ async function claimReward(tgid, amount, source, options = {}) {
   const { force = false, contextId = null } = options || {};
   try {
     await client.query('BEGIN');
-    const res = await client.query('SELECT scube, last_reward_at, last_reward_ad_at FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
+    const res = await client.query('SELECT scube, last_reward_at, last_reward_ad_at, referror, referral_bonus FROM users WHERE tgid = $1 FOR UPDATE', [tgid]);
     if (!res.rows.length) { await client.query('ROLLBACK'); throw new Error('User not found'); }
     const user = res.rows[0];
     const now = new Date();
@@ -324,6 +356,20 @@ async function claimReward(tgid, amount, source, options = {}) {
       await client.query('UPDATE users SET scube=$1, last_reward_at=$2 WHERE tgid=$3', [scube, now, tgid]);
     }
 
+    // Referral: credit 10% only for clicks and tasks (exclude ads)
+    if (source !== 'ad') {
+      const parentId = user.referror ? Number(user.referror) : null;
+      if (parentId) {
+        let carry = Number(user.referral_bonus || 0);
+        carry += 10 * credit; // accumulate tenths
+        const toGrant = Math.floor(carry / 10);
+        const leftover = carry % 10;
+        if (toGrant > 0) {
+          await client.query('UPDATE users SET scube = scube + $1, referral_earned = COALESCE(referral_earned,0) + $1 WHERE tgid = $2', [toGrant, parentId]);
+        }
+        await client.query('UPDATE users SET referral_bonus = $1 WHERE tgid = $2', [leftover, tgid]);
+      }
+    }
 
     await client.query('COMMIT');
     return { ok:true, scube, credited: credit, duplicate: false, source: source || null };
@@ -584,6 +630,16 @@ async function getAdminStats(){
   } finally { client.release(); }
 }
 
+async function getReferralInfo(tgid){
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT referral_count, referral_earned FROM users WHERE tgid=$1', [tgid]);
+    if (!res.rows.length) return { count: 0, earned: 0 };
+    const row = res.rows[0];
+    return { count: Number(row.referral_count || 0), earned: Number(row.referral_earned || 0) };
+  } finally { client.release(); }
+}
+
 module.exports = {
   sanitizeText,
   mapUser,
@@ -602,5 +658,7 @@ module.exports = {
   getLeaderboard,
   creditRewardGeneric,
   getEffectiveEarned,
-  getAdminStats
+  getAdminStats,
+  setReferrer,
+  getReferralInfo
 };

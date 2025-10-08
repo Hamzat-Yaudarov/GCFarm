@@ -43,10 +43,12 @@ const { attachSubgramRoutes } = require('./routes/subgram');
 const { attachAdsgramRoutes } = require('./routes/adsgram');
 const { attachAdminRoutes } = require('./routes/admin');
 const { attachCustomTaskRoutes } = require('./routes/tasks');
+const { attachReferralRoutes } = require('./routes/referrals');
 
 attachMiniappRoutes(app, { BASE_URL, BOT_USERNAME, BOT_WEBAPP_PATH });
 attachAuthRoutes(app, { auth });
 attachUserRoutes(app, { db, auth });
+attachReferralRoutes(app, { db, auth, BOT_USERNAME, BASE_URL });
 attachGameRoutes(app, { db, auth });
 attachWithdrawalRoutes(app, { db, auth, telegraf: { fetchTelegramProfile, notifyAdminWithdrawal } });
 attachSubgramRoutes(app, { subgram, auth });
