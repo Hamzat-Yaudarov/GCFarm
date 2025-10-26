@@ -159,11 +159,9 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
   function showStoreFeedback(msg){ const el = document.getElementById('store-feedback'); if (!el) return; el.textContent = msg; setTimeout(()=>{ if (el) el.textContent=''; }, 3000); }
 
   // golden cube click
-  let adBusy = false; let energyEmptyShown = false; let goldenBusy = false; let goldenShortLock = false;
+  let adBusy = false; let energyEmptyShown = false; let goldenBusy = false;
   if (golden){
     golden.addEventListener('click', async ()=>{
-      if (goldenShortLock) return;
-      goldenShortLock = true; setTimeout(()=>{ goldenShortLock = false; }, 100);
       const tgid = getTgid();
       if (!tgid) { showStoreFeedback('tgid is required'); return; }
       if (goldenBusy) return; goldenBusy = true;

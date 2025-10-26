@@ -2,7 +2,7 @@ import { initAuth, getTgid } from './modules/state.js';
 import { initRippleEffects } from './modules/utils.js';
 import { showInitialLoading, hideInitialLoading, initOnboarding, maybeShowOnboarding, initTabs } from './modules/ui.js';
 import { initLeaderboard } from './modules/ratings.js';
-import { setupAdsgramTask, loadDailyStreak, initDailyClaim, loadSponsorTasks, loadSubgramStatus, initSubgramControls } from './modules/tasks.js';
+import { loadDailyStreak, initDailyClaim, loadSubgramStatus, initSubgramControls } from './modules/tasks.js';
 import { initHome } from './modules/home.js';
 import { initUpgrades, initWithdrawals } from './modules/store.js';
 import { initGames } from './modules/games.js';
@@ -17,7 +17,7 @@ await checkAndBindReferrer(getTgid);
 
 const tabsApi = initTabs(async (tab)=>{
   if (tab === 'leaderboard') leaderboard.load(leaderboard.mode);
-  if (tab === 'tasks') { setupAdsgramTask(0, true, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); }); try { await loadDailyStreak(getTgid); } catch(e){} try { await loadCustomTasks(getTgid); } catch(e){} }
+  if (tab === 'tasks') { try { await loadDailyStreak(getTgid); } catch(e){} try { await loadCustomTasks(getTgid); } catch(e){} }
   if (tab === 'referrals') { try { await loadReferrals(getTgid); } catch(e){} }
   if (tab === 'admin') { try { await admin.loadStats(); } catch(e){} }
 });
@@ -40,7 +40,6 @@ const admin = initAdmin(getTgid);
 admin.checkAdmin();
 admin.setupForm();
 
-setupAdsgramTask(0, false, getTgid, (mode)=>{ if (mode==='tasks') leaderboard.load('tasks', true); });
 try { await loadDailyStreak(getTgid); } catch(e){}
 try { await loadSubgramStatus(getTgid); } catch(e){}
 try { await loadCustomTasks(getTgid); } catch(e){}

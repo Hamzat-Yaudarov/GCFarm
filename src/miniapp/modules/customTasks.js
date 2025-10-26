@@ -19,12 +19,21 @@ async function fetchProgress(){ try { const res = await fetch(`${apiBase}/tasks/
 }
 
 export async function loadCustomTasks(getTgid){
-  const wrap = document.getElementById('custom-tasks-wrap'); if (!wrap) return; wrap.innerHTML='';
+  const wrap = document.getElementById('custom-tasks-wrap');
+  if (!wrap) return;
+  wrap.innerHTML='';
   try{
     const res = await fetch(`${apiBase}/tasks/custom`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const js = await res.json();
     const list = (js && js.ok && Array.isArray(js.tasks)) ? js.tasks : [];
-    if (!list.length) { const empty=document.createElement('div'); empty.className='tasks-empty-message'; empty.textContent='Пока кастомных заданий нет.'; wrap.appendChild(empty); return; }
+    if (!list.length) {
+      const empty=document.createElement('div');
+      empty.className='tasks-empty-message';
+      empty.textContent='Пока кастомных заданий нет.';
+      wrap.appendChild(empty);
+      return;
+    }
 
     const progress = await fetchProgress();
 
@@ -57,21 +66,88 @@ export async function loadCustomTasks(getTgid){
 
       checkBtn.addEventListener('click', async ()=>{
         try { SoundManager.click(); } catch(e){}
-        const tgid = getTgid && getTgid(); if (!tgid) return alert('tgid is required');
-        try { const res = await fetch(`${apiBase}/tasks/${t.id}/verify`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) }); const js = await res.json(); if (!res.ok || (js && js.ok===false)) { alert((js && (js.message||js.error)) || 'Не выполнено'); return; } if (js && js.balances) { if (typeof js.balances.scube==='number') { const s=document.getElementById('scube'); if (s) { s.textContent=js.balances.scube; animateScube(); } } if (typeof js.balances.vp==='number') { const el=document.getElementById('vp'); if (el) el.textContent=js.balances.vp; } if (typeof js.balances.tickets==='number') { const el=document.getElementById('tickets'); if (el) el.textContent=js.balances.tickets; } }
-          checkBtn.disabled=true; checkBtn.textContent='Завершено';
-        } catch(err){ alert('Ошибка проверки'); }
+        const tgid = getTgid && getTgid();
+        if (!tgid) {
+          alert('Требуется авторизация. Перезапустите приложение через бота.');
+          return;
+        }
+        checkBtn.disabled = true;
+        const originalText = checkBtn.textContent;
+        checkBtn.textContent = 'Проверка...';
+        try {
+          const res = await fetch(`${apiBase}/tasks/${t.id}/verify`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ tgid }) });
+          const js = await res.json();
+          if (!res.ok || (js && js.ok===false)) {
+            const errMsg = (js && (js.message||js.error)) || 'Условия задачи не выполнены';
+            alert(errMsg);
+            checkBtn.disabled = false;
+            checkBtn.textContent = originalText;
+            return;
+          }
+          if (js && js.already) {
+            alert('Вы уже выполнили эту задачу');
+            checkBtn.disabled = true;
+            checkBtn.textContent = 'Завершено';
+            doBtn.disabled = true;
+            return;
+          }
+          if (js && js.balances) {
+            if (typeof js.balances.scube==='number') {
+              const s=document.getElementById('scube');
+              if (s) {
+                s.textContent=js.balances.scube;
+                animateScube();
+              }
+            }
+            if (typeof js.balances.vp==='number') {
+              const el=document.getElementById('vp');
+              if (el) el.textContent=js.balances.vp;
+            }
+            if (typeof js.balances.tickets==='number') {
+              const el=document.getElementById('tickets');
+              if (el) el.textContent=js.balances.tickets;
+            }
+          }
+          const rewardText = rewardLabel(t.reward_type, js.credited || t.reward_amount);
+          alert(`Задача выполнена! Получено ${rewardText}`);
+          checkBtn.disabled=true;
+          checkBtn.textContent='Завершено';
+          doBtn.disabled=true;
+        } catch(err){
+          console.warn('Task verification error', err);
+          alert('Ошибка при проверке задачи. Попробуйте позже.');
+          checkBtn.disabled = false;
+          checkBtn.textContent = originalText;
+        }
       });
 
       card.append(header, rewardBanner);
 
       if (t.type==='earn_scube'){
-        const prog = document.createElement('p'); prog.className='adsgram-task-hint'; const cur = Number(progress.earned_scube||0); const req = Number(t.required_count||0); prog.textContent = `Прогресс: ${Math.min(cur,req)} / ${req}`; card.appendChild(prog);
+        const prog = document.createElement('p');
+        prog.className='adsgram-task-hint';
+        const cur = Number(progress.earned_scube||0);
+        const req = Number(t.required_count||0);
+        const displayCur = Math.min(cur, req);
+        const percent = req > 0 ? Math.round((displayCur / req) * 100) : 0;
+        prog.textContent = `Прогресс: ${displayCur} / ${req} SCube (${percent}%)`;
+        card.appendChild(prog);
+        if (cur < req) {
+          doBtn.disabled = true;
+          checkBtn.disabled = true;
+          checkBtn.textContent = 'Недостаточно SCube';
+        }
       }
 
       if (t.type!=='invite_referrals'){ actions.append(checkBtn); if (t.type==='subscribe') actions.prepend(doBtn); card.appendChild(actions); }
 
       wrap.appendChild(card);
     });
-  } catch(e){ const empty=document.createElement('div'); empty.className='tasks-empty-message'; empty.textContent='Не удалось загрузить задания.'; wrap.appendChild(empty); }
+  } catch(e){
+    console.warn('Failed to load custom tasks', e);
+    const empty=document.createElement('div');
+    empty.className='tasks-empty-message';
+    empty.textContent='Не удалось загрузить задания. Попробуйте обновить страницу.';
+    wrap.appendChild(empty);
+  }
 }
