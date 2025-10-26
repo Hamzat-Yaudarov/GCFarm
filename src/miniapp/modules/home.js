@@ -159,12 +159,11 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
   function showStoreFeedback(msg){ const el = document.getElementById('store-feedback'); if (!el) return; el.textContent = msg; setTimeout(()=>{ if (el) el.textContent=''; }, 3000); }
 
   // golden cube click
-  let adBusy = false; let energyEmptyShown = false; let goldenBusy = false;
+  let adBusy = false; let energyEmptyShown = false;
   if (golden){
     golden.addEventListener('click', async ()=>{
       const tgid = getTgid();
       if (!tgid) { showStoreFeedback('tgid is required'); return; }
-      if (goldenBusy) return; goldenBusy = true;
       try {
         try { SoundManager.gold(); } catch(e){}
         const res = await fetch(`${apiBase}/user/${tgid}/click`, { method:'POST' });
@@ -232,8 +231,6 @@ export function initHome(getTgid, onUserChange, onLeaderboardChange){
         }
       } catch (e) {
         console.warn('golden click failed', e);
-      } finally {
-        goldenBusy = false;
       }
     });
   }

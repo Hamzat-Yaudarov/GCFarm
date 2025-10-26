@@ -1,6 +1,8 @@
 import { apiBase, BOT_USERNAME, BOT_WEBAPP_PATH, BASE_URL } from './state.js';
 
 let autoTickInterval = null;
+let lastUserLoadTime = 0;
+const USER_CACHE_DURATION = 5000;
 
 export function startAutoTick(getTgid){ if (autoTickInterval) return; autoTickInterval = setInterval(async ()=>{ try { const tgid = getTgid(); const res = await fetch(`${apiBase}/user/${tgid}/auto-tick`, { method: 'POST' }); if (res.ok) { const json = await res.json(); if (json.ok) { const energyEl = document.getElementById('energy'); if (energyEl) energyEl.textContent = json.energy; } } } catch(e){ console.warn('auto tick failed', e); } }, 10000); }
 export function stopAutoTick(){ if (autoTickInterval) { clearInterval(autoTickInterval); autoTickInterval = null; } }

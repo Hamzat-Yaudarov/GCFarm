@@ -22,10 +22,11 @@ export function addAdCooldown(button, duration = 10000) {
 
 export function initRippleEffects(){
   const all = Array.from(document.querySelectorAll('button, .upgrade-btn, .withdraw-method-button, .withdraw-trigger-btn, .leader-btn, .watch-ad, .create-room-btn, .share-invite-btn, .bet-chip'));
-  const candidates = all.filter(btn => btn && btn.id !== 'golden-cube');
+  const candidates = all.filter(btn => btn && btn.id !== 'golden-cube' && !btn.classList.contains('tab-button'));
   candidates.forEach((btn)=>{
     if (btn.classList.contains('with-ripple')) return;
     btn.classList.add('with-ripple');
+    let rippleTimeout;
     btn.addEventListener('click', (e)=>{
       try { SoundManager.click(); } catch(e){}
       const rect = btn.getBoundingClientRect();
@@ -36,7 +37,8 @@ export function initRippleEffects(){
       ripple.style.left = (e.clientX - rect.left - size/2) + 'px';
       ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
       btn.appendChild(ripple);
-      setTimeout(()=>{ if (ripple && ripple.parentNode) ripple.parentNode.removeChild(ripple); }, 650);
+      if (rippleTimeout) clearTimeout(rippleTimeout);
+      rippleTimeout = setTimeout(()=>{ if (ripple && ripple.parentNode) ripple.parentNode.removeChild(ripple); }, 650);
     });
   });
 }

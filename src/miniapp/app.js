@@ -46,4 +46,4 @@ try { await loadCustomTasks(getTgid); } catch(e){}
 
 await loadUser(getTgid, { onInitialReady: ()=>{ hideInitialLoading(); initOnboarding(); maybeShowOnboarding(); setTimeout(()=>{ try { home.triggerInitialInterstitial(); } catch(e){} }, 4000); } });
 
-setInterval(()=> loadUser(getTgid), 5000);
+setInterval(()=> loadUser(getTgid), 8000);
